@@ -1,0 +1,53 @@
+# Python virtualenv lib (but NOT frontend/src/lib/)
+/lib/
+.env
+.venv
+archive/
+.credentials.json
+.virtual_documents
+*code-workspace
+.vscode
+.pytest_cache
+config.toml
+keys.json
+workdir/
+node_modules/
+*.pyc
+__pycache__/
+.ipynb_checkpoints
+backup/
+venv/
+tmp/
+env/
+.DS_Store
+.env
+*.swp
+*.h5
+*.egg-info
+dist/*
+*.pickle
+*.bak
+.s.yml
+.DS_Store
+*_Store
+private/
+
+# Rust
+target/
+Cargo.lock
+
+# VM assets (built by images/build.py)
+assets/*
+
+# Cross-compiled guest binaries (rebuilt by just run)
+images/capsem-net-proxy
+images/capsem-pty-agent
+
+# Tauri
+crates/capsem-app/gen/
+
+# Frontend
+.astro/
+frontend/.astro/
+frontend/dist/
+frontend/node_modules/
