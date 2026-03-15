@@ -17,7 +17,7 @@ use capsem_core::{
     VSOCK_PORT_SNI_PROXY, VSOCK_PORT_TERMINAL,
     create_scratch_disk, decode_guest_msg, encode_host_msg, validate_guest_msg, MAX_FRAME_SIZE,
 };
-use capsem_core::asset_manager::{self, AssetManager, AssetStatus, DownloadProgress};
+use capsem_core::asset_manager::{self, AssetManager};
 use capsem_core::mcp::gateway::{self, McpGatewayConfig};
 use capsem_core::mcp::policy::McpPolicy;
 use capsem_core::mcp::server_manager::McpServerManager;

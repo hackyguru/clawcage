@@ -31,11 +31,13 @@ function subscribe(listener: () => void) {
   return () => listeners.delete(listener);
 }
 
+import { showToast } from './toast';
 export async function initVm() {
   try {
     vmState = (await vmStatus()).toLowerCase();
-  } catch {
+  } catch (e) {
     vmState = 'error';
+    showToast('Failed to initialize VM: ' + String(e), 'error');
   }
   emit();
   onVmStateChanged((state) => {

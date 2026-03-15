@@ -1,8 +1,7 @@
 // Terminal component - wraps the capsem-terminal web component
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import type { CapsemTerminal as CapsemTerminalElement } from '../../components/capsem-terminal';
 import { serialInput, terminalResize, terminalPoll, onTerminalSourceChanged } from '../api';
-import { isMock } from '../mock';
 import { getTheme } from '../stores/theme';
 import { setTerminalRenderer } from '../stores/vm';
 
@@ -14,6 +13,7 @@ export default function Terminal() {
   const mountedRef = useRef(true);
   const inputBufferRef = useRef('');
   const inputTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [isMock, setIsMock] = useState(false);
 
   const INPUT_BATCH_MS = 5;
   const INPUT_BATCH_MAX = 4096;
@@ -30,13 +30,17 @@ export default function Terminal() {
   }, []);
 
   useEffect(() => {
+    import('../mock').then((mod) => setIsMock(mod.isMock));
+  }, []);
+
+  useEffect(() => {
     const termEl = termRef.current;
     if (!termEl) return;
     mountedRef.current = true;
     const cleanups: (() => void)[] = [];
 
-    // Set initial theme
-    termEl.setTheme(getTheme());
+  // Set initial theme
+  termEl.setTheme(getTheme() as 'light' | 'dark');
 
     // Forward terminal input with batching
     const onInput = ((e: CustomEvent) => {

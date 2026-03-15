@@ -41,7 +41,7 @@ export default function SettingsView() {
         ) : activeSection ? (
           <SettingsSection sectionName={activeSection} />
         ) : (
-          <div className="flex items-center justify-center h-full text-base-content/30 text-sm">
+          <div className="flex items-center justify-center h-full text-neutral-300 text-sm">
             Select a settings section
           </div>
         )}

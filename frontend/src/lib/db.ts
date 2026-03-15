@@ -1,9 +1,18 @@
 // SQL gateway: routes queries to Tauri `query_db` command or mock sql.js.
-import { isMock } from './mock';
 import type { QueryResult } from './types';
+let isMock: boolean;
+
+async function ensureMock() {
+  if (isMock === undefined) {
+    const mock = await import('./mock');
+    isMock = mock.isMock;
+  }
+}
+
 
 /** Execute a SELECT query against the session DB. */
 export async function queryDb(sql: string, params?: unknown[]): Promise<QueryResult> {
+  await ensureMock();
   if (isMock) {
     const { queryFixture } = await import('./mock');
     return queryFixture(sql, params);
@@ -17,8 +26,10 @@ export async function queryDb(sql: string, params?: unknown[]): Promise<QueryRes
   return JSON.parse(raw);
 }
 
+
 /** Execute a SELECT query against the main.db (cross-session index). */
 export async function queryDbMain(sql: string, params?: unknown[]): Promise<QueryResult> {
+  await ensureMock();
   if (isMock) {
     const { queryFixtureMain } = await import('./mock');
     return queryFixtureMain(sql, params);

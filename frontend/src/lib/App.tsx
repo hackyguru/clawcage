@@ -1,14 +1,16 @@
 // App -- main shell component
-import { useEffect, lazy, Suspense, Component, type ReactNode, type ErrorInfo } from 'react';
+import { useEffect, lazy, Suspense, Component, useCallback, type ReactNode, type ErrorInfo } from 'react';
 import { useSidebar } from './stores/sidebar';
 import { useVm, initVm } from './stores/vm';
 import { loadSettings } from './stores/settings';
 import { initTheme } from './stores/theme';
+import ToastContainer from './components/ToastContainer';
+import { showToast } from './stores/toast';
+import type { ViewName } from './types';
 
 import Sidebar from './components/Sidebar';
 import StatusBar from './components/StatusBar';
 import DownloadProgress from './components/DownloadProgress';
-import ThemeToggle from './components/ThemeToggle';
 
 import TerminalView from './views/TerminalView';
 
@@ -43,32 +45,45 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
 }
 
 function AppInner() {
-  const { activeView } = useSidebar();
+  const { activeView, setView } = useSidebar();
   const { isDownloading, downloadProgress } = useVm();
+
+  // Keyboard shortcuts: Cmd+1 = Console, Cmd+2 = Stats, Cmd+3 = Settings
+  const viewKeys: Record<string, ViewName> = { '1': 'terminal', '2': 'stats', '3': 'settings' };
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if ((e.metaKey || e.ctrlKey) && viewKeys[e.key]) {
+      e.preventDefault();
+      setView(viewKeys[e.key]);
+    }
+  }, [setView]);
+
+  useEffect(() => {
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleKeyDown]);
+
   // Initialize on mount
   useEffect(() => {
     initTheme();
-    initVm();
-    loadSettings();
+    initVm().catch((e) => showToast('Failed to initialize VM: ' + String(e), 'error'));
+    loadSettings().catch((e) => showToast('Failed to load settings: ' + String(e), 'error'));
   }, []);
 
   const currentView = activeView;
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-base-100 text-base-content">
+  <div className="flex h-screen w-screen overflow-hidden bg-[--color-base-100] text-base-content">
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
-        {/* Top bar with theme toggle */}
-        <div className="flex items-center justify-end px-2 py-1 border-b border-base-300 bg-base-100/80 backdrop-blur-sm z-10">
-          <ThemeToggle />
-        </div>
-
         {/* Download overlay */}
         {isDownloading && downloadProgress && (
-          <div className="absolute inset-0 z-50 flex items-center justify-center bg-base-100/90 backdrop-blur-sm">
+          <div className="absolute inset-0 z-50 flex items-center justify-center bg-[--color-base-100]/90 backdrop-blur-sm">
             <DownloadProgress />
           </div>
         )}
+
+        {/* Toast notifications */}
+        <ToastContainer />
 
         {/* Main content area */}
         <div className="flex-1 min-h-0 overflow-hidden">

@@ -13,7 +13,7 @@ function BoolField({ leaf, onChange }: { leaf: SettingsLeaf; onChange: (v: boole
   return (
     <input
       type="checkbox"
-      className="toggle toggle-sm toggle-primary"
+  className="h-4 w-4 rounded border-2 border-primary-400 bg-[--color-base-100] checked:bg-primary-500 focus:ring-2 focus:ring-primary-400 disabled:opacity-40 transition"
       checked={leaf.effective_value === true}
       disabled={leaf.corp_locked || !leaf.enabled}
       onChange={(e) => onChange(e.target.checked)}
@@ -30,7 +30,7 @@ function TextField({ leaf, onChange }: { leaf: SettingsLeaf; onChange: (v: strin
     <div className="flex items-center gap-1">
       <input
         type={revealed ? 'text' : inputType}
-        className="input input-xs input-bordered w-full max-w-xs font-mono"
+  className="w-full max-w-xs font-mono text-xs px-2 py-1 border border-neutral-300 rounded bg-[--color-base-100] focus:outline-none focus:ring-2 focus:ring-primary-400 disabled:opacity-40 transition"
         value={value}
         disabled={leaf.corp_locked || !leaf.enabled}
         placeholder={String(leaf.default_value ?? '')}
@@ -57,7 +57,7 @@ function NumberField({ leaf, onChange }: { leaf: SettingsLeaf; onChange: (v: num
   return (
     <input
       type="number"
-      className="input input-xs input-bordered w-28 font-mono"
+  className="w-28 font-mono text-xs px-2 py-1 border border-neutral-300 rounded bg-[--color-base-100] focus:outline-none focus:ring-2 focus:ring-primary-400 disabled:opacity-40 transition"
       value={value}
       disabled={leaf.corp_locked || !leaf.enabled}
       min={leaf.metadata.min ?? undefined}
@@ -87,7 +87,7 @@ function FileField({ leaf, onChange }: { leaf: SettingsLeaf; onChange: (v: { pat
       {editing && (
         <div className="space-y-1">
           <textarea
-            className="textarea textarea-bordered textarea-xs w-full font-mono h-32"
+            className="w-full font-mono h-32 text-xs px-2 py-1 border border-neutral-300 rounded bg-[--color-base-100] focus:outline-none focus:ring-2 focus:ring-primary-400 disabled:opacity-40 transition"
             value={content}
             onChange={(e) => setContent(e.target.value)}
             disabled={leaf.corp_locked || !leaf.enabled}
@@ -122,7 +122,7 @@ function LeafNode({ leaf }: { leaf: SettingsLeaf }) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium">{leaf.name}</span>
-            {leaf.corp_locked && <span className="badge badge-xs badge-warning">Locked</span>}
+            {leaf.corp_locked && <span className="inline-block px-2 py-0.5 rounded bg-yellow-100 text-yellow-700 text-xs font-semibold ml-1">Locked</span>}
             {sourceLabel && <span className="text-xs text-base-content/50">{sourceLabel}</span>}
           </div>
           <p className="text-xs text-base-content/60 mt-0.5">{leaf.description}</p>
@@ -157,7 +157,7 @@ function GroupNode({ group, depth }: { group: SettingsGroup; depth: number }) {
   return (
     <div className={depth > 0 ? 'ml-2 border-l border-base-300 pl-2' : ''}>
       <button
-        className="flex items-center gap-1.5 py-1.5 w-full text-left hover:bg-base-200 rounded px-1 transition-colors"
+  className="flex items-center gap-1.5 py-1.5 w-full text-left hover:bg-[--color-base-100] rounded px-1 transition-colors"
         onClick={() => setCollapsed(!collapsed)}
       >
         {collapsed ? <ChevronRight className="size-3" /> : <ChevronDown className="size-3" />}
@@ -197,7 +197,7 @@ export default function SettingsSection({ sectionName }: Props) {
   if (!group) return <div className="p-4 text-base-content/30 text-sm">Section "{sectionName}" not found</div>;
 
   return (
-    <div className="p-4 space-y-1 overflow-auto h-full">
+  <div className="p-4 space-y-1 overflow-auto h-full hover:bg-[--color-base-100]">
       {group.kind === 'group' ? (
         group.children.map((child) => (
           <SettingsNodeComponent key={child.kind === 'leaf' ? child.id : child.key} node={child} depth={0} />

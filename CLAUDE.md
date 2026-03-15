@@ -1,6 +1,6 @@
 # Capsem
 
-Native macOS app that sandboxes AI agents in Linux VMs using Apple's Virtualization.framework. Built with Rust, Tauri 2.0, and Astro.
+Native macOS app that sandboxes AI agents in Linux VMs using Apple's Virtualization.framework. Built with Rust, Tauri 2.0, and React.
 
 ## Build Commands
 
@@ -44,15 +44,15 @@ Daily dev: `just run` (fast, ~10s). Before release: `just release`.
 crates/capsem-core/       VM library (config, boot, serial, vsock, machine)
 crates/capsem-app/        Tauri binary (GUI, CLI, commands, state)
 crates/capsem-agent/      Guest PTY agent (vsock bridge, cross-compiled for aarch64-linux-musl)
-frontend/                 Astro 5 + Svelte 5 + Tailwind v4 + DaisyUI v5
-  src/lib/components/     Svelte components (App, Sidebar, StatusBar, Terminal, etc.)
-  src/lib/views/          View components (TerminalView, NetworkView, SettingsView, SessionsView)
-  src/lib/stores/         Svelte 5 rune stores (vm, network, settings, theme, sidebar)
+frontend/                 Vite 6 + React 19 + Tailwind v4 + DaisyUI v5
+  src/lib/components/     React components (App, Sidebar, StatusBar, Terminal, etc.)
+  src/lib/views/          View components (TerminalView, StatsView, SettingsView)
+  src/lib/stores/         React stores using useSyncExternalStore (vm, settings, theme, sidebar, stats)
   src/lib/icons/          SVG icon components
   src/lib/types.ts        TypeScript types mirroring Rust IPC structs
   src/lib/api.ts          Typed Tauri invoke/listen wrappers
   src/components/         Web components (capsem-terminal xterm.js)
-  src/pages/index.astro   Thin shell rendering <App client:only="svelte" />
+  src/main.tsx            React entry point (createRoot)
 images/                   VM image tooling (Dockerfiles, build.py, capsem-init)
 assets/                   Built VM assets (gitignored)
 ```
@@ -112,7 +112,7 @@ The overall project plan and milestone roadmap is in `docs/overall_plan.md`.
 - `crates/capsem-core/src/vm/vsock.rs` -- vsock manager, control messages, coalescing buffer
 - `crates/capsem-core/src/vm/machine.rs` -- VZVirtualMachine wrapper (serial + vsock devices)
 - `frontend/src/components/capsem-terminal.ts` -- xterm.js web component (resize events)
-- `frontend/src/pages/index.astro` -- main UI page
+- `frontend/src/main.tsx` -- React entry point
 
 ## Test Fixture (data/fixtures/test.db)
 
@@ -305,14 +305,14 @@ To run the full validation suite without building: `just full-test`
 
 ## Frontend / UI Development
 
-The frontend is Astro 5 + Svelte 5 + Tailwind v4 + DaisyUI v5. It runs in mock mode in any browser (no VM needed).
+The frontend is Vite 6 + React 19 + Tailwind v4 + DaisyUI v5. It runs in mock mode in any browser (no VM needed).
 
 ### Workflow
 
-1. **Start the dev server**: `just ui` (Astro dev server on `http://localhost:5173`)
-2. **Open in Chrome**: use the Chrome DevTools MCP to inspect and screenshot the UI -- take screenshots of each view (Terminal, Sessions, Network, Settings) and both themes (light/dark) to verify layout and visual polish
-3. **Iterate**: edit Svelte components in `frontend/src/lib/`, the dev server hot-reloads
-4. **Type check**: `cd frontend && pnpm run check` (astro check + svelte-check)
+1. **Start the dev server**: `just ui` (Vite dev server on `http://localhost:5173`)
+2. **Open in Chrome**: use the Chrome DevTools MCP to inspect and screenshot the UI -- take screenshots of each view (Terminal, Stats, Settings) and both themes (light/dark) to verify layout and visual polish
+3. **Iterate**: edit React components in `frontend/src/lib/`, the dev server hot-reloads
+4. **Type check**: `cd frontend && pnpm exec tsc --noEmit`
 5. **Production build**: `cd frontend && pnpm run build` (catches bundling issues that dev mode misses)
 6. **Verify in Tauri**: `just dev` runs the full Tauri app with hot-reloading (needs VM assets built)
 
@@ -329,14 +329,14 @@ Use the Chrome DevTools MCP (`mcp__chrome-devtools__*` tools) to inspect the run
 - `click` -- navigate between views by clicking sidebar buttons
 - `list_console_messages` with `types: ["error", "warn"]` -- check for runtime errors
 
-Walk through all four views (Console, Sessions, Network, Settings) and toggle the theme to verify both light and dark modes look correct.
+Walk through all views (Console, Stats, Settings) and toggle the theme to verify both light and dark modes look correct.
 
 ### Key files
 
-- `frontend/src/lib/components/App.svelte` -- root layout (sidebar + content + status bar)
-- `frontend/src/lib/components/Sidebar.svelte` -- collapsible nav rail
-- `frontend/src/lib/views/` -- one file per view (TerminalView, NetworkView, SettingsView, SessionsView)
-- `frontend/src/lib/stores/` -- Svelte 5 rune stores (vm, network, settings, theme, sidebar)
+- `frontend/src/lib/App.tsx` -- root layout (sidebar + content + status bar + error boundary)
+- `frontend/src/lib/components/Sidebar.tsx` -- collapsible nav rail
+- `frontend/src/lib/views/` -- one file per view (TerminalView, StatsView, SettingsView)
+- `frontend/src/lib/stores/` -- React stores using useSyncExternalStore (vm, settings, theme, sidebar, stats)
 - `frontend/src/lib/api.ts` -- typed Tauri IPC wrappers with auto-mock fallback
 - `frontend/src/lib/mock.ts` -- fake data for browser dev mode
 - `frontend/src/lib/types.ts` -- TS types mirroring Rust IPC structs
@@ -345,27 +345,18 @@ Walk through all four views (Console, Sessions, Network, Settings) and toggle th
 
 **Read `docs/design.md` before building or modifying any UI component.** It defines the color system, DaisyUI component usage policy, custom `@theme` tokens, and chart color semantics. Use the `frontend-design` skill for UI work.
 
-### Chart Library (LayerChart v2)
+### Chart Library (Recharts)
 
-Charts use [LayerChart](https://layerchart.com) v2 -- a composable Svelte charting library built on D3. **Full API docs are in `docs/libs/layercharts.md`** -- read it before building or modifying any chart component.
-
-**Simplified chart components** (preferred for common patterns):
-- `BarChart` -- vertical/horizontal bars, stacked/grouped series
-- `PieChart` -- pie/donut charts with series support
-- `AreaChart`, `LineChart` -- time-series and continuous data
+Charts use [Recharts](https://recharts.org) v2 -- a composable React charting library.
 
 **Key patterns used in stats views:**
-- `series` prop: array of `{ key, label, color }` for multi-series charts
-- `seriesLayout="stack"` for stacked bar charts
-- `orientation="horizontal"` for horizontal bar charts
-- `props={{ legend: { placement: 'bottom' } }}` for chart sub-component props
-- Colors come from `css-var.ts` (never hardcoded in templates)
+- `<BarChart>`, `<PieChart>`, `<AreaChart>`, `<LineChart>` for different chart types
+- Colors come from DaisyUI theme tokens (never hardcoded)
 
 ### Gotchas
 
-- Tailwind v4 + `client:only` Svelte: Tailwind's Vite plugin cannot see `client:only` components in the SSR module graph. The `@source` directives in `global.css` explicitly include `.svelte` and `.ts` files.
 - `vm-state-changed` payload is `{ state, trigger }` (object), not a plain string.
-- Dynamic Svelte components: use `<svelte:component this={item.icon} />`, not `<item.icon />`.
+- React stores use `useSyncExternalStore` with cached snapshot objects to prevent infinite re-renders.
 
 ## Logging
 

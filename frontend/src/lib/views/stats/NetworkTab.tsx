@@ -91,8 +91,8 @@ export default function NetworkTab() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Timeline */}
-          <div className="bg-base-200 rounded-lg p-3">
-            <h3 className="text-xs font-semibold text-base-content/70 mb-2">Requests Over Time</h3>
+          <div className="bg-[--color-base-100] rounded-lg p-3">
+            <h3 className="text-xs font-semibold text-neutral-700 mb-2">Requests Over Time</h3>
             {timeline.length > 0 ? (
               <ResponsiveContainer width="100%" height={180}>
                 <BarChart data={timeline}>
@@ -104,13 +104,13 @@ export default function NetworkTab() {
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <div className="flex items-center justify-center h-44 text-base-content/30 text-sm">No data yet</div>
+              <div className="flex items-center justify-center h-44 text-neutral-300 text-sm">No data yet</div>
             )}
           </div>
 
           {/* Methods pie */}
-          <div className="bg-base-200 rounded-lg p-3">
-            <h3 className="text-xs font-semibold text-base-content/70 mb-2">Methods</h3>
+          <div className="bg-[--color-base-100] rounded-lg p-3">
+            <h3 className="text-xs font-semibold text-neutral-700 mb-2">Methods</h3>
             {methodPieData.length > 0 ? (
               <ResponsiveContainer width="100%" height={180}>
                 <PieChart>
@@ -123,15 +123,15 @@ export default function NetworkTab() {
                 </PieChart>
               </ResponsiveContainer>
             ) : (
-              <div className="flex items-center justify-center h-44 text-base-content/30 text-sm">No data yet</div>
+              <div className="flex items-center justify-center h-44 text-neutral-300 text-sm">No data yet</div>
             )}
           </div>
         </div>
 
         {/* Top domains */}
         {domains.length > 0 && (
-          <div className="bg-base-200 rounded-lg p-3">
-            <h3 className="text-xs font-semibold text-base-content/70 mb-2">Top Domains</h3>
+          <div className="bg-[--color-base-100] rounded-lg p-3">
+            <h3 className="text-xs font-semibold text-neutral-700 mb-2">Top Domains</h3>
             <ResponsiveContainer width="100%" height={160}>
               <BarChart data={domains} layout="vertical">
                 <XAxis type="number" />
@@ -147,7 +147,7 @@ export default function NetworkTab() {
         {/* Event list */}
         <div>
           <div className="flex items-center gap-2 mb-2">
-            <h3 className="text-xs font-semibold text-base-content/70">Events</h3>
+            <h3 className="text-xs font-semibold text-neutral-700">Events</h3>
             <input
               type="text"
               placeholder="Search domain/path..."
@@ -173,7 +173,7 @@ export default function NetworkTab() {
                 {events.slice(0, 200).map((ev) => (
                   <tr
                     key={ev.id}
-                    className="cursor-pointer hover:bg-base-300"
+                    className="cursor-pointer hover:bg-neutral-200"
                     onClick={() => setDetail({ type: 'net_event', data: ev as unknown as Record<string, unknown> })}
                   >
                     <td className="font-mono text-xs">{ev.timestamp?.split('T')[1]?.slice(0, 8) ?? ''}</td>

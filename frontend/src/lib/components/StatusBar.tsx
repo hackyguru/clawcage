@@ -6,11 +6,11 @@ export default function StatusBar() {
   const { terminalRenderer } = useVm();
 
   return (
-    <footer className="flex shrink-0 items-center justify-between border-t border-base-300 bg-base-200 px-3 py-1 text-xs text-base-content/60">
+  <footer className="flex shrink-0 items-center justify-between border-t border-neutral-300 bg-[--color-base-100] px-3 py-1 text-xs text-neutral-600">
       <div className="flex items-center gap-2">
         <VmStateIndicator />
         {terminalRenderer && (
-          <span className="text-base-content/40">
+          <span className="text-neutral-400">
             {terminalRenderer === 'webgl' ? 'WebGL' : 'Canvas'}
           </span>
         )}

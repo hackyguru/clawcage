@@ -90,8 +90,8 @@ export default function FilesTab() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Timeline */}
-          <div className="bg-base-200 rounded-lg p-3">
-            <h3 className="text-xs font-semibold text-base-content/70 mb-2">Events Over Time</h3>
+          <div className="bg-[--color-base-100] rounded-lg p-3">
+            <h3 className="text-xs font-semibold text-neutral-700 mb-2">Events Over Time</h3>
             {timeline.length > 0 ? (
               <ResponsiveContainer width="100%" height={180}>
                 <BarChart data={timeline}>
@@ -110,12 +110,12 @@ export default function FilesTab() {
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <div className="flex items-center justify-center h-44 text-base-content/30 text-sm">No data yet</div>
+              <div className="flex items-center justify-center h-44 text-neutral-300 text-sm">No data yet</div>
             )}
           </div>
 
           {/* Actions pie */}
-          <div className="bg-base-200 rounded-lg p-3">
+          <div className="bg-[--color-base-100] rounded-lg p-3">
             <h3 className="text-xs font-semibold text-base-content/70 mb-2">Actions</h3>
             {actionPieData.length > 0 ? (
               <ResponsiveContainer width="100%" height={180}>

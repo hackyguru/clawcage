@@ -157,7 +157,7 @@ export default function AITab() {
         {/* Charts row */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Token timeline (stacked bar by model) */}
-          <div className="bg-base-200 rounded-lg p-3">
+          <div className="bg-[--color-base-100] rounded-lg p-3">
             <h3 className="text-xs font-semibold text-base-content/70 mb-2">Tokens Over Time</h3>
             {tokenTimeline.length > 0 ? (
               <ResponsiveContainer width="100%" height={200}>
@@ -181,7 +181,7 @@ export default function AITab() {
           </div>
 
           {/* Cost by provider pie */}
-          <div className="bg-base-200 rounded-lg p-3">
+          <div className="bg-[--color-base-100] rounded-lg p-3">
             <h3 className="text-xs font-semibold text-base-content/70 mb-2">Cost by Provider</h3>
             {costPieData.length > 0 ? (
               <ResponsiveContainer width="100%" height={200}>
@@ -202,7 +202,7 @@ export default function AITab() {
 
         {/* Model breakdown table */}
         {models.length > 0 && (
-          <div className="bg-base-200 rounded-lg p-3">
+          <div className="bg-[--color-base-100] rounded-lg p-3">
             <h3 className="text-xs font-semibold text-base-content/70 mb-2">Models</h3>
             <div className="overflow-x-auto">
               <table className="table table-xs">
@@ -244,7 +244,7 @@ export default function AITab() {
           ) : (
             <div className="space-y-1">
               {traces.map((trace) => (
-                <div key={trace.trace_id} className="bg-base-200 rounded-lg overflow-hidden">
+                <div key={trace.trace_id} className="bg-[--color-base-100] rounded-lg overflow-hidden">
                   {/* Trace header row */}
                   <button
                     className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-base-300 transition-colors"

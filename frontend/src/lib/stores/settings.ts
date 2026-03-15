@@ -1,6 +1,7 @@
 // Settings store for React
 import { useSyncExternalStore } from 'react';
 import { getSettingsTree, lintConfig, updateSetting } from '../api';
+import { showToast } from './toast';
 import type { ConfigIssue, SettingsNode, SettingsLeaf, SettingValue } from '../types';
 
 let tree: SettingsNode[] = [];
@@ -71,6 +72,7 @@ export async function loadSettings() {
   } catch (e) {
     console.error('Failed to load settings:', e);
     error = String(e);
+    showToast('Failed to load settings: ' + String(e), 'error');
   } finally {
     loading = false;
     emit();

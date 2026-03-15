@@ -32,9 +32,11 @@ dist/*
 *_Store
 private/
 
+# Stale logs
+boot.log
+
 # Rust
 target/
-Cargo.lock
 
 # VM assets (built by images/build.py)
 assets/*
@@ -47,7 +49,5 @@ images/capsem-pty-agent
 crates/capsem-app/gen/
 
 # Frontend
-.astro/
-frontend/.astro/
 frontend/dist/
 frontend/node_modules/

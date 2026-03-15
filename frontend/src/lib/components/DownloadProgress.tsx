@@ -16,10 +16,10 @@ export default function DownloadProgress() {
   const total = progress && progress.total_bytes > 0 ? formatBytes(progress.total_bytes) : '...';
 
   return (
-    <div className="flex items-center justify-center h-full bg-base-100">
+  <div className="flex items-center justify-center h-full bg-[--color-base-100]">
       <div className="flex flex-col items-center gap-6 max-w-md w-full px-8">
-        <h2 className="text-xl font-semibold text-base-content">Downloading VM image</h2>
-        <p className="text-sm text-base-content/60 text-center">
+  <h2 className="text-xl font-semibold text-neutral-900">Downloading VM image</h2>
+  <p className="text-sm text-neutral-600 text-center">
           The sandbox rootfs is downloaded once and cached locally.
           {progress?.phase === 'verifying' && ' Verifying integrity...'}
           {progress?.phase === 'connecting' && ' Connecting...'}
@@ -31,7 +31,7 @@ export default function DownloadProgress() {
             max={100}
           />
         </div>
-        <div className="flex justify-between w-full text-xs text-base-content/50">
+  <div className="flex justify-between w-full text-xs text-neutral-500">
           <span>{downloaded} / {total}</span>
           <span>{pct}%</span>
         </div>
