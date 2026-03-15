@@ -1,0 +1,35 @@
+// StatsView -- tabbed stats panel with sub-menu
+import { useStats, setStatsTab } from '../stores/stats';
+import SubMenu from '../components/SubMenu';
+import AITab from './stats/AITab';
+import ToolsTab from './stats/ToolsTab';
+import NetworkTab from './stats/NetworkTab';
+import FilesTab from './stats/FilesTab';
+import type { StatsTab as StatsTabType } from '../types';
+
+const TABS: { id: StatsTabType; label: string }[] = [
+  { id: 'ai', label: 'AI' },
+  { id: 'tools', label: 'Tools' },
+  { id: 'network', label: 'Network' },
+  { id: 'files', label: 'Files' },
+];
+
+export default function StatsView() {
+  const { activeTab } = useStats();
+
+  return (
+    <div className="flex h-full w-full">
+      <SubMenu
+        groups={[{ label: 'Stats', items: TABS.map((t) => ({ id: t.id, label: t.label })) }]}
+        active={activeTab}
+        onSelect={(id) => setStatsTab(id as StatsTabType)}
+      />
+      <div className="flex-1 min-w-0 overflow-hidden">
+        {activeTab === 'ai' && <AITab />}
+        {activeTab === 'tools' && <ToolsTab />}
+        {activeTab === 'network' && <NetworkTab />}
+        {activeTab === 'files' && <FilesTab />}
+      </div>
+    </div>
+  );
+}

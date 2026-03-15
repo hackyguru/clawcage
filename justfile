@@ -116,6 +116,9 @@ dev:
     echo "Stopping running instances..."
     pkill -x capsem 2>/dev/null || true
     pkill -x Capsem 2>/dev/null || true
+    # Free port 5173 so Astro can bind to it (Tauri devUrl expects it)
+    lsof -ti:5173 | xargs kill -9 2>/dev/null || true
+    sleep 0.5
     # Start frontend dev server in background
     (cd frontend && pnpm dev) &
     FRONTEND_PID=$!
