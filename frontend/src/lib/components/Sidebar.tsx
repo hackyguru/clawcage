@@ -13,7 +13,7 @@ export default function Sidebar() {
   const { activeView, setView } = useSidebar();
 
   return (
-    <aside className="flex flex-col flex-shrink-0 border-r border-base-300 bg-black w-12 overflow-hidden">
+    <aside className="flex flex-col shrink-0 border-r border-base-300 bg-black w-12 overflow-hidden">
       <nav className="flex-1 py-2">
         <ul className="menu menu-vertical gap-1 px-1.5">
           {items.map((item) => (

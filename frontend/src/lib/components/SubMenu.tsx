@@ -19,7 +19,7 @@ interface SubMenuProps {
 
 export default function SubMenu({ groups, active, onSelect }: SubMenuProps) {
   return (
-    <aside className="flex-shrink-0 w-[200px] border-r border-base-300 bg-base-200/50 overflow-y-auto py-3 px-2">
+    <aside className="shrink-0 w-50 border-r border-base-300 bg-base-200/50 overflow-y-auto py-3 px-2">
       {groups.map((group, gi) => (
         <div key={group.label || gi}>
           {gi > 0 && <div className="divider my-1" />}

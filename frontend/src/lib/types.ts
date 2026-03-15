@@ -119,7 +119,7 @@ export interface DownloadProgress {
 }
 
 /** Sidebar view names. */
-export type ViewName = 'terminal' | 'stats' | 'settings' | 'wizard';
+export type ViewName = 'terminal' | 'stats' | 'settings';
 
 /** Stats panel tab names. */
 export type StatsTab = 'ai' | 'tools' | 'network' | 'files';

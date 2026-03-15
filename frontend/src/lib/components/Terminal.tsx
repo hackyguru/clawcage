@@ -126,8 +126,8 @@ export default function Terminal() {
   );
 }
 
-// Declare the web component for JSX
-declare global {
+// Declare the web component for React JSX
+declare module 'react' {
   namespace JSX {
     interface IntrinsicElements {
       'capsem-terminal': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & {

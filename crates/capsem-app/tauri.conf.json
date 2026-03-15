@@ -1,5 +1,4 @@
 {
-  "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/dev/crates/tauri-utils/schema.json",
   "productName": "Capsem",
   "version": "0.8.8",
   "identifier": "com.capsem.capsem",

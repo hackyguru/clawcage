@@ -1,7 +1,6 @@
 @import "tailwindcss";
 @source "../lib/**/*.tsx";
 @source "../lib/**/*.ts";
-@source "../pages/**/*.astro";
 @source "../components/**/*.ts";
 
 @plugin "daisyui";

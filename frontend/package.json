@@ -4,12 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "astro dev --port 5173",
-    "build": "astro build",
-    "check": "astro check"
+    "dev": "vite --port 5173",
+    "build": "vite build",
+    "check": "tsc --noEmit"
   },
   "dependencies": {
-    "@astrojs/react": "^4",
     "@tauri-apps/api": "^2",
     "@xterm/addon-fit": "^0.11",
     "@xterm/addon-webgl": "^0.19",
@@ -20,14 +19,14 @@
     "sql.js": "^1.14.0"
   },
   "devDependencies": {
-    "@astrojs/check": "^0.9.6",
     "@tailwindcss/vite": "^4",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/sql.js": "^1.4.9",
-    "astro": "^5",
+    "@vitejs/plugin-react": "^4",
     "daisyui": "^5",
     "tailwindcss": "^4",
-    "typescript": "^5.7"
+    "typescript": "^5.7",
+    "vite": "^6"
   }
 }

@@ -1,5 +1,5 @@
 // App -- main shell component
-import { useEffect, Component, type ReactNode, type ErrorInfo } from 'react';
+import { useEffect, lazy, Suspense, Component, type ReactNode, type ErrorInfo } from 'react';
 import { useSidebar } from './stores/sidebar';
 import { useVm, initVm } from './stores/vm';
 import { loadSettings } from './stores/settings';
@@ -11,9 +11,10 @@ import DownloadProgress from './components/DownloadProgress';
 import ThemeToggle from './components/ThemeToggle';
 
 import TerminalView from './views/TerminalView';
-import StatsView from './views/StatsView';
-import SettingsView from './views/SettingsView';
-import WizardView from './views/WizardView';
+
+// Lazy-load heavy views (StatsView pulls in recharts ~700KB)
+const StatsView = lazy(() => import('./views/StatsView'));
+const SettingsView = lazy(() => import('./views/SettingsView'));
 
 // Error boundary to catch rendering crashes
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
@@ -72,9 +73,10 @@ function AppInner() {
         {/* Main content area */}
         <div className="flex-1 min-h-0 overflow-hidden">
           {currentView === 'terminal' && <TerminalView />}
-          {currentView === 'stats' && <StatsView />}
-          {currentView === 'settings' && <SettingsView />}
-          {currentView === 'wizard' && <WizardView />}
+          <Suspense fallback={<div className="flex items-center justify-center h-full"><span className="loading loading-spinner loading-md" /></div>}>
+            {currentView === 'stats' && <StatsView />}
+            {currentView === 'settings' && <SettingsView />}
+          </Suspense>
         </div>
 
         {/* Status bar */}

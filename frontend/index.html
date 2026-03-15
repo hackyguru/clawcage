@@ -1,8 +1,4 @@
----
-import "../styles/global.css";
-import App from "../lib/App";
----
-
+<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
@@ -10,7 +6,7 @@ import App from "../lib/App";
     <title>AI.VM</title>
   </head>
   <body>
-    <App client:only="react" />
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
-
