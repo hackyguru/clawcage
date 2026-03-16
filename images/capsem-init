@@ -274,13 +274,19 @@ export PIP_DISABLE_PIP_VERSION_CHECK=1
 # --system-site-packages: inherit pre-installed packages (numpy, requests, etc.)
 # from the squashfs rootfs while allowing new installs into the writable venv.
 # uv venv is ~100ms; fall back to stdlib venv if uv is missing.
-chroot /newroot uv venv --system-site-packages /root/.venv 2>/dev/null || \
-    chroot /newroot python3 -m venv --system-site-packages /root/.venv 2>/dev/null || true
+# Skip if .venv already exists (persistent venv with data from prior boot).
+if [ ! -d /newroot/root/.venv ]; then
+    chroot /newroot uv venv --system-site-packages /root/.venv 2>/dev/null || \
+        chroot /newroot python3 -m venv --system-site-packages /root/.venv 2>/dev/null || true
+fi
 
 # Copy AI CLIs from rootfs staging area to writable scratch disk.
 # They need to be mutable because they self-update at runtime.
 # Also serves as the npm global prefix so `npm install -g` works.
-if [ -d /newroot/opt/ai-clis ]; then
+# Skip if .npm-global already exists (persistent venv with data from prior boot).
+if [ -d /newroot/root/.npm-global ]; then
+    echo "[capsem-init] AI CLIs already on scratch disk (persistent)"
+elif [ -d /newroot/opt/ai-clis ]; then
     cp -a /newroot/opt/ai-clis /newroot/root/.npm-global
     echo "[capsem-init] AI CLIs copied to scratch disk"
 else

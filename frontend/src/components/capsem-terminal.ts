@@ -175,6 +175,11 @@ export class CapsemTerminal extends HTMLElement {
     this.terminal.write(data);
   }
 
+  /** Clear the terminal buffer (scrollback + viewport). */
+  clear() {
+    this.terminal.reset();
+  }
+
   /** Focus the terminal input. */
   focusTerminal() {
     this.terminal.focus();
