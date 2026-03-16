@@ -13,15 +13,15 @@ export default function StatsBar() {
   }, []);
 
   return (
-  <div className="flex items-center gap-4 px-3 py-1 bg-black text-xs text-neutral-600 select-none">
-      <span className="font-mono">{totalTokens} tokens</span>
-  <span className="text-neutral-200">|</span>
-      <span className="font-mono">{toolCount} tools</span>
-  <span className="text-neutral-200">|</span>
-      <span className="font-mono">{totalCost}</span>
+    <div className="flex items-center gap-4 px-3 py-1.5 bg-neutral-950 text-xs select-none border-t border-white/5">
+      <span className="font-mono text-neutral-500 tabular-nums">{totalTokens} tok</span>
+      <span className="text-neutral-700">·</span>
+      <span className="font-mono text-neutral-500 tabular-nums">{toolCount} tools</span>
+      <span className="text-neutral-700">·</span>
+      <span className="font-mono text-neutral-500 tabular-nums">{totalCost}</span>
       <span className="flex-1" />
       <button
-  className="text-xs text-neutral-500 hover:text-interactive transition-colors"
+        className="text-neutral-600 hover:text-interactive transition-colors"
         onClick={() => setView('stats')}
       >
         Stats &rsaquo;

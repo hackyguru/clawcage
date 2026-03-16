@@ -2,6 +2,7 @@
 
 mod commands;
 mod state;
+mod venvs;
 
 use std::io::{Read, Write};
 use std::mem::ManuallyDrop;
@@ -26,7 +27,7 @@ use capsem_core::net::mitm_proxy::{self, MitmProxyConfig};
 use capsem_core::net::policy_config;
 use capsem_logger::DbWriter;
 use capsem_core::session::{self, SessionIndex, SessionRecord};
-use state::{AppState, VmInstance, VmNetworkState};
+use state::{AppState, AssetConfig, VmInstance, VmNetworkState};
 use tauri::{Emitter, Manager};
 use tokio::sync::broadcast;
 use tracing::{debug_span, error, info, info_span, warn};
@@ -1812,6 +1813,259 @@ async fn check_for_update(app: tauri::AppHandle) {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Venv lifecycle: boot and stop VMs on demand
+// ---------------------------------------------------------------------------
+
+/// Per-venv data directory: ~/.capsem/venvs/<venv_id>/
+fn venv_scratch_dir(venv_id: &str) -> Option<PathBuf> {
+    std::env::var("HOME").ok().map(|h| {
+        PathBuf::from(h).join(".capsem").join("venvs").join(venv_id)
+    })
+}
+
+/// Stop the currently running VM (if any), clean up its session, and reset
+/// terminal output. Called before booting a new venv or when explicitly stopping.
+pub(crate) fn stop_active_vm(handle: &tauri::AppHandle) -> Result<(), String> {
+    let app_state = handle.state::<AppState>();
+
+    let session_id = {
+        let mut id = app_state.active_session_id.lock().unwrap();
+        id.take()
+    };
+    {
+        let mut vid = app_state.active_venv_id.lock().unwrap();
+        *vid = None;
+    }
+
+    let Some(session_id) = session_id else {
+        return Ok(()); // No VM running
+    };
+
+    info!(session_id = %session_id, "stopping active VM");
+
+    // Remove VmInstance from the map (takes ownership).
+    let instance = {
+        let mut vms = app_state.vms.lock().unwrap();
+        vms.remove(&session_id)
+    };
+
+    if let Some(instance) = instance {
+        // Flush guest filesystems before stopping. Write `sync` to the PTY so
+        // ext4 commits all dirty pages to the backing disk image. This is
+        // critical for persistent venvs -- without it, user files written to
+        // /root may be lost because the VM stop is abrupt.
+        {
+            let term_fd = instance.vsock_terminal_fd.unwrap_or(instance.serial_input_fd);
+            if let Ok(mut file) = clone_fd(term_fd) {
+                use std::io::Write;
+                // Send Ctrl-C first to interrupt any running command, then sync.
+                let _ = file.write_all(b"\x03\nsync\n");
+                let _ = file.flush();
+            }
+            // Give the guest kernel time to flush.
+            std::thread::sleep(Duration::from_millis(500));
+        }
+
+        // Stop the VM. This closes vsock fds and unblocks reader threads.
+        let _ = instance._vm.stop();
+
+        // Clean up session: snapshot stats, mark stopped.
+        // Don't delete scratch disk -- it's per-venv and persists across reboots.
+        // For ephemeral venvs, scratch is deleted on venv deletion, not on stop.
+        let session_dir = session_dir_for(&session_id);
+        if let Some(ref dir) = session_dir {
+            let db_ref = instance.net_state.as_ref().map(|ns| ns.db.as_ref());
+            let idx = app_state.session_index.lock().unwrap();
+            cleanup_session(dir, None, &session_id, &idx, db_ref);
+        }
+
+        // Drop network state to flush WAL.
+        drop(instance);
+
+        // Vacuum session DB.
+        if let Some(ref dir) = session_dir {
+            let idx = app_state.session_index.lock().unwrap();
+            vacuum_session(&session_id, &idx, dir);
+        }
+    }
+
+    // Close and reset terminal queue.
+    app_state.terminal_output.close();
+
+    let _ = handle.emit("vm-state-changed", serde_json::json!({
+        "state": "Idle",
+        "trigger": "vm_stopped",
+    }));
+
+    Ok(())
+}
+
+/// Boot a new VM for the given venv. Stops any currently running VM first.
+/// Downloads rootfs if necessary.
+pub(crate) fn boot_venv(handle: &tauri::AppHandle, venv_id: &str) -> Result<(), String> {
+    // Stop any currently running VM.
+    stop_active_vm(handle)?;
+
+    let app_state = handle.state::<AppState>();
+    let asset_config = handle.state::<AssetConfig>();
+
+    let assets = asset_config.assets_dir.clone();
+    let rootfs = asset_config.rootfs_path.read().unwrap().clone();
+
+    // Load VM settings.
+    let vm_settings = policy_config::load_merged_vm_settings();
+    let scratch_size = vm_settings.scratch_disk_size_gb.unwrap_or(16);
+    let cpu_count = vm_settings.cpu_count.unwrap_or(4);
+    let ram_gb = vm_settings.ram_gb.unwrap_or(4);
+    let ram_bytes: u64 = ram_gb as u64 * 1024 * 1024 * 1024;
+
+    // Generate a new session ID for this venv boot.
+    let session_id = session::generate_session_id();
+    info!(session_id = %session_id, venv_id = %venv_id, "booting venv");
+
+    // Create session directory (for telemetry DB).
+    let session_dir = session_dir_for(&session_id);
+    if let Some(ref d) = session_dir {
+        let _ = std::fs::create_dir_all(d);
+    }
+
+    // Per-venv scratch disk: ~/.capsem/venvs/<venv_id>/scratch.img
+    // Persistent venvs: only created on first boot; preserved across reboots.
+    // Ephemeral venvs: scratch disk is recreated fresh on every boot.
+    let is_ephemeral = venvs::load_venvs()
+        .ok()
+        .and_then(|vs| vs.into_iter().find(|v| v.id == venv_id).map(|v| v.ephemeral))
+        .unwrap_or(false);
+
+    let scratch_path = venv_scratch_dir(venv_id).and_then(|d| {
+        std::fs::create_dir_all(&d).ok();
+        let path = d.join("scratch.img");
+        if is_ephemeral && path.exists() {
+            // Ephemeral: remove old scratch disk so it's fresh each boot.
+            let _ = std::fs::remove_file(&path);
+            info!("ephemeral venv: removed old scratch disk for {venv_id}");
+        }
+        if !path.exists() {
+            if let Err(e) = create_scratch_disk(&path, scratch_size) {
+                warn!("failed to create scratch disk: {e}");
+                return None;
+            }
+            info!(size_gb = scratch_size, "created new scratch disk for venv {venv_id}");
+        } else {
+            info!("reusing existing scratch disk for venv {venv_id}");
+        }
+        Some(path)
+    });
+
+    // Record session in main.db.
+    {
+        let idx = app_state.session_index.lock().unwrap();
+        let record = SessionRecord {
+            id: session_id.clone(),
+            mode: "gui".to_string(),
+            command: None,
+            status: "running".to_string(),
+            created_at: session::now_iso(),
+            stopped_at: None,
+            scratch_disk_size_gb: scratch_size,
+            ram_bytes,
+            total_requests: 0,
+            allowed_requests: 0,
+            denied_requests: 0,
+            total_input_tokens: 0,
+            total_output_tokens: 0,
+            total_estimated_cost: 0.0,
+            total_tool_calls: 0,
+            total_mcp_calls: 0,
+            total_file_events: 0,
+            compressed_size_bytes: None,
+            vacuumed_at: None,
+        };
+        if let Err(e) = idx.create_session(&record) {
+            warn!("failed to record session: {e}");
+        }
+    }
+
+    // Set active IDs and reset terminal queue so the poll loop can start
+    // receiving data as soon as the VM's vsock connects.
+    *app_state.active_session_id.lock().unwrap() = Some(session_id.clone());
+    *app_state.active_venv_id.lock().unwrap() = Some(venv_id.to_string());
+    app_state.terminal_output.reset();
+
+    if rootfs.is_some() {
+        // Rootfs available -- boot immediately.
+        gui_boot_vm(
+            handle, &assets, rootfs.as_deref(),
+            &session_id, scratch_path, cpu_count, ram_bytes,
+        );
+    } else {
+        // Rootfs not found -- download it first.
+        info!("rootfs not found, initiating download");
+        let _ = handle.emit("vm-state-changed", serde_json::json!({
+            "state": "Downloading",
+            "trigger": "rootfs_missing",
+        }));
+
+        let h = handle.clone();
+        let assets_clone = assets.clone();
+        let sid = session_id.clone();
+        tauri::async_runtime::spawn(async move {
+            let mgr = match create_asset_manager(&assets_clone) {
+                Ok(m) => m,
+                Err(e) => {
+                    error!("asset manager init failed: {e:#}");
+                    let _ = h.emit("vm-state-changed", serde_json::json!({
+                        "state": "Error",
+                        "trigger": "asset_init_failed",
+                    }));
+                    return;
+                }
+            };
+
+            let name = match rootfs_manifest_name(&mgr) {
+                Ok(n) => n,
+                Err(e) => {
+                    error!("rootfs not in manifest: {e:#}");
+                    let _ = h.emit("vm-state-changed", serde_json::json!({
+                        "state": "Error",
+                        "trigger": "manifest_error",
+                    }));
+                    return;
+                }
+            };
+
+            let _ = mgr.cleanup_unrecognized();
+
+            let h2 = h.clone();
+            let client = reqwest::Client::new();
+            match mgr.download_asset(&name, &client, move |progress| {
+                let _ = h2.emit("download-progress", &progress);
+            }).await {
+                Ok(rootfs) => {
+                    info!("rootfs downloaded to {}", rootfs.display());
+                    // Cache the rootfs path for future boots.
+                    let ac = h.state::<AssetConfig>();
+                    *ac.rootfs_path.write().unwrap() = Some(rootfs.clone());
+                    gui_boot_vm(
+                        &h, &assets_clone, Some(&rootfs),
+                        &sid, scratch_path, cpu_count, ram_bytes,
+                    );
+                }
+                Err(e) => {
+                    error!("rootfs download failed: {e:#}");
+                    let _ = h.emit("vm-state-changed", serde_json::json!({
+                        "state": "Error",
+                        "trigger": "download_failed",
+                    }));
+                }
+            }
+        });
+    }
+
+    Ok(())
+}
+
 /// Boot the VM and set up all subsystems (vsock, serial, MITM proxy, MCP gateway).
 /// Called either immediately from the setup hook (rootfs available in bundle) or
 /// after async rootfs download completes.
@@ -1986,16 +2240,19 @@ fn main() {
         .setup(|app| {
             info!("tauri setup hook running");
 
-            // Check for updates before booting the VM (the webview gets
-            // replaced with VZVirtualMachineView after boot, so we use a
-            // native dialog for the update prompt).
+            // Check for updates.
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 check_for_update(handle).await;
             });
 
-            let assets = match resolve_assets_dir() {
-                Ok(a) => a,
+            // Resolve assets directory and rootfs path once, store for reuse.
+            let (assets, rootfs) = match resolve_assets_dir() {
+                Ok(a) => {
+                    let r = resolve_rootfs(&a);
+                    info!("assets directory: {}", a.display());
+                    (a, r)
+                }
                 Err(e) => {
                     error!("asset resolution failed: {e:#}");
                     info!("continuing without VM (frontend-only mode)");
@@ -2007,133 +2264,16 @@ fn main() {
                 }
             };
 
-            info!("assets directory: {}", assets.display());
-
-            // Generate unique session ID for this boot.
-            let gui_session_id = session::generate_session_id();
-            info!(session_id = %gui_session_id, "starting new session");
-
-            // Create session directory and scratch disk for GUI mode.
-            let vm_settings = policy_config::load_merged_vm_settings();
-            let scratch_size = vm_settings.scratch_disk_size_gb.unwrap_or(16);
-            let cpu_count = vm_settings.cpu_count.unwrap_or(4);
-            let ram_gb = vm_settings.ram_gb.unwrap_or(4);
-            let ram_bytes: u64 = ram_gb as u64 * 1024 * 1024 * 1024;
-            let gui_session_dir = session_dir_for(&gui_session_id);
-            let gui_scratch_path = gui_session_dir.as_ref().and_then(|d| {
-                std::fs::create_dir_all(d).ok();
-                let path = d.join("scratch.img");
-                if let Err(e) = create_scratch_disk(&path, scratch_size) {
-                    warn!("failed to create scratch disk: {e}");
-                    return None;
-                }
-                info!(size_gb = scratch_size, "created scratch disk");
-                Some(path)
+            app.manage(AssetConfig {
+                assets_dir: assets,
+                rootfs_path: std::sync::RwLock::new(rootfs),
             });
 
-            // Record session in main.db.
-            {
-                let app_state = app.state::<AppState>();
-                let idx = app_state.session_index.lock().unwrap();
-                let record = SessionRecord {
-                    id: gui_session_id.clone(),
-                    mode: "gui".to_string(),
-                    command: None,
-                    status: "running".to_string(),
-                    created_at: session::now_iso(),
-                    stopped_at: None,
-                    scratch_disk_size_gb: scratch_size,
-                    ram_bytes,
-                    total_requests: 0,
-                    allowed_requests: 0,
-                    denied_requests: 0,
-                    total_input_tokens: 0,
-                    total_output_tokens: 0,
-                    total_estimated_cost: 0.0,
-                    total_tool_calls: 0,
-                    total_mcp_calls: 0,
-                    total_file_events: 0,
-                    compressed_size_bytes: None,
-                    vacuumed_at: None,
-                };
-                if let Err(e) = idx.create_session(&record) {
-                    warn!("failed to record session: {e}");
-                }
-                // Set active session ID.
-                *app_state.active_session_id.lock().unwrap() = Some(gui_session_id.clone());
-            }
-
-            // Resolve rootfs: check bundled assets dir, then ~/.capsem/assets/.
-            let rootfs_path = resolve_rootfs(&assets);
-
-            if rootfs_path.is_some() {
-                // Rootfs available (dev mode or already downloaded) -- boot immediately.
-                gui_boot_vm(
-                    app.handle(), &assets, rootfs_path.as_deref(),
-                    &gui_session_id, gui_scratch_path, cpu_count, ram_bytes,
-                );
-            } else {
-                // Rootfs not found -- download it first.
-                info!("rootfs not found, initiating download");
-                let _ = app.handle().emit("vm-state-changed", serde_json::json!({
-                    "state": "Downloading",
-                    "trigger": "rootfs_missing",
-                }));
-
-                let handle = app.handle().clone();
-                let assets_clone = assets.clone();
-                let session_id = gui_session_id.clone();
-                let scratch = gui_scratch_path;
-                tauri::async_runtime::spawn(async move {
-                    let mgr = match create_asset_manager(&assets_clone) {
-                        Ok(m) => m,
-                        Err(e) => {
-                            error!("asset manager init failed: {e:#}");
-                            let _ = handle.emit("vm-state-changed", serde_json::json!({
-                                "state": "Error",
-                                "trigger": "asset_init_failed",
-                            }));
-                            return;
-                        }
-                    };
-
-                    let name = match rootfs_manifest_name(&mgr) {
-                        Ok(n) => n,
-                        Err(e) => {
-                            error!("rootfs not in manifest: {e:#}");
-                            let _ = handle.emit("vm-state-changed", serde_json::json!({
-                                "state": "Error",
-                                "trigger": "manifest_error",
-                            }));
-                            return;
-                        }
-                    };
-
-                    // Clean up stale assets from previous versions.
-                    let _ = mgr.cleanup_unrecognized();
-
-                    let h2 = handle.clone();
-                    let client = reqwest::Client::new();
-                    match mgr.download_asset(&name, &client, move |progress| {
-                        let _ = h2.emit("download-progress", &progress);
-                    }).await {
-                        Ok(rootfs) => {
-                            info!("rootfs downloaded to {}", rootfs.display());
-                            gui_boot_vm(
-                                &handle, &assets_clone, Some(&rootfs),
-                                &session_id, scratch, cpu_count, ram_bytes,
-                            );
-                        }
-                        Err(e) => {
-                            error!("rootfs download failed: {e:#}");
-                            let _ = handle.emit("vm-state-changed", serde_json::json!({
-                                "state": "Error",
-                                "trigger": "download_failed",
-                            }));
-                        }
-                    }
-                });
-            }
+            // No auto-boot. User picks a venv from HomeView which triggers start_venv.
+            let _ = app.handle().emit("vm-state-changed", serde_json::json!({
+                "state": "Idle",
+                "trigger": "app_started",
+            }));
 
             Ok(())
         })
@@ -2153,6 +2293,11 @@ fn main() {
             commands::update_setting,
             commands::get_session_info,
             commands::query_db,
+            venvs::list_venvs,
+            venvs::create_venv,
+            venvs::delete_venv,
+            venvs::start_venv,
+            venvs::stop_venv,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

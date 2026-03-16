@@ -94,23 +94,48 @@ if [ -b /dev/vdb ]; then
 fi
 
 if [ -n "$SCRATCH" ]; then
-    echo "[capsem-init] formatting scratch disk ($SCRATCH)..."
-    if chroot /newroot /usr/sbin/mke2fs -t ext4 -m 0 -O ^has_journal -E lazy_itable_init=1 -L scratch -q "$SCRATCH" 2>&1; then
+    # Check if the scratch disk already has a filesystem (persistent venv).
+    # If it does, mount it directly without formatting.
+    # NOTE: blkid is NOT in the initramfs -- use the rootfs copy via chroot.
+    HAS_FS=0
+    if chroot /newroot blkid "$SCRATCH" >/dev/null 2>&1; then
+        HAS_FS=1
+    fi
+
+    if [ "$HAS_FS" = "1" ]; then
+        echo "[capsem-init] existing filesystem detected on scratch disk, mounting..."
         if mount -t ext4 -o rw,noatime,nodiratime "$SCRATCH" /newroot/root; then
-            echo "[capsem-init] /root mounted from scratch disk"
-            # Create a 1GB swap file on the scratch disk.
-            dd if=/dev/zero of=/newroot/root/.swapfile bs=1M count=1024 2>/dev/null
-            chmod 600 /newroot/root/.swapfile
-            mkswap /newroot/root/.swapfile >/dev/null 2>&1
-            swapon /newroot/root/.swapfile
-            echo "[capsem-init] swap enabled (1GB)"
+            echo "[capsem-init] /root mounted from persistent scratch disk"
+            # Enable swap if it exists from a previous boot.
+            if [ -f /newroot/root/.swapfile ]; then
+                swapon /newroot/root/.swapfile 2>/dev/null
+                echo "[capsem-init] swap enabled (existing)"
+            fi
         else
-            echo "[capsem-init] WARNING: scratch disk mount failed, falling back to tmpfs"
+            echo "[capsem-init] WARNING: persistent scratch disk mount failed, formatting..."
+            HAS_FS=0
+        fi
+    fi
+
+    if [ "$HAS_FS" = "0" ]; then
+        echo "[capsem-init] formatting scratch disk ($SCRATCH)..."
+        if chroot /newroot /usr/sbin/mke2fs -t ext4 -m 0 -O ^has_journal -E lazy_itable_init=1 -L scratch -q "$SCRATCH" 2>&1; then
+            if mount -t ext4 -o rw,noatime,nodiratime "$SCRATCH" /newroot/root; then
+                echo "[capsem-init] /root mounted from scratch disk"
+                # Create a 1GB swap file on the scratch disk.
+                dd if=/dev/zero of=/newroot/root/.swapfile bs=1M count=1024 2>/dev/null
+                chmod 600 /newroot/root/.swapfile
+                mkswap /newroot/root/.swapfile >/dev/null 2>&1
+                swapon /newroot/root/.swapfile
+                echo "[capsem-init] swap enabled (1GB)"
+            else
+                echo "[capsem-init] WARNING: scratch disk mount failed, falling back to tmpfs"
+                mount -t tmpfs tmpfs /newroot/root
+            fi
+        else
+            echo "[capsem-init] WARNING: scratch disk format failed, falling back to tmpfs"
             mount -t tmpfs tmpfs /newroot/root
         fi
-    else
-        echo "[capsem-init] WARNING: scratch disk format failed, falling back to tmpfs"
-        mount -t tmpfs tmpfs /newroot/root
     fi
 else
     mount -t tmpfs tmpfs /newroot/root

@@ -35,9 +35,9 @@ import { showToast } from './toast';
 export async function initVm() {
   try {
     vmState = (await vmStatus()).toLowerCase();
-  } catch (e) {
-    vmState = 'error';
-    showToast('Failed to initialize VM: ' + String(e), 'error');
+  } catch {
+    // No active VM is normal on startup (user picks a venv first).
+    vmState = 'idle';
   }
   emit();
   onVmStateChanged((state) => {

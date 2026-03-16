@@ -4,7 +4,7 @@ import type { ViewName } from '../types';
 
 type SettingsSection = string;
 
-let activeView: ViewName = 'terminal';
+let activeView: ViewName = 'home';
 let settingsSection: SettingsSection = '';
 const listeners = new Set<() => void>();
 

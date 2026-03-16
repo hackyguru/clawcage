@@ -239,13 +239,23 @@ fn attach_disk(
         let ns_path = NSString::from_str(path_str);
         let disk_url = NSURL::fileURLWithPath(&ns_path);
 
+        // Read-only disks (rootfs): no sync needed, use None for performance.
+        // Read-write disks (scratch): use Full so writes flush to the backing
+        // file and survive VM stop. Without this, mke2fs and user file writes
+        // stay in memory and the scratch.img remains empty on disk.
+        let sync_mode = if read_only {
+            VZDiskImageSynchronizationMode::None
+        } else {
+            VZDiskImageSynchronizationMode::Full
+        };
+
         let disk_attachment =
             VZDiskImageStorageDeviceAttachment::initWithURL_readOnly_cachingMode_synchronizationMode_error(
                 VZDiskImageStorageDeviceAttachment::alloc(),
                 &disk_url,
                 read_only,
                 VZDiskImageCachingMode::Cached,
-                VZDiskImageSynchronizationMode::None,
+                sync_mode,
             )
             .map_err(|e| anyhow::anyhow!("disk attach failed for {}: {e:?}", path.display()))?;
 

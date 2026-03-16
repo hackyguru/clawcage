@@ -3,10 +3,10 @@ import { useToasts, dismissToast, type ToastLevel } from '../stores/toast';
 import { CloseIcon } from '../icons/Icons';
 
 const levelClass: Record<ToastLevel, string> = {
-  info: 'bg-blue-100 text-blue-800 border-blue-300',
-  success: 'bg-green-100 text-green-800 border-green-300',
-  warning: 'bg-yellow-100 text-yellow-900 border-yellow-300',
-  error: 'bg-red-100 text-red-800 border-red-300',
+  info: 'bg-allowed/10 text-allowed border-allowed/30',
+  success: 'bg-allowed/10 text-allowed border-allowed/30',
+  warning: 'bg-caution/10 text-caution border-caution/30',
+  error: 'bg-denied/10 text-denied border-denied/30',
 };
 
 export default function ToastContainer() {
@@ -22,7 +22,7 @@ export default function ToastContainer() {
         >
           <span className="text-sm flex-1">{t.message}</span>
           <button
-            className="flex items-center justify-center rounded-full p-1 hover:bg-black/10 focus:outline-none focus:ring-2 focus:ring-primary-400"
+            className="flex items-center justify-center rounded-full p-1 hover:bg-black/10 focus:outline-none focus:ring-1 focus:ring-interactive/50"
             onClick={() => dismissToast(t.id)}
             aria-label="Dismiss"
           >

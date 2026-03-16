@@ -91,7 +91,7 @@ export default function NetworkTab() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Timeline */}
-          <div className="bg-[--color-base-100] rounded-lg p-3">
+          <div className="bg-base-100 border border-base-300 rounded-lg p-3 shadow-xs">
             <h3 className="text-xs font-semibold text-neutral-700 mb-2">Requests Over Time</h3>
             {timeline.length > 0 ? (
               <ResponsiveContainer width="100%" height={180}>
@@ -109,7 +109,7 @@ export default function NetworkTab() {
           </div>
 
           {/* Methods pie */}
-          <div className="bg-[--color-base-100] rounded-lg p-3">
+          <div className="bg-base-100 border border-base-300 rounded-lg p-3 shadow-xs">
             <h3 className="text-xs font-semibold text-neutral-700 mb-2">Methods</h3>
             {methodPieData.length > 0 ? (
               <ResponsiveContainer width="100%" height={180}>
@@ -130,7 +130,7 @@ export default function NetworkTab() {
 
         {/* Top domains */}
         {domains.length > 0 && (
-          <div className="bg-[--color-base-100] rounded-lg p-3">
+          <div className="bg-base-100 border border-base-300 rounded-lg p-3 shadow-xs">
             <h3 className="text-xs font-semibold text-neutral-700 mb-2">Top Domains</h3>
             <ResponsiveContainer width="100%" height={160}>
               <BarChart data={domains} layout="vertical">
@@ -181,7 +181,7 @@ export default function NetworkTab() {
                     <td className="text-xs">{ev.method ?? '-'}</td>
                     <td className="font-mono text-xs truncate max-w-32">{ev.path ?? '/'}</td>
                     <td className="font-mono text-xs">{ev.status_code ?? '-'}</td>
-                    <td><span className={`text-xs ${ev.decision === 'allowed' ? 'text-success' : 'text-error'}`}>{ev.decision}</span></td>
+                    <td><span className={`text-xs ${ev.decision === 'allowed' ? 'text-allowed' : 'text-denied'}`}>{ev.decision}</span></td>
                     <td className="text-right font-mono text-xs">{ev.duration_ms ? `${ev.duration_ms}ms` : '-'}</td>
                   </tr>
                 ))}

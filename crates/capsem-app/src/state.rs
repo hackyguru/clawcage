@@ -104,7 +104,6 @@ impl TerminalOutputQueue {
 
     /// Mark the queue as closed. Wakes any pending `poll()` which will return
     /// `None` once the remaining data is drained.
-    #[cfg(test)]
     pub fn close(&self) {
         self.closed.store(true, Ordering::Release);
         self.notify.notify_one();
@@ -118,10 +117,17 @@ impl TerminalOutputQueue {
     }
 }
 
+/// Resolved asset paths, computed once during setup and reused for each VM boot.
+pub struct AssetConfig {
+    pub assets_dir: PathBuf,
+    pub rootfs_path: std::sync::RwLock<Option<PathBuf>>,
+}
+
 pub struct AppState {
     pub vms: Mutex<HashMap<String, VmInstance>>,
     pub session_index: Mutex<SessionIndex>,
     pub active_session_id: Mutex<Option<String>>,
+    pub active_venv_id: Mutex<Option<String>>,
     pub terminal_output: Arc<TerminalOutputQueue>,
     pub terminal_input_tx: std::sync::mpsc::Sender<(RawFd, String)>,
 }
@@ -178,6 +184,7 @@ impl AppState {
             vms: Mutex::new(HashMap::new()),
             session_index: Mutex::new(session_index),
             active_session_id: Mutex::new(None),
+            active_venv_id: Mutex::new(None),
             terminal_output: Arc::new(TerminalOutputQueue::new()),
             terminal_input_tx: tx,
         }

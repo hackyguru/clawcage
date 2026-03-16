@@ -93,7 +93,7 @@ function FileField({ leaf, onChange }: { leaf: SettingsLeaf; onChange: (v: { pat
             disabled={leaf.corp_locked || !leaf.enabled}
           />
           <button
-            className="btn btn-primary btn-xs"
+            className="btn bg-interactive text-white btn-xs"
             onClick={() => { onChange({ path: fileValue.path, content }); setEditing(false); }}
           >
             Save
@@ -122,14 +122,14 @@ function LeafNode({ leaf }: { leaf: SettingsLeaf }) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium">{leaf.name}</span>
-            {leaf.corp_locked && <span className="inline-block px-2 py-0.5 rounded bg-yellow-100 text-yellow-700 text-xs font-semibold ml-1">Locked</span>}
+            {leaf.corp_locked && <span className="inline-block px-2 py-0.5 rounded bg-caution/15 text-caution text-xs font-semibold ml-1">Locked</span>}
             {sourceLabel && <span className="text-xs text-base-content/50">{sourceLabel}</span>}
           </div>
           <p className="text-xs text-base-content/60 mt-0.5">{leaf.description}</p>
           {issues.length > 0 && (
             <div className="mt-1 space-y-0.5">
               {issues.map((issue, i) => (
-                <div key={i} className={`text-xs ${issue.severity === 'error' ? 'text-error' : 'text-warning'}`}>
+                <div key={i} className={`text-xs ${issue.severity === 'error' ? 'text-denied' : 'text-caution'}`}>
                   {issue.severity === 'error' ? '⛔' : '⚠️'} {issue.message}
                 </div>
               ))}

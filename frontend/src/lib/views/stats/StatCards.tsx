@@ -16,13 +16,13 @@ export default function StatCards({ cards }: Props) {
   return (
     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
       {cards.map((card, i) => (
-  <div key={i} className="bg-[--color-base-100] rounded-lg p-3">
-          <div className="text-xs text-neutral-600 uppercase tracking-wider">{card.label}</div>
-          <div className="text-xl font-bold mt-1" style={card.color ? { color: card.color } : undefined}>
+        <div key={i} className="bg-base-100 border border-base-300 rounded-lg p-3 shadow-xs">
+          <div className="text-[10px] text-base-content/40 uppercase tracking-widest font-semibold">{card.label}</div>
+          <div className="text-xl font-bold mt-1.5 tabular-nums" style={card.color ? { color: card.color } : undefined}>
             {card.value}
           </div>
           {card.detail && (
-            <div className="text-xs text-neutral-500 mt-0.5">{card.detail}</div>
+            <div className="text-xs text-base-content/40 mt-0.5">{card.detail}</div>
           )}
         </div>
       ))}

@@ -2,6 +2,7 @@
 import { useEffect, lazy, Suspense, Component, useCallback, type ReactNode, type ErrorInfo } from 'react';
 import { useSidebar } from './stores/sidebar';
 import { useVm, initVm } from './stores/vm';
+import { useVenvs } from './stores/venvs';
 import { loadSettings } from './stores/settings';
 import { initTheme } from './stores/theme';
 import ToastContainer from './components/ToastContainer';
@@ -13,6 +14,7 @@ import StatusBar from './components/StatusBar';
 import DownloadProgress from './components/DownloadProgress';
 
 import TerminalView from './views/TerminalView';
+import HomeView from './views/HomeView';
 
 // Lazy-load heavy views (StatsView pulls in recharts ~700KB)
 const StatsView = lazy(() => import('./views/StatsView'));
@@ -47,6 +49,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
 function AppInner() {
   const { activeView, setView } = useSidebar();
   const { isDownloading, downloadProgress } = useVm();
+  const { activeVenvId } = useVenvs();
 
   // Keyboard shortcuts: Cmd+1 = Console, Cmd+2 = Stats, Cmd+3 = Settings
   const viewKeys: Record<string, ViewName> = { '1': 'terminal', '2': 'stats', '3': 'settings' };
@@ -87,7 +90,8 @@ function AppInner() {
 
         {/* Main content area */}
         <div className="flex-1 min-h-0 overflow-hidden">
-          {currentView === 'terminal' && <TerminalView />}
+          {currentView === 'home' && <HomeView />}
+          {currentView === 'terminal' && <TerminalView key={activeVenvId ?? 'none'} />}
           <Suspense fallback={<div className="flex items-center justify-center h-full"><span className="loading loading-spinner loading-md" /></div>}>
             {currentView === 'stats' && <StatsView />}
             {currentView === 'settings' && <SettingsView />}

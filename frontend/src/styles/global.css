@@ -1,4 +1,7 @@
 @import "tailwindcss";
+@plugin "daisyui" {
+  themes: light --default, dark --prefersdark;
+}
 @source "../lib/**/*.tsx";
 @source "../lib/**/*.ts";
 @source "../components/**/*.ts";
@@ -74,14 +77,18 @@
 .json-number { color: var(--color-json-number); }
 
 
+/* --- Theme overrides --- */
+
 :root {
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
     "Liberation Mono", "Courier New", monospace;
-  /* Light mode colors */
+}
+
+/* Light mode base surface overrides */
+[data-theme="light"] {
   --color-base-content: #171717;
   --color-base-100: #fafafa;
 }
-
 
 /* Full-viewport shell */
 html,

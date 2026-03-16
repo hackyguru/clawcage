@@ -83,7 +83,7 @@ export default function ToolsTab() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Timeline */}
-          <div className="bg-[--color-base-100] rounded-lg p-3">
+          <div className="bg-base-100 border border-base-300 rounded-lg p-3 shadow-xs">
             <h3 className="text-xs font-semibold text-base-content/70 mb-2">Calls Over Time</h3>
             {timeline.length > 0 ? (
               <ResponsiveContainer width="100%" height={180}>
@@ -101,7 +101,7 @@ export default function ToolsTab() {
           </div>
 
           {/* Top tools pie */}
-          <div className="bg-[--color-base-100] rounded-lg p-3">
+          <div className="bg-base-100 border border-base-300 rounded-lg p-3 shadow-xs">
             <h3 className="text-xs font-semibold text-base-content/70 mb-2">Top Tools</h3>
             {toolPieData.length > 0 ? (
               <ResponsiveContainer width="100%" height={180}>
@@ -157,8 +157,8 @@ export default function ToolsTab() {
                     <td className="font-mono text-xs">{ev.timestamp?.split('T')[1]?.slice(0, 8) ?? ''}</td>
                     <td className="font-mono text-xs truncate max-w-32">{ev.tool_name ?? ev.method ?? '-'}</td>
                     <td className="text-xs">{ev.server_name}</td>
-                    <td><span className={`badge badge-xs ${ev.source === 'mcp' ? 'badge-accent' : 'badge-ghost'}`}>{ev.source}</span></td>
-                    <td><span className={`text-xs ${ev.decision === 'allowed' ? 'text-success' : 'text-error'}`}>{ev.decision}</span></td>
+                    <td><span className={`badge badge-xs ${ev.source === 'mcp' ? 'bg-interactive/15 text-interactive badge-outline' : 'badge-ghost'}`}>{ev.source}</span></td>
+                    <td><span className={`text-xs ${ev.decision === 'allowed' ? 'text-allowed' : 'text-denied'}`}>{ev.decision}</span></td>
                     <td className="text-right font-mono text-xs">{ev.duration_ms ? `${ev.duration_ms}ms` : '-'}</td>
                   </tr>
                 ))}

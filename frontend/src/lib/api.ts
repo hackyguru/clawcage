@@ -22,6 +22,7 @@ import type {
   SessionInfo,
   SettingsNode,
   SettingValue,
+  VenvInfo,
   VmStateResponse,
 } from './types';
 
@@ -154,4 +155,28 @@ export function onDownloadProgress(
   callback: (progress: DownloadProgress) => void,
 ): Promise<UnlistenFn> {
   return ensureDeps().then(() => isMock ? mockApi.onDownloadProgress(callback) : tauriListen<DownloadProgress>('download-progress', callback));
+}
+
+// ---------------------------------------------------------------------------
+// Venv (virtual environment) management
+// ---------------------------------------------------------------------------
+
+export function listVenvs(): Promise<VenvInfo[]> {
+  return ensureDeps().then(() => isMock ? mockApi.listVenvs() : tauriInvoke<VenvInfo[]>('list_venvs'));
+}
+
+export function createVenv(name: string, ephemeral: boolean): Promise<VenvInfo> {
+  return ensureDeps().then(() => isMock ? mockApi.createVenv(name, ephemeral) : tauriInvoke<VenvInfo>('create_venv', { name, ephemeral }));
+}
+
+export function deleteVenv(id: string): Promise<void> {
+  return ensureDeps().then(() => isMock ? mockApi.deleteVenv(id) : tauriInvoke<void>('delete_venv', { id }));
+}
+
+export function startVenv(id: string): Promise<void> {
+  return ensureDeps().then(() => isMock ? mockApi.startVenv(id) : tauriInvoke<void>('start_venv', { id }));
+}
+
+export function stopVenv(id: string): Promise<void> {
+  return ensureDeps().then(() => isMock ? mockApi.stopVenv(id) : tauriInvoke<void>('stop_venv', { id }));
 }

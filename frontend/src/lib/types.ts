@@ -118,8 +118,18 @@ export interface DownloadProgress {
   phase: string;
 }
 
+/** A virtual environment (VM configuration + lifecycle). */
+export interface VenvInfo {
+  id: string;
+  name: string;
+  status: 'stopped' | 'running' | 'booting' | 'error';
+  created_at: string;
+  last_used: string | null;
+  ephemeral: boolean;
+}
+
 /** Sidebar view names. */
-export type ViewName = 'terminal' | 'stats' | 'settings';
+export type ViewName = 'home' | 'terminal' | 'stats' | 'settings';
 
 /** Stats panel tab names. */
 export type StatsTab = 'ai' | 'tools' | 'network' | 'files';

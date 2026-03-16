@@ -6,6 +6,7 @@ import type {
   ResolvedSetting,
   SessionInfo,
   SettingsNode,
+  VenvInfo,
   VmStateResponse,
   GuestConfigResponse,
   NetworkPolicyResponse,
@@ -443,6 +444,39 @@ function buildMockTree(): SettingsNode[] {
   ];
 }
 
+// ---------------------------------------------------------------------------
+// Mock venv data
+// ---------------------------------------------------------------------------
+
+let mockVenvs: VenvInfo[] = [
+  {
+    id: 'venv-dev-server',
+    name: 'Dev Server',
+    status: 'stopped',
+    created_at: '2026-03-10T09:30:00Z',
+    last_used: '2026-03-15T14:22:00Z',
+    ephemeral: false,
+  },
+  {
+    id: 'venv-ml-training',
+    name: 'ML Training',
+    status: 'stopped',
+    created_at: '2026-03-08T11:00:00Z',
+    last_used: '2026-03-14T18:45:00Z',
+    ephemeral: true,
+  },
+  {
+    id: 'venv-web-scraper',
+    name: 'Web Scraper',
+    status: 'stopped',
+    created_at: '2026-03-12T16:15:00Z',
+    last_used: null,
+    ephemeral: false,
+  },
+];
+
+let mockVenvCounter = 4;
+
 const MOCK_VM_STATE: VmStateResponse = {
   state: 'Running',
   elapsed_ms: 45000,
@@ -522,6 +556,35 @@ export const mockApi = {
   onVmStateChanged: async (_cb: (state: string) => void) => () => {},
   onTerminalSourceChanged: async (_cb: (source: string) => void) => () => {},
   onDownloadProgress: async (_cb: (progress: any) => void) => () => {},
+
+  // Venv management
+  listVenvs: async (): Promise<VenvInfo[]> => mockVenvs.map((v) => ({ ...v })),
+  createVenv: async (name: string, ephemeral: boolean = false): Promise<VenvInfo> => {
+    const v: VenvInfo = {
+      id: `venv-${mockVenvCounter++}`,
+      name,
+      status: 'stopped',
+      created_at: new Date().toISOString(),
+      last_used: null,
+      ephemeral,
+    };
+    mockVenvs = [...mockVenvs, v];
+    return { ...v };
+  },
+  deleteVenv: async (id: string) => {
+    mockVenvs = mockVenvs.filter((v) => v.id !== id);
+  },
+  startVenv: async (id: string) => {
+    const v = mockVenvs.find((v) => v.id === id);
+    if (v) {
+      v.status = 'running';
+      v.last_used = new Date().toISOString();
+    }
+  },
+  stopVenv: async (id: string) => {
+    const v = mockVenvs.find((v) => v.id === id);
+    if (v) v.status = 'stopped';
+  },
 };
 
 // ---------------------------------------------------------------------------

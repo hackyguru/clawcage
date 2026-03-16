@@ -110,7 +110,7 @@ setup:
     echo "  just run    # build + sign + boot VM (~10s)"
 
 # Run the app in development mode with hot-reloading
-dev:
+dev: _check-assets _pack-initrd
     #!/bin/bash
     set -euo pipefail
     echo "Stopping running instances..."

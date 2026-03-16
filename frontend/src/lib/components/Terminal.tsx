@@ -62,7 +62,7 @@ export default function Terminal() {
     termEl.addEventListener('terminal-resize', onResize);
     cleanups.push(() => termEl.removeEventListener('terminal-resize', onResize));
 
-    // Poll-based output loop
+    // Poll-based output loop with retry for VM boot delay
     if (!isMock) {
       (async function pollTerminalOutput() {
         while (mountedRef.current) {
@@ -72,9 +72,10 @@ export default function Terminal() {
               termEl.write(new Uint8Array(data));
               await new Promise((r) => requestAnimationFrame(r));
             }
-          } catch (e) {
-            if (String(e) === 'terminal closed') break;
-            await new Promise((r) => setTimeout(r, 100));
+          } catch {
+            // VM may not be ready yet or terminal closed between venv switches.
+            // Retry after a short delay; the loop exits when the component unmounts.
+            await new Promise((r) => setTimeout(r, 250));
           }
         }
       })();
