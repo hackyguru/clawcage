@@ -202,8 +202,8 @@ export function listVenvs(): Promise<VenvInfo[]> {
   return ensureDeps().then(() => isMock ? mockApi.listVenvs() : tauriInvoke<VenvInfo[]>('list_venvs'));
 }
 
-export function createVenv(name: string, ephemeral: boolean): Promise<VenvInfo> {
-  return ensureDeps().then(() => isMock ? mockApi.createVenv(name, ephemeral) : tauriInvoke<VenvInfo>('create_venv', { name, ephemeral }));
+export function createVenv(name: string, ephemeral: boolean, template: string = 'blank'): Promise<VenvInfo> {
+  return ensureDeps().then(() => isMock ? mockApi.createVenv(name, ephemeral, template) : tauriInvoke<VenvInfo>('create_venv', { name, ephemeral, template }));
 }
 
 export function deleteVenv(id: string): Promise<void> {

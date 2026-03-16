@@ -27,6 +27,13 @@ pub struct VenvInfo {
     /// If true, scratch disk is wiped on every boot (no file persistence).
     #[serde(default)]
     pub ephemeral: bool,
+    /// Template ID used when this venv was created (e.g. "blank").
+    #[serde(default = "default_template")]
+    pub template: String,
+}
+
+fn default_template() -> String {
+    "blank".to_string()
 }
 
 /// Returns the path to `~/.aivm/venvs.json`.
@@ -88,7 +95,7 @@ pub async fn list_venvs() -> Result<Vec<VenvInfo>, String> {
 }
 
 #[tauri::command]
-pub async fn create_venv(name: String, ephemeral: bool) -> Result<VenvInfo, String> {
+pub async fn create_venv(name: String, ephemeral: bool, template: Option<String>) -> Result<VenvInfo, String> {
     tokio::task::spawn_blocking(move || {
         let mut venvs = load_venvs()?;
         let venv = VenvInfo {
@@ -98,6 +105,7 @@ pub async fn create_venv(name: String, ephemeral: bool) -> Result<VenvInfo, Stri
             created_at: session::now_iso(),
             last_used: None,
             ephemeral,
+            template: template.unwrap_or_else(default_template),
         };
         venvs.push(venv.clone());
         save_venvs(&venvs)?;

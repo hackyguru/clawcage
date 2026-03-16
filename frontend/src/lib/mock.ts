@@ -460,6 +460,7 @@ let mockVenvs: VenvInfo[] = [
     created_at: '2026-03-10T09:30:00Z',
     last_used: '2026-03-15T14:22:00Z',
     ephemeral: false,
+    template: 'blank',
   },
   {
     id: 'venv-ml-training',
@@ -468,6 +469,7 @@ let mockVenvs: VenvInfo[] = [
     created_at: '2026-03-08T11:00:00Z',
     last_used: '2026-03-14T18:45:00Z',
     ephemeral: true,
+    template: 'blank',
   },
   {
     id: 'venv-web-scraper',
@@ -476,6 +478,7 @@ let mockVenvs: VenvInfo[] = [
     created_at: '2026-03-12T16:15:00Z',
     last_used: null,
     ephemeral: false,
+    template: 'blank',
   },
 ];
 
@@ -612,7 +615,7 @@ export const mockApi = {
 
   // Venv management
   listVenvs: async (): Promise<VenvInfo[]> => mockVenvs.map((v) => ({ ...v })),
-  createVenv: async (name: string, ephemeral: boolean = false): Promise<VenvInfo> => {
+  createVenv: async (name: string, ephemeral: boolean = false, template: string = 'blank'): Promise<VenvInfo> => {
     const v: VenvInfo = {
       id: `venv-${mockVenvCounter++}`,
       name,
@@ -620,6 +623,7 @@ export const mockApi = {
       created_at: new Date().toISOString(),
       last_used: null,
       ephemeral,
+      template,
     };
     mockVenvs = [...mockVenvs, v];
     return { ...v };

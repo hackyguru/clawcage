@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Reusable `Dialog` and `ConfirmDialog` components for modal overlays with backdrop dismiss, Escape key, and entrance animation
 - Confirmation dialogs for destructive actions: delete environment (from both home and terminal views), stop environment (with ephemeral data loss warning)
 - New Environment dialog: create form now opens as a centered modal instead of inline card
+- Venv template system: extensible template registry (`templates.ts`) with template picker in the create dialog; environments store which template was used; ships with a "Blank" template, ready for future templates (e.g. Claw Bot)
+- Hardware settings in create dialog: collapsible "Hardware" section with CPU cores (1-8), RAM (1-16 GB), and scratch disk (1-128 GB) sliders; collapsed by default showing a summary line; non-default values are saved as per-venv setting overrides
 
 ### Fixed
 - Persistent venvs: files now survive stop/start cycles — VM stop sync command uses framed vsock encoding matching the multi-shell agent protocol, and flush timeout increased to 1500ms for journalless ext4

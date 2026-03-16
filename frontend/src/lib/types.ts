@@ -119,6 +119,16 @@ export interface DownloadProgress {
   phase: string;
 }
 
+/** A venv creation template. */
+export interface VenvTemplate {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  /** Default ephemeral setting for this template. */
+  defaultEphemeral: boolean;
+}
+
 /** A virtual environment (VM configuration + lifecycle). */
 export interface VenvInfo {
   id: string;
@@ -127,6 +137,8 @@ export interface VenvInfo {
   created_at: string;
   last_used: string | null;
   ephemeral: boolean;
+  /** Template ID used when this venv was created. */
+  template: string;
 }
 
 /** Sidebar view names. */

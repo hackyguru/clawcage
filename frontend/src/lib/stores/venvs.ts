@@ -37,9 +37,9 @@ export async function loadVenvs() {
   emit();
 }
 
-export async function createVenvAction(name: string, ephemeral: boolean = false): Promise<VenvInfo | null> {
+export async function createVenvAction(name: string, ephemeral: boolean = false, template: string = 'blank'): Promise<VenvInfo | null> {
   try {
-    const v = await apiCreateVenv(name, ephemeral);
+    const v = await apiCreateVenv(name, ephemeral, template);
     venvs = [...venvs, v];
     emit();
     return v;
