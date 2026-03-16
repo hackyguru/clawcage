@@ -30,6 +30,115 @@ dependencies = [
 ]
 
 [[package]]
+name = "aivm"
+version = "0.8.8"
+dependencies = [
+ "aivm-core",
+ "aivm-logger",
+ "anyhow",
+ "core-foundation-sys",
+ "objc2",
+ "objc2-app-kit",
+ "objc2-foundation",
+ "objc2-virtualization",
+ "reqwest 0.12.28",
+ "rmp-serde",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-dialog",
+ "tauri-plugin-process",
+ "tauri-plugin-updater",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "aivm-agent"
+version = "0.8.8"
+dependencies = [
+ "aivm-proto",
+ "nix",
+ "rmp-serde",
+ "serde",
+ "signal-hook",
+ "tokio",
+]
+
+[[package]]
+name = "aivm-core"
+version = "0.8.8"
+dependencies = [
+ "aivm-logger",
+ "aivm-proto",
+ "anyhow",
+ "async-compression",
+ "blake3",
+ "block2",
+ "bytes",
+ "core-foundation-sys",
+ "dispatch2 0.2.0",
+ "dotenvy",
+ "flate2",
+ "futures",
+ "http",
+ "http-body-util",
+ "humantime",
+ "hyper",
+ "hyper-util",
+ "libc",
+ "objc2",
+ "objc2-foundation",
+ "objc2-virtualization",
+ "pin-project-lite",
+ "rcgen",
+ "regex",
+ "reqwest 0.12.28",
+ "rmp-serde",
+ "rusqlite",
+ "rustls",
+ "rustls-pemfile",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.18",
+ "time",
+ "tl",
+ "tokio",
+ "tokio-rustls",
+ "tokio-stream",
+ "tokio-util",
+ "toml 0.8.2",
+ "tracing",
+ "uuid",
+ "webpki-roots 0.26.11",
+]
+
+[[package]]
+name = "aivm-logger"
+version = "0.8.8"
+dependencies = [
+ "humantime",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "aivm-proto"
+version = "0.8.8"
+dependencies = [
+ "anyhow",
+ "rmp-serde",
+ "serde",
+]
+
+[[package]]
 name = "alloc-no-stdlib"
 version = "2.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -342,115 +451,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e629a66d692cb9ff1a1c664e41771b3dcaf961985a9774c0eb0bd1b51cf60a48"
 dependencies = [
  "serde_core",
-]
-
-[[package]]
-name = "capsem"
-version = "0.8.8"
-dependencies = [
- "anyhow",
- "capsem-core",
- "capsem-logger",
- "core-foundation-sys",
- "objc2",
- "objc2-app-kit",
- "objc2-foundation",
- "objc2-virtualization",
- "reqwest 0.12.28",
- "rmp-serde",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-dialog",
- "tauri-plugin-process",
- "tauri-plugin-updater",
- "tokio",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "capsem-agent"
-version = "0.8.8"
-dependencies = [
- "capsem-proto",
- "nix",
- "rmp-serde",
- "serde",
- "signal-hook",
- "tokio",
-]
-
-[[package]]
-name = "capsem-core"
-version = "0.8.8"
-dependencies = [
- "anyhow",
- "async-compression",
- "blake3",
- "block2",
- "bytes",
- "capsem-logger",
- "capsem-proto",
- "core-foundation-sys",
- "dispatch2 0.2.0",
- "dotenvy",
- "flate2",
- "futures",
- "http",
- "http-body-util",
- "humantime",
- "hyper",
- "hyper-util",
- "libc",
- "objc2",
- "objc2-foundation",
- "objc2-virtualization",
- "pin-project-lite",
- "rcgen",
- "regex",
- "reqwest 0.12.28",
- "rmp-serde",
- "rusqlite",
- "rustls",
- "rustls-pemfile",
- "serde",
- "serde_json",
- "tempfile",
- "thiserror 2.0.18",
- "time",
- "tl",
- "tokio",
- "tokio-rustls",
- "tokio-stream",
- "tokio-util",
- "toml 0.8.2",
- "tracing",
- "uuid",
- "webpki-roots 0.26.11",
-]
-
-[[package]]
-name = "capsem-logger"
-version = "0.8.8"
-dependencies = [
- "humantime",
- "rusqlite",
- "serde",
- "serde_json",
- "tempfile",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "capsem-proto"
-version = "0.8.8"
-dependencies = [
- "anyhow",
- "rmp-serde",
- "serde",
 ]
 
 [[package]]

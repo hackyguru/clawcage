@@ -1,14 +1,16 @@
-// TerminalView - toolbar + terminal + stats bar
+// TerminalView - toolbar + shell tabs + terminal + stats bar
 import { useState, useCallback } from 'react';
 import Terminal from '../components/Terminal';
 import StatsBar from '../components/StatsBar';
 import { useVenvs, stopVenvAction, deleteVenvAction } from '../stores/venvs';
 import { useSidebar } from '../stores/sidebar';
-import { StopIcon, TrashIcon, HomeIcon } from '../icons/Icons';
+import { useShells } from '../stores/shells';
+import { StopIcon, TrashIcon, HomeIcon, PlusIcon, CloseIcon } from '../icons/Icons';
 
 function TerminalToolbar() {
   const { activeVenv } = useVenvs();
   const { setView } = useSidebar();
+  const { spawnShell } = useShells();
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const handleStop = useCallback(() => {
@@ -48,6 +50,16 @@ function TerminalToolbar() {
       <span className="flex-1" />
       {activeVenv.status === 'running' && (
         <button
+          className="flex items-center gap-1 text-[11px] text-neutral-500 hover:text-interactive transition-colors"
+          onClick={() => spawnShell()}
+          title="New shell"
+        >
+          <PlusIcon className="size-3" />
+          Shell
+        </button>
+      )}
+      {activeVenv.status === 'running' && (
+        <button
           className="flex items-center gap-1 text-[11px] text-neutral-500 hover:text-denied transition-colors"
           onClick={handleStop}
           title="Stop environment"
@@ -70,12 +82,66 @@ function TerminalToolbar() {
   );
 }
 
+function ShellTabBar() {
+  const { tabs, activeSessionId, spawnShell, closeShell, setActiveSession } = useShells();
+
+  if (tabs.length <= 1) return null; // Hide tab bar for single shell
+
+  return (
+    <div className="flex items-center gap-0.5 px-2 py-1 bg-neutral-950 border-b border-white/5 select-none overflow-x-auto">
+      {tabs.map((tab) => (
+        <button
+          key={tab.sessionId}
+          className={`group flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] transition-colors ${
+            tab.sessionId === activeSessionId
+              ? 'bg-white/10 text-neutral-200'
+              : 'text-neutral-500 hover:text-neutral-300 hover:bg-white/5'
+          }`}
+          onClick={() => setActiveSession(tab.sessionId)}
+        >
+          <span className="truncate max-w-25">{tab.label}</span>
+          {tab.sessionId !== 0 && (
+            <span
+              className="opacity-0 group-hover:opacity-100 hover:text-denied transition-opacity"
+              onClick={(e) => {
+                e.stopPropagation();
+                closeShell(tab.sessionId);
+              }}
+              title="Close shell"
+            >
+              <CloseIcon className="size-2.5" />
+            </span>
+          )}
+        </button>
+      ))}
+      <button
+        className="flex items-center justify-center size-5 rounded text-neutral-600 hover:text-neutral-300 hover:bg-white/5 transition-colors ml-0.5"
+        onClick={spawnShell}
+        title="New shell"
+      >
+        <PlusIcon className="size-3" />
+      </button>
+    </div>
+  );
+}
+
 export default function TerminalView() {
+  const { tabs, activeSessionId } = useShells();
+
   return (
     <div className="flex flex-col h-full w-full">
       <TerminalToolbar />
-      <div className="flex-1 min-h-0">
-        <Terminal />
+      <ShellTabBar />
+      <div className="flex-1 min-h-0 relative">
+        {tabs.map((tab) => (
+          <div
+            key={tab.sessionId}
+            className="absolute inset-0"
+            style={{ display: tab.sessionId === activeSessionId ? 'block' : 'none' }}
+          >
+            <Terminal sessionId={tab.sessionId} />
+          </div>
+        ))}
       </div>
       <StatsBar />
     </div>

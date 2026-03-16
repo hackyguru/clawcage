@@ -44,7 +44,7 @@ export type SettingType =
 export type SettingValue = boolean | number | string | { path: string; content: string };
 
 /** Where a setting's effective value came from (serde rename_all = "lowercase"). */
-export type PolicySource = 'default' | 'user' | 'corp';
+export type PolicySource = 'default' | 'user' | 'venv' | 'corp';
 
 /** Per-rule HTTP method permissions. */
 export interface HttpMethodPermissions {
@@ -81,6 +81,7 @@ export interface ResolvedSetting {
   enabled_by: string | null;
   enabled: boolean;
   metadata: SettingMetadata;
+  venv_overridden: boolean;
 }
 
 /** Response from get_session_info. */
@@ -129,7 +130,27 @@ export interface VenvInfo {
 }
 
 /** Sidebar view names. */
-export type ViewName = 'home' | 'terminal' | 'stats' | 'settings';
+export type ViewName = 'home' | 'terminal' | 'ports' | 'stats' | 'settings';
+
+/** A detected listening port inside the guest VM. */
+export interface DetectedPort {
+  port: number;
+  pid: number;
+  process: string;
+  detected_at: number;
+}
+
+/** A forwarded port (guest -> host). */
+export interface ForwardedPort {
+  guest_port: number;
+  host_port: number;
+}
+
+/** Response from get_ports. */
+export interface PortsResponse {
+  detected: DetectedPort[];
+  forwarded: ForwardedPort[];
+}
 
 /** Stats panel tab names. */
 export type StatsTab = 'ai' | 'tools' | 'network' | 'files';
@@ -237,6 +258,7 @@ export interface SettingsLeaf {
   enabled_by: string | null;
   enabled: boolean;
   metadata: SettingMetadata;
+  venv_overridden: boolean;
   collapsed?: boolean;
 }
 

@@ -6,8 +6,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 CERT_DIR="$(dirname "$SCRIPT_DIR")/private/apple-certificate"
-P12="$CERT_DIR/capsem.p12"
-B64="$CERT_DIR/capsem-b64.txt"
+P12="$CERT_DIR/aivm.p12"
+B64="$CERT_DIR/aivm-b64.txt"
 PASS_FILE="$CERT_DIR/p12-password.txt"
 TMPDIR_WORK="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR_WORK"' EXIT

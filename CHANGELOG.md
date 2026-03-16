@@ -7,26 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Multi-shell terminals: create multiple shell sessions within the same VM with a tab bar UI, each backed by its own PTY over multiplexed vsock framing
+- Ports view: new sidebar page (Cmd+2) showing all TCP listening ports detected inside the VM with process name, PID, and forwarding status
+- Port forwarding: forward guest ports to host localhost with one click, making in-VM web servers accessible from the host browser via vsock relay bridge (port 5007)
+- Port detection daemon (`aivm-port-watch`): guest-side binary that polls `/proc/net/tcp` and sends `PortOpened`/`PortClosed` events over vsock port 5006, also runs relay workers for port forwarding
+- Per-venv port scoping: detected and forwarded ports are tracked per virtual environment
+
 ## [0.8.8] - 2026-03-07
 
 ### Added
-- Proxy throughput benchmark (`capsem-bench throughput`): downloads 100 MB through the full MITM proxy pipeline and reports MB/s — baseline ~35 MB/s on Apple Silicon
-- `capsem-bench` is now repacked into the initrd on every `just run`, so changes to the benchmark script take effect immediately without a full rootfs rebuild
+- Proxy throughput benchmark (`aivm-bench throughput`): downloads 100 MB through the full MITM proxy pipeline and reports MB/s — baseline ~35 MB/s on Apple Silicon
+- `aivm-bench` is now repacked into the initrd on every `just run`, so changes to the benchmark script take effect immediately without a full rootfs rebuild
 - `ash-speed.hetzner.com` added to the default network allow list and integration test config for the throughput benchmark
-- Rust integration test `mitm_proxy_download_throughput` (in `crates/capsem-core/tests/mitm_integration.rs`): validates 100 MB download through the proxy at the host level; marked `#[ignore]` so it runs only on demand
-- `test_proxy_download_throughput` in `capsem-doctor` (`test_network.py`): in-VM Layer 7 test verifying end-to-end proxy throughput; skips gracefully if the speed-test domain is not in the allow list
+- Rust integration test `mitm_proxy_download_throughput` (in `crates/aivm-core/tests/mitm_integration.rs`): validates 100 MB download through the proxy at the host level; marked `#[ignore]` so it runs only on demand
+- `test_proxy_download_throughput` in `aivm-doctor` (`test_network.py`): in-VM Layer 7 test verifying end-to-end proxy throughput; skips gracefully if the speed-test domain is not in the allow list
 - `docs/performance.md`: documents all benchmark modes, baseline numbers, proxy data path, and domain allow list setup
-- `just run` now kills any existing Capsem instance before booting, preventing a stale GUI window from appearing alongside a CLI run
+- `just run` now kills any existing Aivm instance before booting, preventing a stale GUI window from appearing alongside a CLI run
 - Notarization credential verification in CI preflight job: validates Apple API key against `notarytool history` before spending time on build-assets and tests
 - Notarization preflight check in `scripts/preflight.sh`: verifies `.p8` key, API Key ID, Issuer ID, and runs a live `notarytool history` test
 
 ### Fixed
-- `capsem-init` now aborts boot (kernel panic) if the tmpfs mount for the overlay upper layer fails, preventing a silent degraded boot where writes land on the initramfs instead of the intended tmpfs
-- `capsem-init` now creates `/mnt/b` before mounting tmpfs on it (missing `mkdir -p` caused the tmpfs mount to fail with "No such file or directory" on fresh initrds)
+- `aivm-init` now aborts boot (kernel panic) if the tmpfs mount for the overlay upper layer fails, preventing a silent degraded boot where writes land on the initramfs instead of the intended tmpfs
+- `aivm-init` now creates `/mnt/b` before mounting tmpfs on it (missing `mkdir -p` caused the tmpfs mount to fail with "No such file or directory" on fresh initrds)
 - CI release no longer hangs on first-time notarization: `--skip-stapling` flag submits for notarization without waiting for Apple's response (first-time notarization can take hours)
 
 ### Security
-- Boot invariant enforcement: `capsem-init` fatal-exits on tmpfs or overlayfs mount failure rather than continuing with a wrong upper layer; preflight check verifies this abort is present
+- Boot invariant enforcement: `aivm-init` fatal-exits on tmpfs or overlayfs mount failure rather than continuing with a wrong upper layer; preflight check verifies this abort is present
 
 ## [0.8.4] - 2026-03-06
 
@@ -35,9 +42,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `apt-packages.txt`: declarative list of system packages baked into the rootfs — edit and `just build-assets` to add/remove packages.
 - Debian apt sources switched to HTTPS (`deb.debian.org`, `security.debian.org`) in `Dockerfile.rootfs`; both domains added to the default network allow list so the MITM proxy forwards them.
 - Package lists pre-populated at rootfs build time so `apt-get install` works inside a running VM without a prior `apt-get update`.
-- `force-unsafe-io` dpkg config in `capsem-init`: skips redundant fsyncs on overlayfs.
+- `force-unsafe-io` dpkg config in `aivm-init`: skips redundant fsyncs on overlayfs.
 - Claude Code installed as a native binary (downloaded directly from Anthropic's GCS release bucket) instead of via npm, removing the Node.js dependency for the Claude CLI.
-- Ephemeral model preflight check (`check_ephemeral_model` in `scripts/preflight.sh`): statically verifies `capsem-init` never skips `mke2fs` and never uses the scratch disk as overlay upper layer.
+- Ephemeral model preflight check (`check_ephemeral_model` in `scripts/preflight.sh`): statically verifies `aivm-init` never skips `mke2fs` and never uses the scratch disk as overlay upper layer.
 - Ephemeral model end-to-end test (`check_persistence` in `scripts/integration_test.py`): boots two consecutive VMs, writes a sentinel file in the first, and asserts it is absent in the second.
 
 ### Changed
@@ -61,12 +68,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Apple certificate import in CI: re-exported p12 with legacy 3DES/SHA1 encryption (macOS rejects OpenSSL 3.x default PBES2/AES-256-CBC with misleading "wrong password" error)
 
 ### Added
-- Configuration overrides via `CAPSEM_USER_CONFIG` and `CAPSEM_CORP_CONFIG` environment variables to support isolated testing and CI.
+- Configuration overrides via `AIVM_USER_CONFIG` and `AIVM_CORP_CONFIG` environment variables to support isolated testing and CI.
 - Dedicated integration test configurations (`config/integration-test-user.toml` and `config/integration-test-corp.toml`) for reproducible end-to-end validation.
 - Thin DMG distribution: rootfs excluded from app bundle, downloaded on first launch via asset manager with blake3 hash verification
 - Asset manager (`asset_manager.rs`): checks, downloads, and verifies VM assets from GitHub Releases with streaming progress
 - Download progress UI: full-screen progress bar shown during first-launch rootfs download
-- CLI download support: `capsem "command"` auto-downloads rootfs with stderr progress if missing
+- CLI download support: `aivm "command"` auto-downloads rootfs with stderr progress if missing
 - Squashfs support: boot_vm accepts both rootfs.squashfs (new) and rootfs.img (legacy) formats
 - Release workflow uploads rootfs.squashfs as separate GitHub Release asset alongside the thin DMG
 - Onboarding plan (`docs/onboarding.md`): first-launch wizard scope for credentials, MCP config, and guided setup
@@ -79,7 +86,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Asset resolution in macOS app bundle now searches multiple paths in `Resources` (including nested Tauri v2 paths) for better reliability.
 - Integration test isolated from host user settings and correctly maps `GOOGLE_API_KEY` to `GEMINI_API_KEY` for the internal VM CLI.
 - Tauri asset bundling now uses a flat map to prevent deeply nested `_up_/_up_/assets` structures in the final package.
-- `just dev` now automatically passes `CAPSEM_ASSETS_DIR` to ensure the VM boots during local development.
+- `just dev` now automatically passes `AIVM_ASSETS_DIR` to ensure the VM boots during local development.
 - Stats "Models" tab renamed to "Model" (AITab.svelte replaces ModelsTab.svelte)
 - Network, Tools, and Files stats tabs rebuilt with LayerChart v2 simplified chart components (BarChart, PieChart) replacing raw D3/Chart.js primitives
 - SQL queries expanded: per-model token/cost breakdowns, provider distribution, cost-over-time, tool success rates, file action breakdowns
@@ -93,14 +100,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - fs-watch telemetry drops: Fixed a race condition during VM boot where early vsock connections (like `fs-watch`) were dropped by the host before the terminal/control handshake completed.
 - `scripts/run_signed.sh` now correctly refreshes the binary signature via `touch` after re-signing with entitlements.
 - Build prerequisites documentation updated with `b3sum`, `tauri-cli`, and `musl-cross` toolchain requirements.
-- capsem-doctor PATH: writable bin dirs (`/root/.npm-global/bin`, `/root/.local/bin`) now included so AI CLIs and npm globals are found
+- aivm-doctor PATH: writable bin dirs (`/root/.npm-global/bin`, `/root/.local/bin`) now included so AI CLIs and npm globals are found
 - Gemini CLI settings.json: added `homeDirectoryWarningDismissed` and `sessionRetention` to suppress first-run prompts
 - AI provider domain-blocked test now skips when the provider is explicitly enabled by policy
 - Integration test handles compressed session DBs (`session.db.gz`) after vacuum
 - Integration test accepts `vacuumed` as valid terminal session status
 
 ### Changed
-- capsem-doctor and diagnostics are now repacked into the initrd, so changes take effect with `just run` instead of requiring `just build-assets`
+- aivm-doctor and diagnostics are now repacked into the initrd, so changes take effect with `just run` instead of requiring `just build-assets`
 - `just full-test` now includes initrd repack to ensure latest guest code is deployed
 
 ### Added
@@ -139,11 +146,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Unified SQL gateway: `query_db` IPC command now supports both session.db and main.db via `db` parameter ("session" or "main"), with bind parameter support via `params` array. Replaced 11 per-query Tauri commands (net_events, get_model_calls, get_traces, get_trace_detail, get_mcp_calls, get_file_events, get_session_history, get_global_stats, get_top_providers, get_top_tools, get_top_mcp_tools) with a single `query_db` gateway
 - Frontend queries now run through `db.ts` (unified query layer) instead of individual api.ts wrappers, using parameterized SQL from `sql.ts`
 - Removed `ModelCallResponse` Rust wrapper struct (was only needed for the deleted `get_model_calls` command)
-- Justfile streamlined from 23 recipes to 13 public + 5 internal helpers: `run` now auto-repacks initrd (replaces separate `repack`), `test` includes cross-compile + frontend check (replaces `check`), `full-test` combines capsem-doctor + integration test + bench (replaces `smoke-test`/`integration-test`/`preflight`), `build-assets` replaces `build`, `inspect-session` replaces `check-session`, `release` now produces a DMG at `target/release/Capsem.dmg`
+- Justfile streamlined from 23 recipes to 13 public + 5 internal helpers: `run` now auto-repacks initrd (replaces separate `repack`), `test` includes cross-compile + frontend check (replaces `check`), `full-test` combines aivm-doctor + integration test + bench (replaces `smoke-test`/`integration-test`/`preflight`), `build-assets` replaces `build`, `inspect-session` replaces `check-session`, `release` now produces a DMG at `target/release/Aivm.dmg`
 - Removed recipes: `compile`, `sign`, `frontend`, `rebuild`, `repack`, `repack-initrd`, `ensure-tools`, `smoke-test`, `integration-test`, `preflight` (functionality preserved as internal `_`-prefixed helpers or merged into public recipes)
 
 ### Fixed
-- 12 compilation warnings eliminated across 3 files: dead code warnings in `capsem-fs-watch` cross-platform helpers (blanket `#![cfg_attr(not(target_os = "linux"), allow(dead_code))]`), unused `SessionStats` import in commands.rs, and test-only `close()` method gated with `#[cfg(test)]`
+- 12 compilation warnings eliminated across 3 files: dead code warnings in `aivm-fs-watch` cross-platform helpers (blanket `#![cfg_attr(not(target_os = "linux"), allow(dead_code))]`), unused `SessionStats` import in commands.rs, and test-only `close()` method gated with `#[cfg(test)]`
 - Test fixture updated from integration test session with full pipeline coverage: denied net events, deleted file events, positive cost estimates, `origin` column on tool_calls
 - `fixture_top_domains_non_empty` test assertion fixed: `count >= allowed + denied` accounts for error events that are counted in total but not in allowed/denied buckets
 - `query_raw_real_type` test now validates REAL type serialization without requiring positive cost values in the fixture
@@ -156,9 +163,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - DbWriter now checkpoints WAL on clean shutdown (drop)
 - Startup vacuum recovery: any sessions that stopped but were not vacuumed (e.g. due to crash) are automatically compressed on next app launch
 - `check-session` script now handles compressed session DBs (auto-decompresses `.gz` files)
-- End-to-end integration test (`just integration-test`): boots a real VM, exercises all 6 telemetry pipelines (fs_events, net_events, mcp_calls, model_calls, tool_calls, main.db rollup), runs capsem-doctor MCP tests, asks Gemini to write a poem, and verifies every event type is correctly logged in the session DB
-- Release preflight gates (`just preflight`): unit tests, cross-compile, capsem-doctor smoke test, integration test, and benchmarks must all pass before `just release` or `just install` builds the app
-- In-VM benchmark recipe (`just bench`): standalone entry point for capsem-bench (disk I/O, rootfs read, CLI startup, HTTP latency)
+- End-to-end integration test (`just integration-test`): boots a real VM, exercises all 6 telemetry pipelines (fs_events, net_events, mcp_calls, model_calls, tool_calls, main.db rollup), runs aivm-doctor MCP tests, asks Gemini to write a poem, and verifies every event type is correctly logged in the session DB
+- Release preflight gates (`just preflight`): unit tests, cross-compile, aivm-doctor smoke test, integration test, and benchmarks must all pass before `just release` or `just install` builds the app
+- In-VM benchmark recipe (`just bench`): standalone entry point for aivm-bench (disk I/O, rootfs read, CLI startup, HTTP latency)
 - Tool origin tracking: `tool_calls` table now records `origin` ("native" or "mcp") and `mcp_call_id` columns to distinguish model built-in tools from MCP gateway tools
 - `check-session` data quality warnings: flags model_calls with NULL model, tokens, or request_body_preview
 - `check-session` tool lifecycle section: shows origin breakdown and MCP call correlation
@@ -175,7 +182,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - MITM proxy non-streaming response parsing now handles gzip-compressed response bodies (upstream often sends Content-Encoding: gzip)
 - MITM proxy no longer creates model_call records for HEAD requests (connectivity probes from AI CLIs have no body/model/tokens)
 - Telemetry event pipeline silently dropping events under burst load: `try_write()` in MITM proxy and fs-watch handler failed without logging when the 256-slot DB channel was full (e.g. during `npm install`). Replaced with async `write().await` via `tokio::spawn` for backpressure, and bumped channel capacity from 256 to 4096.
-- MCP builtin tools (`fetch_http`, `grep_http`, `http_headers`) returning empty responses: `capsem-mcp-server` used `SHUT_RDWR` after stdin closed, killing in-flight gateway responses before they could be read back. Changed to `SHUT_WR` (half-close) so the reader thread collects all responses before shutdown.
+- MCP builtin tools (`fetch_http`, `grep_http`, `http_headers`) returning empty responses: `aivm-mcp-server` used `SHUT_RDWR` after stdin closed, killing in-flight gateway responses before they could be read back. Changed to `SHUT_WR` (half-close) so the reader thread collects all responses before shutdown.
 - MCP `fetch_http` and `grep_http` now reject binary content (images, PDFs, audio, video, etc.) with a clear error instead of returning garbled text or UTF-8 decode errors
 - MCP tools now reject non-HTTP schemes (`file://`, `ftp://`, `data:`, etc.) before any network request is made
 - MCP `grep_http` now rejects empty patterns instead of matching every line
@@ -199,7 +206,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `VSOCK_PORT_AI_GATEWAY` constant (port 5004) -- unused, never wired up
 - `GatewayConfig` struct -- only used by the dead server
 - `gateway_integration.rs` test file -- tests for the dead server
-- `axum` dependency from capsem-core
+- `axum` dependency from aivm-core
 - `get_session_stats`, `get_mcp_stats`, `get_file_stats` Tauri IPC commands -- replaced by frontend SQL via `queryDb()`
 - `SessionStatsResponse` struct from commands.rs and `SessionStatsResponse`, `SessionStats`, `McpCallStats`, `FileEventStats` types from frontend
 - `SessionsSection.svelte` -- orphan component never imported by AnalyticsView
@@ -210,8 +217,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `queryOne<T>()` and `queryAll<T>()` typed helpers in `api.ts` for running SQL against the active session's info.db
 - Analytics data architecture documented in `docs/architecture.md` (two-database design, data flow, query strategy, polling patterns)
 - Frontend development skill file (`.claude/skills/frontend.md`)
-- In-VM filesystem watcher (`capsem-fs-watch`): inotify-based daemon streams file create/modify/delete events to the host over vsock:5005 for real-time file activity telemetry
-- `fs_events` audit table in `capsem-logger`: records every file operation with timestamp, action, path, and size
+- In-VM filesystem watcher (`aivm-fs-watch`): inotify-based daemon streams file create/modify/delete events to the host over vsock:5005 for real-time file activity telemetry
+- `fs_events` audit table in `aivm-logger`: records every file operation with timestamp, action, path, and size
 - `FileEvent` type with `WriteOp::FileEvent` variant and reader queries (`recent_file_events`, `search_file_events`, `file_event_stats`)
 - `get_file_events` and `get_file_stats` Tauri IPC commands for the frontend
 - Files view in frontend: summary cards (total/created/modified/deleted), searchable event table with action badges, 2s polling
@@ -220,20 +227,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - MCP gateway wired to vsock:5003: host now accepts MCP connections from guest agents, fixing Gemini CLI hang on startup
 - Built-in HTTP tools: `fetch_http`, `grep_http`, `http_headers` -- AI agents can fetch web content, search pages, and inspect headers from within the sandbox, all checked against domain policy
 - MCP domain policy hot-reload: changing network settings in the UI immediately updates which domains built-in HTTP tools can access
-- `capsem-doctor` MCP tests: 6 new in-VM diagnostic tests verifying MCP binary, initialize handshake, tools/list, allowed/blocked fetch, and fastmcp availability
+- `aivm-doctor` MCP tests: 6 new in-VM diagnostic tests verifying MCP binary, initialize handshake, tools/list, allowed/blocked fetch, and fastmcp availability
 - `fastmcp` Python package in guest rootfs for building custom MCP servers inside the VM
-- MCP Proxy Gateway: AI agents in the guest VM can now use host-side MCP tools transparently via a unified `capsem-mcp-server` binary injected at boot
-- `capsem-mcp-server` guest binary: lightweight NDJSON-over-vsock bridge (~90 lines) relaying MCP JSON-RPC between agents and the host gateway on vsock:5003
-- MCP gateway host module (`capsem-core::mcp`): types, policy engine, stdio bridge, server manager, and vsock gateway for routing tool calls to host-side MCP servers
+- MCP Proxy Gateway: AI agents in the guest VM can now use host-side MCP tools transparently via a unified `aivm-mcp-server` binary injected at boot
+- `aivm-mcp-server` guest binary: lightweight NDJSON-over-vsock bridge (~90 lines) relaying MCP JSON-RPC between agents and the host gateway on vsock:5003
+- MCP gateway host module (`aivm-core::mcp`): types, policy engine, stdio bridge, server manager, and vsock gateway for routing tool calls to host-side MCP servers
 - Namespaced MCP tools: tools from multiple servers are exposed as `{server}__{tool}` to prevent collisions (e.g., `github__search_repos`, `slack__send_message`)
 - Per-tool dynamic policy: each MCP tool can be set to allow (forward normally), warn (forward + flag), or block (return JSON-RPC error) with hot-reload via `Arc<RwLock<Arc<McpPolicy>>>`
 - MCP server auto-detection: reads existing MCP configs from `~/.claude/settings.json` and `~/.gemini/settings.json` at boot
-- `mcp_calls` audit table in `capsem-logger`: full telemetry for every MCP tool call (server, method, tool, decision, duration, error)
+- `mcp_calls` audit table in `aivm-logger`: full telemetry for every MCP tool call (server, method, tool, decision, duration, error)
 - `McpCall` event type with `WriteOp::McpCall` variant and `insert_mcp_call()` writer method
 - `DbReader` MCP queries: `recent_mcp_calls(limit, search)` with text search across server/method/tool, `mcp_call_stats()` aggregation (total, allowed, denied, warned, by-server breakdown)
 - Schema migration: existing databases automatically gain the `mcp_calls` table on open
 - `get_mcp_calls` and `get_mcp_stats` Tauri IPC commands for the frontend
-- `inject_capsem_mcp_server()`: automatically merges `{"capsem": {"command": "/run/capsem-mcp-server"}}` into Claude and Gemini settings.json at boot, preserving user-provided MCP server entries
+- `inject_aivm_mcp_server()`: automatically merges `{"aivm": {"command": "/run/aivm-mcp-server"}}` into Claude and Gemini settings.json at boot, preserving user-provided MCP server entries
 - MCP Tools view in frontend: summary cards (total/warned/denied), per-server breakdown, searchable call log table with decision badges
 - MCP sidebar navigation item with layers icon between Sessions and Settings
 - Mock MCP data: 6 sample calls across 3 servers (github, filesystem, slack) for browser dev mode
@@ -245,9 +252,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Cache and thinking token counts shown in session stats and trace detail UI
 
 ### Changed
-- `capsem-proto` simplified: removed `McpGuestMsg`/`McpHostMsg` enums and encode/decode functions in favor of raw NDJSON passthrough (less code, better performance)
-- `capsem-init` deploys `capsem-mcp-server` from initrd (with rootfs fallback)
-- `just repack` cross-compiles and bundles `capsem-mcp-server` alongside pty-agent and net-proxy
+- `aivm-proto` simplified: removed `McpGuestMsg`/`McpHostMsg` enums and encode/decode functions in favor of raw NDJSON passthrough (less code, better performance)
+- `aivm-init` deploys `aivm-mcp-server` from initrd (with rootfs fallback)
+- `just repack` cross-compiles and bundles `aivm-mcp-server` alongside pty-agent and net-proxy
 - Sessions view: trace detail panel now shows MCP tool calls inline with model calls
 - Token details stored as flexible `usage_details TEXT` JSON column replacing individual token columns -- single schema handles all current and future token breakdowns
 - Cost estimation accounts for cached tokens: `cache_read` tokens subtracted from effective input before pricing calculation
@@ -262,7 +269,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.8.0] - 2026-02-28
 
 ### Added
-- `capsem-logger` crate: unified audit database with dedicated writer thread, replacing three separate SQLite databases (`WebDb`, `GatewayDb`, `AiDb`) with a single `session.db` per VM session
+- `aivm-logger` crate: unified audit database with dedicated writer thread, replacing three separate SQLite databases (`WebDb`, `GatewayDb`, `AiDb`) with a single `session.db` per VM session
 - Dedicated writer thread using `tokio::sync::mpsc` channel with block-then-drain batching (up to 128 ops per transaction), eliminating `spawn_blocking` + `Arc<Mutex<>>` contention
 - `DbWriter` / `DbReader` API: async writes via channel, read-only WAL concurrent readers, typed `WriteOp` enum for debuggable operations
 - Unified schema: `net_events` (all HTTPS connections), `model_calls` (denormalized request+response), `tool_calls`, `tool_responses` tables in a single DB file
@@ -282,10 +289,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - LLM Usage section in Sessions view: API call count, input/output tokens, estimated cost, per-provider breakdown, model calls table, tool usage badges
 - SQL-powered search in Network view: debounced search queries hit SQLite LIKE instead of client-side filtering
 - `just update_prices` recipe to refresh bundled model pricing data
-- `capsem-bench` in-VM performance benchmark tool: disk I/O (sequential read/write, random 4K IOPS) and HTTP throughput (ab-style concurrent requests with latency percentiles)
-- `capsem-bench rootfs` benchmark: sequential and random 4K read performance on the read-only rootfs
-- `capsem-bench startup` benchmark: cold-start latency for python3, node, claude, gemini, and codex CLIs (3 runs, min/mean/max)
-- Rich table formatting for all capsem-bench output (replaces manual text formatting)
+- `aivm-bench` in-VM performance benchmark tool: disk I/O (sequential read/write, random 4K IOPS) and HTTP throughput (ab-style concurrent requests with latency percentiles)
+- `aivm-bench rootfs` benchmark: sequential and random 4K read performance on the read-only rootfs
+- `aivm-bench startup` benchmark: cold-start latency for python3, node, claude, gemini, and codex CLIs (3 runs, min/mean/max)
+- Rich table formatting for all aivm-bench output (replaces manual text formatting)
 - Configurable VM CPU cores via `vm.cpu_count` setting (1-8, default 4)
 - Configurable VM RAM via `vm.ram_gb` setting (1-16 GB, default 4 GB)
 - 1 GB swap file on scratch disk for better memory pressure handling
@@ -316,7 +323,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `get_session_info` is now async with `spawn_blocking` for proper non-blocking DB access
 - Rootfs disk caching mode changed from `Automatic` to `Cached` for aggressive host page cache retention on the read-only disk
 - Host-side disk settings: enabled host-level caching (`VZDiskImageCachingMode::Cached`) and disabled synchronization barriers (`VZDiskImageSynchronizationMode::None`)
-- Guest-side kernel tuning: `capsem-init` now sets I/O scheduler to `none`, `read_ahead_kb` to 4096, and `nr_requests` to 256 for all VirtIO devices
+- Guest-side kernel tuning: `aivm-init` now sets I/O scheduler to `none`, `read_ahead_kb` to 4096, and `nr_requests` to 256 for all VirtIO devices
 - Filesystem optimizations: `noatime,nodiratime,noload` mount options for rootfs and scratch disks
 - Scratch disk format optimization: `mke2fs -m 0` to reclaim reserved root blocks
 - `elie.net` moved from a Package Registry toggle to the default custom allowed domains list
@@ -330,13 +337,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - VM status indicator now shows correct color (blue for running, yellow for booting) instead of defaulting to no color due to state casing mismatch between Rust and frontend
 - MITM proxy now assigns trace IDs and estimates costs for AI model calls, enabling Sessions view to display LLM statistics
-- Fixture-dependent test assertions in capsem-logger replaced with data-agnostic checks to prevent breakage on fixture regeneration
+- Fixture-dependent test assertions in aivm-logger replaced with data-agnostic checks to prevent breakage on fixture regeneration
 - Benign "error shutting down connection" warnings in the host proxy logs are now filtered
 
 ### Removed
-- Dead `gateway/audit.rs` module (839 lines, never compiled) superseded by capsem-logger
+- Dead `gateway/audit.rs` module (839 lines, never compiled) superseded by aivm-logger
 - `GatewayDb` (redundant flat table, replaced by `model_calls` in unified schema)
-- `AiDb` (normalized 4-table schema, merged into `capsem-logger`)
+- `AiDb` (normalized 4-table schema, merged into `aivm-logger`)
 - `WebDb` (replaced by `net_events` table in unified schema)
 - `StreamAccumulator` (unused since `AiResponseBody` replaced it)
 - `registry.elie.allow` setting (replaced by `network.custom_allow` default)
@@ -367,21 +374,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Pre-installed Python packages declared in `images/requirements.txt`: numpy, requests, httpx, pandas, scipy, scikit-learn, matplotlib, pillow, pyyaml, beautifulsoup4, lxml, tqdm, rich
 - Pre-installed npm globals declared in `images/npm-globals.txt` (AI CLIs)
 - Login banner shows AI tool status: ready (blue), no API key (purple), disabled by policy (purple)
-- Host injects `CAPSEM_ANTHROPIC_ALLOWED`, `CAPSEM_OPENAI_ALLOWED`, `CAPSEM_GOOGLE_ALLOWED` env vars at boot
+- Host injects `AIVM_ANTHROPIC_ALLOWED`, `AIVM_OPENAI_ALLOWED`, `AIVM_GOOGLE_ALLOWED` env vars at boot
 - Configurable login banner (`images/banner.txt`) and random developer tips (`images/tips.txt`)
 - Removed PEP 668 EXTERNALLY-MANAGED marker from rootfs
 - `just build` upgrades all tools to latest: apt packages, pip, npm, node, nvm, uv
 - Claude Code yolo mode: `~/.claude/settings.json` with `bypassPermissions` + `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1`, and `~/.claude.json` state file to skip onboarding, trust dialogs, and keybinding prompts
-- Gemini CLI yolo mode: `~/.gemini/settings.json` with `approvalMode: "yolo"`, telemetry/auto-updates disabled, folder trust disabled, and Gemini's own sandbox disabled (capsem provides the sandbox)
+- Gemini CLI yolo mode: `~/.gemini/settings.json` with `approvalMode: "yolo"`, telemetry/auto-updates disabled, folder trust disabled, and Gemini's own sandbox disabled (aivm provides the sandbox)
 - Metadata-driven env var injection: settings declare `env_vars` in metadata instead of hardcoded mappings
 - Built-in guest environment settings (`guest.shell.term`, `guest.shell.home`, `guest.shell.path`, `guest.shell.lang`, `guest.tls.ca_bundle`) configurable via user.toml and corp.toml
 - Individual vsock boot messages (`SetEnv`, `FileWrite`, `BootConfigDone`) replacing single `BootConfig` frame, eliminating the 8KB frame size limit for boot configuration
-- Guest boot log at `/var/log/capsem-boot.log` recording clock sync, env vars, file writes, and handshake status
+- Guest boot log at `/var/log/aivm-boot.log` recording clock sync, env vars, file writes, and handshake status
 - Per-service domain settings (`ai.*.domains`) with user-editable comma-separated domain patterns
 - AI provider API key injection into guest VM environment variables (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`)
 - Google AI (`ai.google.allow`) enabled by default for out-of-the-box Gemini CLI support
 - Per-session unique IDs (`YYYYMMDD-HHMMSS-XXXX`) replacing hardcoded "default"/"cli" VM IDs
-- Session index database (`~/.capsem/sessions/main.db`) tracking metadata across sessions
+- Session index database (`~/.aivm/sessions/main.db`) tracking metadata across sessions
 - `get_session_info` and `get_session_history` Tauri IPC commands for the Sessions view
 - Session retention settings: `session.retention_days`, `session.max_sessions`, `session.max_disk_gb`
 - Age-based, count-based, and disk-based session culling at startup
@@ -400,7 +407,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - TypeScript IPC layer (`types.ts` + `api.ts`) with typed wrappers for all Tauri commands
 - `svelte-check` added to `just check` and `pnpm run check` pipelines
 - Generic typed settings system replacing TOML-based policy config -- each setting has ID, type, category, default, metadata, and optional `enabled_by` parent toggle
-- Per-setting corp override: corporate settings (`/etc/capsem/corp.toml`) lock individual settings, not entire sections
+- Per-setting corp override: corporate settings (`/etc/aivm/corp.toml`) lock individual settings, not entire sections
 - Setting metadata with domain patterns, HTTP method permissions, numeric bounds, and text choices
 - `get_settings` and `update_setting` Tauri IPC commands for the settings UI
 - Settings architecture documentation in `docs/architecture.md`
@@ -451,8 +458,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.5.0] - 2026-02-25
 
 ### Added
-- Ephemeral scratch disk for `/root` workspace (8GB default, configurable via `[vm].scratch_disk_size_gb` in `~/.capsem/user.toml`)
-- Per-session directory structure (`~/.capsem/sessions/<vm_id>/`) with session metadata (`session.json`)
+- Ephemeral scratch disk for `/root` workspace (8GB default, configurable via `[vm].scratch_disk_size_gb` in `~/.aivm/user.toml`)
+- Per-session directory structure (`~/.aivm/sessions/<vm_id>/`) with session metadata (`session.json`)
 - Stale session cleanup on startup: leftover scratch images deleted, orphaned "running" sessions marked as "crashed"
 - Block device identifiers (`rootfs`, `scratch`) for stable device naming in the guest (`/dev/disk/by-id/virtio-*`)
 - uv fast Python package installer available to guest AI agents
@@ -477,7 +484,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Zero-trust guest binary security rule documented in `docs/security.md`
 - `write_policy_file()` for TOML serialization of user.toml changes from the UI
 - MITM transparent proxy: full HTTP inspection (method, path, status code, headers, body preview) for all HTTPS traffic from the guest VM
-- Static Capsem MITM CA certificate (ECDSA P-256, 100-year validity) baked into the guest rootfs trust store
+- Static Aivm MITM CA certificate (ECDSA P-256, 100-year validity) baked into the guest rootfs trust store
 - On-demand domain certificate minting with RwLock cache for TLS termination
 - HTTP-level policy engine: method+path rules on top of domain allow/block lists (`[[network.rules]]` in user.toml)
 - Extended telemetry: `web.db` now records HTTP method, path, status code, request/response headers, and body previews
@@ -487,18 +494,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Clock synchronization -- guest VM clock is set from host at boot time (fixes TLS cert validation, git, curl)
 - Environment variable injection via vsock boot config (`BootConfig`/`BootReady` handshake)
 - `[guest]` section in `user.toml` for custom guest environment variables
-- `--env KEY=VALUE` CLI flag for one-off env injection (`capsem --env FOO=bar echo $FOO`)
-- `capsem-proto` crate -- shared protocol types for host/guest communication
-- Clock sync diagnostic test in `capsem-doctor`
+- `--env KEY=VALUE` CLI flag for one-off env injection (`aivm --env FOO=bar echo $FOO`)
+- `aivm-proto` crate -- shared protocol types for host/guest communication
+- Clock sync diagnostic test in `aivm-doctor`
 - In-VM diagnostic test suite expanded: MITM CA trust chain tests (system store, certifi, curl without -k, Python urllib), network edge cases (HTTP port 80, non-443 ports, direct IP, AI provider blocking, multi-domain DNS), process integrity (pty-agent, dnsmasq, no systemd/sshd/cron), deeper kernel hardening (no modules loaded, no debugfs, no IPv6, no swap, no kallsyms, ro cmdline), environment validation (TERM, HOME, PATH, arch, kernel version, mount points), and 14 additional unix utility checks
 - `just test` recipe runs workspace tests with coverage summary via `cargo-llvm-cov`
 - `just ensure-tools` auto-installs `cargo-llvm-cov` and `llvm-tools-preview` on fresh clones
 - Air-gapped networking: `curl https://elie.net` now works from inside the guest VM
 - Host-side SNI proxy inspects TLS ClientHello, enforces domain allow-list, and bridges to the real internet
 - Domain policy engine with allow-list, block-list, and wildcard pattern matching (`*.github.com`)
-- Configurable domain policy via `~/.capsem/user.toml` and `/etc/capsem/corp.toml` (corp overrides user)
+- Configurable domain policy via `~/.aivm/user.toml` and `/etc/aivm/corp.toml` (corp overrides user)
 - Per-session `web.db` (SQLite) recording every HTTPS connection attempt for auditing
-- Guest-side `capsem-net-proxy` binary: TCP-to-vsock relay for transparent HTTPS proxying
+- Guest-side `aivm-net-proxy` binary: TCP-to-vsock relay for transparent HTTPS proxying
 - Default developer allow-list: GitHub, npm, PyPI, crates.io, Debian repos, elie.net
 - AI provider domain blocking at SNI level (api.anthropic.com, api.openai.com, googleapis.com)
 - `net_events` Tauri command for querying recent network events from the frontend
@@ -515,9 +522,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `just build`, `just repack`, and `just check` now run tests with coverage as a gate before proceeding
 - Kernel now includes IP stack + netfilter (CONFIG_INET=y, iptables REDIRECT) for air-gapped networking
 - Rootfs includes iproute2, iptables, and dnsmasq for guest network setup
-- capsem-init sets up dummy0 NIC, fake DNS, and iptables rules at boot
-- `just repack` now includes `capsem-net-proxy` alongside `capsem-pty-agent`
-- Refactored VM smoke test into pytest-based diagnostic suite (`capsem-doctor`)
+- aivm-init sets up dummy0 NIC, fake DNS, and iptables rules at boot
+- `just repack` now includes `aivm-net-proxy` alongside `aivm-pty-agent`
+- Refactored VM smoke test into pytest-based diagnostic suite (`aivm-doctor`)
 - Split tests into focused modules: sandbox security, utilities, runtimes, AI CLIs, workflows
 - Added sandbox security tests (rootfs read-only, no kernel modules, no /dev/mem, network isolation, no setuid/setgid)
 - Added Python and Node.js execution tests (actual code runs, not just version checks)
@@ -544,25 +551,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - HTTP-level policy rules allow fine-grained control (e.g., allow GET but deny POST to specific paths)
 - Default-deny domain policy: only explicitly allowed domains are reachable from the guest
 - No DNS leaves the VM: all resolution is faked to a local IP
-- Corporate policy (`/etc/capsem/corp.toml`) overrides user settings for enterprise lockdown
+- Corporate policy (`/etc/aivm/corp.toml`) overrides user settings for enterprise lockdown
 - Per-VM isolation prevents cross-VM network interference
 
 ## [0.3.0] - 2026-02-24
 
 ### Added
 - PTY-over-vsock terminal communication replacing serial broadcast channel
-- Guest PTY agent (`capsem-pty-agent`) for high-throughput terminal I/O with full PTY support
+- Guest PTY agent (`aivm-pty-agent`) for high-throughput terminal I/O with full PTY support
 - Terminal resize support (`stty size` reflects window dimensions)
 - vsock control channel with MessagePack framing for structured commands (resize, heartbeat)
 - Kernel vsock support (`CONFIG_VSOCKETS`, `CONFIG_VIRTIO_VSOCKETS`)
 - Multi-VM-ready app state architecture (`vm_id`-keyed `HashMap`)
 - Output coalescing (10ms/64KB) to prevent frontend IPC saturation
 - Boot-time command execution via vsock (`Exec`/`ExecDone` control messages)
-- CLI mode (`capsem "command"`) routes commands through vsock PTY agent with exit code propagation
+- CLI mode (`aivm "command"`) routes commands through vsock PTY agent with exit code propagation
 
 ### Changed
 - Terminal input now routes through vsock when connected, falling back to serial
-- Guest init script (`capsem-init`) launches PTY agent instead of direct bash/setsid
+- Guest init script (`aivm-init`) launches PTY agent instead of direct bash/setsid
 - CLI mode rewritten from serial I/O to vsock-based execution with proper exit codes
 - `just repack` now cross-compiles and bundles the PTY agent into the initrd for fast iteration
 - Serial forwarding stops once vsock connects, eliminating duplicate output
@@ -601,7 +608,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Native macOS app using Tauri 2.0 with Astro frontend
 - Linux VM sandboxing via Apple Virtualization.framework
 - Virtio serial console with bidirectional I/O (xterm.js <-> guest /dev/hvc0)
-- Custom capsem-init (PID 1) with chroot and setsid
+- Custom aivm-init (PID 1) with chroot and setsid
 - Docker/Podman-based VM asset build pipeline (kernel, initrd, rootfs)
 - `just` task runner workflows (build, repack, dev, run, release, install)
 - Codesigning with com.apple.security.virtualization entitlement

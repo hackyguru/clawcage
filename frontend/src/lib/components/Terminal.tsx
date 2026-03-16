@@ -1,15 +1,19 @@
-// Terminal component - wraps the capsem-terminal web component
+// Terminal component - wraps the aivm-terminal web component
 import { useEffect, useRef, useCallback, useState } from 'react';
-import type { CapsemTerminal as CapsemTerminalElement } from '../../components/capsem-terminal';
+import type { AivmTerminal as AivmTerminalElement } from '../../components/aivm-terminal';
 import { serialInput, terminalResize, terminalPoll, onTerminalSourceChanged } from '../api';
 import { getTheme } from '../stores/theme';
 import { setTerminalRenderer } from '../stores/vm';
 
 // Side-effect: register the web component
-import '../../components/capsem-terminal';
+import '../../components/aivm-terminal';
 
-export default function Terminal() {
-  const termRef = useRef<CapsemTerminalElement>(null);
+interface TerminalProps {
+  sessionId?: number;
+}
+
+export default function Terminal({ sessionId = 0 }: TerminalProps) {
+  const termRef = useRef<AivmTerminalElement>(null);
   const mountedRef = useRef(true);
   const inputBufferRef = useRef('');
   const inputTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -31,7 +35,7 @@ export default function Terminal() {
     if (inputBufferRef.current.length === 0) return;
     const batch = inputBufferRef.current;
     inputBufferRef.current = '';
-    serialInput(batch).catch(() => {});
+    serialInput(batch, sessionId).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -62,7 +66,7 @@ export default function Terminal() {
     // Forward terminal resize to Tauri
     const onResize = ((e: CustomEvent) => {
       const { cols, rows } = e.detail;
-      terminalResize(cols, rows).catch(() => {});
+      terminalResize(cols, rows, sessionId).catch(() => {});
     }) as EventListener;
     termEl.addEventListener('terminal-resize', onResize);
     cleanups.push(() => termEl.removeEventListener('terminal-resize', onResize));
@@ -89,7 +93,7 @@ export default function Terminal() {
       (async function pollTerminalOutput() {
         while (mountedRef.current) {
           try {
-            const data = await terminalPoll();
+            const data = await terminalPoll(sessionId);
             if (data.length === 0) continue;
 
             if (phaseRef.current === 'ready') {
@@ -163,7 +167,7 @@ export default function Terminal() {
             '\r\n' +
             'Dev:  python3  node  npm  git  vim\r\n' +
             'AI:   claude   gemini  codex\r\n' +
-            'Test: capsem-test\r\n' +
+            'Test: aivm-test\r\n' +
             '\r\n' +
             '\x1b[1;34maivm:~#\x1b[0m ',
         ),
@@ -178,11 +182,11 @@ export default function Terminal() {
       flushInput();
       for (const fn of cleanups) fn();
     };
-  }, [flushInput]);
+  }, [flushInput, sessionId]);
 
   return (
     <div className="relative h-full w-full">
-      <capsem-terminal
+      <aivm-terminal
         ref={termRef as any}
         class="block h-full w-full"
       />
@@ -200,7 +204,7 @@ export default function Terminal() {
 declare module 'react' {
   namespace JSX {
     interface IntrinsicElements {
-      'capsem-terminal': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & {
+      'aivm-terminal': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & {
         ref?: any;
         class?: string;
       };

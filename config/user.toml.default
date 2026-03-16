@@ -1,11 +1,11 @@
-# Capsem user configuration
-# Copy to ~/.capsem/user.toml to customize.
+# Aivm user configuration
+# Copy to ~/.aivm/user.toml to customize.
 #
-# Corporate overrides: /etc/capsem/corp.toml (MDM-distributed)
+# Corporate overrides: /etc/aivm/corp.toml (MDM-distributed)
 # If corp.toml specifies a setting, it overrides user.toml for that key.
 #
 # Only overrides need to be listed here. Settings not listed use defaults.
-# Full setting registry: see `capsem --settings` or the Settings UI tab.
+# Full setting registry: see `aivm --settings` or the Settings UI tab.
 
 [settings]
 # -- AI Providers (Google enabled by default) --

@@ -11,7 +11,7 @@ from conftest import run
 def test_file_write_read(output_dir):
     """Write text to a file and read it back."""
     test_file = output_dir / "write_read_test.txt"
-    payload = "capsem file write test"
+    payload = "aivm file write test"
     test_file.write_text(payload)
     assert test_file.read_text() == payload
 
@@ -46,11 +46,11 @@ def test_pipe_workflow(output_dir):
     """Shell pipe chain writes expected output."""
     test_file = output_dir / "pipe_test.txt"
     result = run(
-        f'echo "Hello Capsem World" | grep -o "Capsem" | tr "[:lower:]" "[:upper:]" > {test_file}'
+        f'echo "Hello Aivm World" | grep -o "Aivm" | tr "[:lower:]" "[:upper:]" > {test_file}'
     )
     assert result.returncode == 0
     content = test_file.read_text().strip()
-    assert content == "CAPSEM"
+    assert content == "AIVM"
 
 
 def test_large_file_write(output_dir):

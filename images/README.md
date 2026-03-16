@@ -1,4 +1,4 @@
-# Capsem VM Images
+# Aivm VM Images
 
 This directory contains everything that goes into the guest Linux VM: the kernel config, rootfs Dockerfile, init script, shell config, and package manifests.
 
@@ -51,7 +51,7 @@ All runtime installs are ephemeral — the scratch disk and tmpfs upper layer ar
 
 ### Python Environment
 
-A virtualenv is created at `/root/.venv` during boot (using `uv venv`, ~100ms) with `--system-site-packages` so pre-installed packages from the rootfs are available immediately. The venv is activated in `capsem-bashrc`. New `pip install` / `uv pip install` commands write to the venv on the scratch disk.
+A virtualenv is created at `/root/.venv` during boot (using `uv venv`, ~100ms) with `--system-site-packages` so pre-installed packages from the rootfs are available immediately. The venv is activated in `aivm-bashrc`. New `pip install` / `uv pip install` commands write to the venv on the scratch disk.
 
 ### npm Environment
 
@@ -63,14 +63,14 @@ At boot, the host injects environment variables indicating which AI providers ar
 
 | Env Var | Source |
 |---------|--------|
-| `CAPSEM_ANTHROPIC_ALLOWED` | `ai.anthropic.allow` setting (1 or 0) |
-| `CAPSEM_OPENAI_ALLOWED` | `ai.openai.allow` setting (1 or 0) |
-| `CAPSEM_GOOGLE_ALLOWED` | `ai.google.allow` setting (1 or 0) |
+| `AIVM_ANTHROPIC_ALLOWED` | `ai.anthropic.allow` setting (1 or 0) |
+| `AIVM_OPENAI_ALLOWED` | `ai.openai.allow` setting (1 or 0) |
+| `AIVM_GOOGLE_ALLOWED` | `ai.google.allow` setting (1 or 0) |
 | `ANTHROPIC_API_KEY` | `ai.anthropic.api_key` setting |
 | `OPENAI_API_KEY` | `ai.openai.api_key` setting |
 | `GEMINI_API_KEY` | `ai.google.api_key` setting |
 
-The login banner (`capsem-bashrc`) shows each tool's status:
+The login banner (`aivm-bashrc`) shows each tool's status:
 - **ready** (blue) -- provider allowed and API key configured
 - **no api key -- configure in settings** (purple) -- provider allowed but no key
 - **disabled by policy** (purple) -- provider blocked in user/corp settings
@@ -81,7 +81,7 @@ The login experience is composed of three files:
 
 - **`banner.txt`** -- Static banner shown at login. Supports `%KERNEL%` and `%ARCH%` placeholders replaced at runtime.
 - **`tips.txt`** -- Developer tips, one per line (`#` for comments). A random tip is shown each login.
-- **`capsem-bashrc`** -- Shell config that renders the banner, tip, and AI status section.
+- **`aivm-bashrc`** -- Shell config that renders the banner, tip, and AI status section.
 
 ## Files
 
@@ -89,14 +89,14 @@ The login experience is composed of three files:
 |------|---------|---------|
 | `Dockerfile.rootfs` | Rootfs image (packages, tools, CLIs) | `just build-assets` |
 | `Dockerfile.kernel` | Custom Linux kernel | `just build-assets` |
-| `capsem-init` | PID 1 init script (mounts, networking, agent launch) | `just run` |
-| `capsem-bashrc` | Guest shell config (venv, npm prefix, banner, AI status) | `just build-assets` |
+| `aivm-init` | PID 1 init script (mounts, networking, agent launch) | `just run` |
+| `aivm-bashrc` | Guest shell config (venv, npm prefix, banner, AI status) | `just build-assets` |
 | `banner.txt` | Login banner | `just build-assets` |
 | `tips.txt` | Random developer tips | `just build-assets` |
 | `apt-packages.txt` | Pre-installed system packages (apt) | `just build-assets` |
 | `requirements.txt` | Pre-installed Python packages | `just build-assets` |
 | `npm-globals.txt` | Pre-installed npm global packages (AI CLIs) | `just build-assets` |
-| `capsem-doctor` | In-VM diagnostic runner | `just build-assets` |
+| `aivm-doctor` | In-VM diagnostic runner | `just build-assets` |
 | `diagnostics/` | pytest-based VM test suite | `just build-assets` |
 | `build.py` | Build orchestrator (kernel, rootfs, initrd) | -- |
 | `defconfig` | Kernel .config | `just build-assets` |

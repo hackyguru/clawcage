@@ -1,6 +1,6 @@
 # Debug & Diagnostics Skill
 
-Use this skill when debugging capsem issues, verifying telemetry pipelines, or validating guest VM behavior.
+Use this skill when debugging aivm issues, verifying telemetry pipelines, or validating guest VM behavior.
 
 ## Quick Verification Checklist
 
@@ -8,7 +8,7 @@ When debugging or verifying a feature works end-to-end:
 
 1. **Build & boot**: `just run "<command>"` (fast path, ~10s) or `just run` (interactive)
 2. **Check session DB**: `just inspect-session` (latest) or `just inspect-session <id>`
-3. **Run in-VM diagnostics**: `just run "capsem-doctor"`
+3. **Run in-VM diagnostics**: `just run "aivm-doctor"`
 
 ## Verifying Telemetry Pipelines
 
@@ -32,8 +32,8 @@ Look for `fs_events` rows. Expect:
 - Actions: `created`, `modified`, `removed`
 
 If fs_events is 0, investigate:
-- Guest: is `capsem-fs-watch` running? Check boot logs for `[capsem-fs-watch] starting`
-- Host: is the vsock accept for port 5005 succeeding? Check for `[capsem-agent] fs-watch connected`
+- Guest: is `aivm-fs-watch` running? Check boot logs for `[aivm-fs-watch] starting`
+- Host: is the vsock accept for port 5005 succeeding? Check for `[aivm-agent] fs-watch connected`
 - Debouncer: did the VM shut down too fast? Add `sleep 1` before exit to let the 100ms debouncer flush
 
 ### Network Events (net_events)
@@ -68,14 +68,14 @@ just run
 
 Check session for mcp_calls rows with server_name, method, tool_name, decision.
 
-## In-VM Diagnostics (capsem-doctor)
+## In-VM Diagnostics (aivm-doctor)
 
 Run the full diagnostic suite inside the VM:
 
 ```bash
-just run "capsem-doctor"              # Full suite
-just run "capsem-doctor -k sandbox"   # Only sandbox tests
-just run "capsem-doctor -x"           # Stop on first failure
+just run "aivm-doctor"              # Full suite
+just run "aivm-doctor -k sandbox"   # Only sandbox tests
+just run "aivm-doctor -x"           # Stop on first failure
 ```
 
 Test categories:
@@ -112,7 +112,7 @@ The test fixture (`data/fixtures/test.db`) must come from a real session that ex
 
 1. **Run the integration test** to generate a rich session:
    ```bash
-   python3 scripts/integration_test.py --binary target/debug/capsem --assets assets
+   python3 scripts/integration_test.py --binary target/debug/aivm --assets assets
    ```
    This exercises: fs_events (create/modify/delete), net_events (allowed + denied), mcp_calls, model_calls (with cost), tool_calls (with origin).
 
@@ -123,7 +123,7 @@ The test fixture (`data/fixtures/test.db`) must come from a real session that ex
 
 3. **Verify the session has everything the fixture tests need**:
    ```bash
-   sqlite3 ~/.capsem/sessions/<id>/session.db "
+   sqlite3 ~/.aivm/sessions/<id>/session.db "
      SELECT decision, COUNT(*) FROM net_events GROUP BY decision;
      SELECT action, COUNT(*) FROM fs_events GROUP BY action;
      SELECT COUNT(*) FROM model_calls WHERE estimated_cost_usd > 0;
@@ -134,7 +134,7 @@ The test fixture (`data/fixtures/test.db`) must come from a real session that ex
 
 4. **Update the fixture**:
    ```bash
-   just update-fixture ~/.capsem/sessions/<id>/session.db
+   just update-fixture ~/.aivm/sessions/<id>/session.db
    ```
 
 5. **Run tests** to verify the fixture satisfies all assertions:
@@ -153,19 +153,19 @@ The test fixture (`data/fixtures/test.db`) must come from a real session that ex
 
 ### "Events not showing up in session DB"
 
-1. Check boot logs -- did the relevant daemon start? (`capsem-fs-watch`, `capsem-net-proxy`, etc.)
+1. Check boot logs -- did the relevant daemon start? (`aivm-fs-watch`, `aivm-net-proxy`, etc.)
 2. Check vsock connections -- did the host accept the connection? Look for `connected (port XXXX)` in logs
 3. Check timing -- does the VM live long enough for debounced events to flush? Add `sleep 1`
-4. Check the session DB directly: `sqlite3 ~/.capsem/sessions/<id>/session.db "SELECT * FROM fs_events"`
+4. Check the session DB directly: `sqlite3 ~/.aivm/sessions/<id>/session.db "SELECT * FROM fs_events"`
 
 ### "Guest binary not picking up changes"
 
-- Changed `capsem-init`, agent, or repacked binary? -> `just run` (auto-repacks initrd)
+- Changed `aivm-init`, agent, or repacked binary? -> `just run` (auto-repacks initrd)
 - Changed rootfs (Dockerfile, bashrc, diagnostics)? -> `just build-assets`
-- Binary on rootfs vs initrd: initrd copies take priority (capsem-init checks `/binary` before rootfs path)
+- Binary on rootfs vs initrd: initrd copies take priority (aivm-init checks `/binary` before rootfs path)
 
 ### "Cross-compile failure"
 
 - Check `.cargo/config.toml` for `aarch64-unknown-linux-musl` linker config
 - Watch for platform-specific types (e.g., `libc::ioctl` request param differs macOS vs Linux -- use `as _`)
-- Run `cargo build --release --target aarch64-unknown-linux-musl -p capsem-agent` to isolate the failure
+- Run `cargo build --release --target aarch64-unknown-linux-musl -p aivm-agent` to isolate the failure

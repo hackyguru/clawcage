@@ -1,10 +1,10 @@
 #!/bin/bash
-# Wrapper around cargo that codesigns the capsem binary after building.
+# Wrapper around cargo that codesigns the aivm binary after building.
 # Used by `cargo tauri dev` to ensure the virtualization entitlement is applied.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-BINARY="$REPO_ROOT/target/debug/capsem"
+BINARY="$REPO_ROOT/target/debug/aivm"
 ENTITLEMENTS="$REPO_ROOT/entitlements.plist"
 
 # Run the real cargo with all original arguments

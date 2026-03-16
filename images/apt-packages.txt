@@ -1,4 +1,4 @@
-# Core utilities and inspection tools installed in the capsem VM rootfs.
+# Core utilities and inspection tools installed in the aivm VM rootfs.
 # One package per line; lines starting with # are ignored.
 
 # System utilities

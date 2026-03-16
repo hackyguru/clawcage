@@ -5,14 +5,14 @@ verify every event type is logged in the session DB.
 Exercises:
   1. fs_events   -- create, modify, and delete files inside the VM
   2. net_events   -- curl an allowed domain + a denied domain (policy enforcement)
-  3. mcp_calls    -- run capsem-doctor MCP tests (init, tools/list, fetch, grep)
+  3. mcp_calls    -- run aivm-doctor MCP tests (init, tools/list, fetch, grep)
   4. model_calls  -- ask Gemini to write a poem (verifies cost estimation)
   5. tool_calls   -- Gemini tool use (write_file) with origin tracking
   6. main.db      -- rollup counters match session.db actuals
 
 Usage:
-    python3 scripts/integration_test.py              # uses target/debug/capsem
-    python3 scripts/integration_test.py --binary ./capsem --assets ./assets
+    python3 scripts/integration_test.py              # uses target/debug/aivm
+    python3 scripts/integration_test.py --binary ./aivm --assets ./assets
 """
 
 import argparse
@@ -31,7 +31,7 @@ YELLOW = "\033[33m"
 CYAN = "\033[36m"
 RESET = "\033[0m"
 
-SESSIONS_DIR = Path.home() / ".capsem" / "sessions"
+SESSIONS_DIR = Path.home() / ".aivm" / "sessions"
 MAIN_DB = SESSIONS_DIR / "main.db"
 
 # The compound command executed inside the VM.  Semicolons ensure every step
@@ -57,8 +57,8 @@ VM_COMMAND = "; ".join([
         " https://ash-speed.hetzner.com/100MB.bin"
     ),
 
-    # -- mcp_calls: capsem-doctor MCP test subset --
-    "capsem-doctor -k mcp",
+    # -- mcp_calls: aivm-doctor MCP test subset --
+    "aivm-doctor -k mcp",
 
     # -- model_calls + tool_calls: ask Gemini to write a poem into a file --
     (
@@ -71,7 +71,7 @@ VM_COMMAND = "; ".join([
     "sleep 2",
 
     # -- sentinel so the host can confirm full execution --
-    "echo CAPSEM_INTEGRATION_DONE",
+    "echo AIVM_INTEGRATION_DONE",
 ])
 
 
@@ -80,10 +80,10 @@ def run_vm(binary: str, assets_dir: str) -> tuple[str, int]:
     # Isolate from host settings using dedicated test configs.
     env = {
         **os.environ,
-        "CAPSEM_ASSETS_DIR": assets_dir,
-        "RUST_LOG": "capsem=warn",
-        "CAPSEM_USER_CONFIG": "config/integration-test-user.toml",
-        "CAPSEM_CORP_CONFIG": "config/integration-test-corp.toml",
+        "AIVM_ASSETS_DIR": assets_dir,
+        "RUST_LOG": "aivm=warn",
+        "AIVM_USER_CONFIG": "config/integration-test-user.toml",
+        "AIVM_CORP_CONFIG": "config/integration-test-corp.toml",
     }
 
     # Pass API keys from the host environment into the VM via --env flags.
@@ -98,7 +98,7 @@ def run_vm(binary: str, assets_dir: str) -> tuple[str, int]:
             extra_args.extend(["--env", f"{key}={val}"])
 
     print(f"{BOLD}Booting VM with test command ...{RESET}")
-    # CLI arguments for capsem must be: [binary] [--env K=V ...] [command]
+    # CLI arguments for aivm must be: [binary] [--env K=V ...] [command]
     proc = subprocess.run(
         [binary] + extra_args + [VM_COMMAND],
         env=env,
@@ -107,7 +107,7 @@ def run_vm(binary: str, assets_dir: str) -> tuple[str, int]:
         timeout=300,
     )
     output = proc.stdout + "\n" + proc.stderr
-    match = re.search(r"\[capsem\] session: (\S+)", output)
+    match = re.search(r"\[aivm\] session: (\S+)", output)
     if not match:
         print(f"{RED}FAIL: could not find session ID in output{RESET}")
         print(output[:2000])
@@ -391,7 +391,7 @@ def verify_session(session_id: str) -> bool:
     r.check(
         blocked_in_preview >= 1,
         f"{blocked_in_preview} MCP calls with blocked-domain responses",
-        "no MCP responses mention blocking (capsem-doctor blocked tests may have failed)",
+        "no MCP responses mention blocking (aivm-doctor blocked tests may have failed)",
     )
 
     # ── model_calls ──────────────────────────────────────────────────
@@ -551,13 +551,13 @@ def verify_session(session_id: str) -> bool:
 
 
 PERSISTENCE_WRITE_CMD = (
-    "echo capsem-persistence-sentinel > /root/.capsem_persistence_test "
-    "&& echo CAPSEM_PERSISTENCE_WRITTEN"
+    "echo aivm-persistence-sentinel > /root/.aivm_persistence_test "
+    "&& echo AIVM_PERSISTENCE_WRITTEN"
 )
 PERSISTENCE_CHECK_CMD = (
-    "test ! -f /root/.capsem_persistence_test "
-    "&& echo CAPSEM_EPHEMERAL_OK "
-    "|| { echo CAPSEM_EPHEMERAL_FAIL; exit 1; }"
+    "test ! -f /root/.aivm_persistence_test "
+    "&& echo AIVM_EPHEMERAL_OK "
+    "|| { echo AIVM_EPHEMERAL_FAIL; exit 1; }"
 )
 
 
@@ -566,10 +566,10 @@ def check_persistence(binary: str, assets_dir: str) -> bool:
     print(f"\n{BOLD}=== Ephemeral model check ==={RESET}")
     env = {
         **os.environ,
-        "CAPSEM_ASSETS_DIR": assets_dir,
-        "RUST_LOG": "capsem=warn",
-        "CAPSEM_USER_CONFIG": "config/integration-test-user.toml",
-        "CAPSEM_CORP_CONFIG": "config/integration-test-corp.toml",
+        "AIVM_ASSETS_DIR": assets_dir,
+        "RUST_LOG": "aivm=warn",
+        "AIVM_USER_CONFIG": "config/integration-test-user.toml",
+        "AIVM_CORP_CONFIG": "config/integration-test-corp.toml",
     }
 
     print("  Invocation 1: writing sentinel file...")
@@ -578,7 +578,7 @@ def check_persistence(binary: str, assets_dir: str) -> bool:
         env=env, capture_output=True, text=True, timeout=120,
     )
     output1 = proc1.stdout + "\n" + proc1.stderr
-    if "CAPSEM_PERSISTENCE_WRITTEN" not in output1:
+    if "AIVM_PERSISTENCE_WRITTEN" not in output1:
         print(f"  {RED}FAIL{RESET}  sentinel write failed (invocation 1 did not confirm)")
         print(output1[:1000])
         return False
@@ -591,12 +591,12 @@ def check_persistence(binary: str, assets_dir: str) -> bool:
     )
     output2 = proc2.stdout + "\n" + proc2.stderr
     # Use exit code as the definitive indicator -- the command string itself contains
-    # "CAPSEM_EPHEMERAL_FAIL" so searching for it in output would always match (PTY echo).
+    # "AIVM_EPHEMERAL_FAIL" so searching for it in output would always match (PTY echo).
     if proc2.returncode != 0:
         print(f"  {RED}FAIL{RESET}  sentinel persisted across VM invocations -- SECURITY BREACH")
         return False
-    if "CAPSEM_EPHEMERAL_OK" not in output2:
-        print(f"  {RED}FAIL{RESET}  ephemeral check did not confirm (no CAPSEM_EPHEMERAL_OK)")
+    if "AIVM_EPHEMERAL_OK" not in output2:
+        print(f"  {RED}FAIL{RESET}  ephemeral check did not confirm (no AIVM_EPHEMERAL_OK)")
         return False
     print(f"  {GREEN}PASS{RESET}  sentinel absent in invocation 2 (VM is fully ephemeral)")
     return True
@@ -604,12 +604,12 @@ def check_persistence(binary: str, assets_dir: str) -> bool:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="End-to-end integration test for capsem telemetry pipelines.",
+        description="End-to-end integration test for aivm telemetry pipelines.",
     )
     parser.add_argument(
         "--binary",
-        default="target/debug/capsem",
-        help="Path to the capsem binary (default: target/debug/capsem)",
+        default="target/debug/aivm",
+        help="Path to the aivm binary (default: target/debug/aivm)",
     )
     parser.add_argument(
         "--assets",

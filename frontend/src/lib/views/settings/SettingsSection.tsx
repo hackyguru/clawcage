@@ -107,14 +107,15 @@ function FileField({ leaf, onChange }: { leaf: SettingsLeaf; onChange: (v: { pat
 // ---------- Leaf component (handles all types) ----------
 
 function LeafNode({ leaf }: { leaf: SettingsLeaf }) {
-  const { update, issuesFor } = useSettings();
+  const { update, resetVenv, issuesFor, venvId } = useSettings();
   const issues = issuesFor(leaf.id);
 
   const handleChange = useCallback((value: SettingValue) => {
     update(leaf.id, value);
   }, [leaf.id, update]);
 
-  const sourceLabel = leaf.source === 'corp' ? '🏢 Corp' : leaf.source === 'user' ? '👤 User' : '';
+  const sourceLabel = leaf.source === 'corp' ? 'Corp' : leaf.source === 'venv' ? 'Venv' : leaf.source === 'user' ? 'User' : '';
+  const sourceBg = leaf.source === 'corp' ? 'bg-caution/15 text-caution' : leaf.source === 'venv' ? 'bg-interactive/15 text-interactive' : leaf.source === 'user' ? 'bg-content/10 text-content/60' : '';
 
   return (
     <div className={`py-2 px-3 rounded-lg ${!leaf.enabled ? 'opacity-40' : ''}`}>
@@ -123,7 +124,16 @@ function LeafNode({ leaf }: { leaf: SettingsLeaf }) {
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium">{leaf.name}</span>
             {leaf.corp_locked && <span className="inline-block px-2 py-0.5 rounded bg-caution/15 text-caution text-xs font-semibold ml-1">Locked</span>}
-            {sourceLabel && <span className="text-xs text-content/50">{sourceLabel}</span>}
+            {sourceLabel && <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-medium ${sourceBg}`}>{sourceLabel}</span>}
+            {venvId && leaf.venv_overridden && (
+              <button
+                className="text-xs text-content/50 hover:text-content underline"
+                onClick={() => resetVenv(leaf.id)}
+                title="Reset to global value"
+              >
+                Reset
+              </button>
+            )}
           </div>
           <p className="text-xs text-content/60 mt-0.5">{leaf.description}</p>
           {issues.length > 0 && (

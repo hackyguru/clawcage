@@ -1,4 +1,4 @@
-# Python packages pre-installed in the capsem VM.
+# Python packages pre-installed in the aivm VM.
 # Inherited by the boot-time venv via --system-site-packages.
 # Agents can install additional packages with pip/uv at runtime.
 pytest

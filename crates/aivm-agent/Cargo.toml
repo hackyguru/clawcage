@@ -1,0 +1,32 @@
+[package]
+name = "aivm-agent"
+version.workspace = true
+edition = "2021"
+
+[[bin]]
+name = "aivm-pty-agent"
+path = "src/main.rs"
+
+[[bin]]
+name = "aivm-net-proxy"
+path = "src/net_proxy.rs"
+
+[[bin]]
+name = "aivm-mcp-server"
+path = "src/mcp_server.rs"
+
+[[bin]]
+name = "aivm-fs-watch"
+path = "src/fs_watch.rs"
+
+[[bin]]
+name = "aivm-port-watch"
+path = "src/port_watch.rs"
+
+[dependencies]
+nix = { version = "0.29", features = ["fs", "ioctl", "inotify", "poll", "term", "signal", "process"] }
+rmp-serde = { workspace = true }
+serde = { workspace = true }
+aivm-proto = { path = "../aivm-proto" }
+tokio = { workspace = true, features = ["full"] }
+signal-hook = "0.4.3"

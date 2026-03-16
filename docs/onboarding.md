@@ -1,11 +1,11 @@
 # Onboarding Milestone
 
-First-launch experience for new Capsem users. Depends on the distribution foundation (asset manager, thin DMG, update story) being complete.
+First-launch experience for new Aivm users. Depends on the distribution foundation (asset manager, thin DMG, update story) being complete.
 
 ## Scope
 
 ### 1. Welcome Screen
-- What Capsem is and what it does
+- What Aivm is and what it does
 - System requirements check: macOS 13+, Apple Silicon, 4 GB RAM
 - Check Virtualization.framework entitlement (catch unsigned binary early)
 
@@ -29,7 +29,7 @@ First-launch experience for new Capsem users. Depends on the distribution founda
 
 ### 5. First Boot
 - Boot VM with downloaded assets
-- Run capsem-doctor subset (sandbox integrity, network isolation)
+- Run aivm-doctor subset (sandbox integrity, network isolation)
 - Show success/failure state clearly
 - On success: transition to terminal view
 
@@ -55,7 +55,7 @@ Each step has a back button. The wizard can be re-entered from settings.
 
 ## Implementation Notes
 
-- Wizard state stored in `~/.capsem/onboarding.json` (tracks completed steps)
+- Wizard state stored in `~/.aivm/onboarding.json` (tracks completed steps)
 - WizardView.svelte already exists as a placeholder -- implement the steps there
 - Skip wizard on subsequent launches (check onboarding.json)
-- `capsem --setup` CLI flag to re-run the wizard
+- `aivm --setup` CLI flag to re-run the wizard

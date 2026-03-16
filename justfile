@@ -1,4 +1,4 @@
-# Capsem Justfile
+# Aivm Justfile
 #
 # Dependency chains:
 #
@@ -21,8 +21,8 @@
 # Before install:     just install (doctor + full-test + /Applications)
 # Releases:           CI only -- push a vX.Y.Z tag to trigger .github/workflows/release.yaml
 
-binary := "target/debug/capsem"
-release_app := "target/release/bundle/macos/Capsem.app"
+binary := "target/debug/aivm"
+release_app := "target/release/bundle/macos/Aivm.app"
 assets_dir := "assets"
 entitlements := "entitlements.plist"
 
@@ -30,7 +30,7 @@ entitlements := "entitlements.plist"
 setup:
     #!/bin/bash
     set -euo pipefail
-    echo "=== Capsem First-Time Setup ==="
+    echo "=== Aivm First-Time Setup ==="
     echo ""
 
     # 1. Brew dependencies
@@ -114,8 +114,8 @@ dev: _check-assets _pack-initrd
     #!/bin/bash
     set -euo pipefail
     echo "Stopping running instances..."
-    pkill -x capsem 2>/dev/null || true
-    pkill -x Capsem 2>/dev/null || true
+    pkill -x aivm 2>/dev/null || true
+    pkill -x Aivm 2>/dev/null || true
     # Free port 5173 so Vite can bind to it (Tauri devUrl expects it)
     lsof -ti:5173 | xargs kill -9 2>/dev/null || true
     sleep 0.5
@@ -127,9 +127,9 @@ dev: _check-assets _pack-initrd
     echo "Waiting for frontend dev server..."
     until curl -s http://localhost:5173 >/dev/null 2>&1; do sleep 0.3; done
     # Build, sign, and run
-    cargo build -p capsem
+    cargo build -p aivm
     codesign --sign - --entitlements {{entitlements}} --force {{binary}}
-    CAPSEM_ASSETS_DIR={{assets_dir}} {{binary}}
+    AIVM_ASSETS_DIR={{assets_dir}} {{binary}}
     
 
 # Frontend-only dev server with mock data (no Tauri/VM needed)
@@ -140,8 +140,8 @@ ui:
 run *CMD: _check-assets _pack-initrd _sign
     #!/bin/bash
     set -euo pipefail
-    pkill -x capsem 2>/dev/null || true
-    CAPSEM_ASSETS_DIR={{assets_dir}} {{binary}} {{CMD}}
+    pkill -x aivm 2>/dev/null || true
+    AIVM_ASSETS_DIR={{assets_dir}} {{binary}} {{CMD}}
 
 # Full VM asset rebuild (kernel, initrd, rootfs) via Docker/Podman
 build-assets: doctor _install-tools
@@ -150,37 +150,37 @@ build-assets: doctor _install-tools
 # Unit tests + cross-compile check + frontend type-check (no VM)
 test: _install-tools
     cargo llvm-cov --workspace --no-cfg-coverage
-    cargo build --release --target aarch64-unknown-linux-musl -p capsem-agent 2>&1 | tail -3
+    cargo build --release --target aarch64-unknown-linux-musl -p aivm-agent 2>&1 | tail -3
     cd frontend && pnpm run check && pnpm run build
 
-# Full validation: test + capsem-doctor + integration test + bench (boots VM)
+# Full validation: test + aivm-doctor + integration test + bench (boots VM)
 full-test: test _check-assets _pack-initrd _sign
     @echo ""
-    @echo "=== capsem-doctor ==="
-    CAPSEM_ASSETS_DIR={{assets_dir}} {{binary}} "capsem-doctor"
+    @echo "=== aivm-doctor ==="
+    AIVM_ASSETS_DIR={{assets_dir}} {{binary}} "aivm-doctor"
     @echo ""
     @echo "=== Integration test ==="
     python3 scripts/integration_test.py --binary {{binary}} --assets {{assets_dir}}
     @echo ""
     @echo "=== Benchmarks ==="
-    CAPSEM_ASSETS_DIR={{assets_dir}} {{binary}} "capsem-bench"
+    AIVM_ASSETS_DIR={{assets_dir}} {{binary}} "aivm-bench"
 
 # Run in-VM benchmarks (disk I/O, rootfs read, CLI startup, HTTP latency)
 bench: _check-assets _sign
-    CAPSEM_ASSETS_DIR={{assets_dir}} {{binary}} "capsem-bench"
+    AIVM_ASSETS_DIR={{assets_dir}} {{binary}} "aivm-bench"
 
 # Build release .app + install to /Applications + launch
 install: doctor full-test _frontend
-    cd crates/capsem-app && cargo tauri build
+    cd crates/aivm-app && cargo tauri build
     codesign --sign - --entitlements {{entitlements}} --force --deep "{{release_app}}"
-    @echo "Stopping running Capsem..."
-    -@pkill -x Capsem 2>/dev/null || true
-    -@pkill -x capsem 2>/dev/null || true
+    @echo "Stopping running Aivm..."
+    -@pkill -x Aivm 2>/dev/null || true
+    -@pkill -x aivm 2>/dev/null || true
     @echo "Installing to /Applications..."
-    rm -rf "/Applications/Capsem.app"
+    rm -rf "/Applications/Aivm.app"
     cp -R "{{release_app}}" "/Applications/"
-    @echo "Launching Capsem..."
-    open "/Applications/Capsem.app"
+    @echo "Launching Aivm..."
+    open "/Applications/Aivm.app"
 
 # Check that all required dev tools and dependencies are installed
 doctor:
@@ -190,7 +190,7 @@ doctor:
     pass() { echo "  [PASS] $1"; PASS=$((PASS + 1)); }
     fail() { echo "  [FAIL] $1"; FAIL=$((FAIL + 1)); }
 
-    echo "Capsem Doctor"
+    echo "Aivm Doctor"
     echo "============="
 
     echo ""
@@ -273,7 +273,7 @@ doctor:
 clean:
     cargo clean
     cd frontend && rm -rf dist node_modules
-    rm -rf target/release/bundle/macos/Capsem.app target/release/Capsem.dmg
+    rm -rf target/release/bundle/macos/Aivm.app target/release/Aivm.dmg
 
 # Inspect session DB integrity and event summary (latest by default)
 inspect-session *args='':
@@ -376,7 +376,7 @@ _frontend:
     cd frontend && pnpm build
 
 _compile: _frontend
-    cargo build -p capsem
+    cargo build -p aivm
 
 _sign: _compile
     codesign --sign - --entitlements {{entitlements}} --force {{binary}}
@@ -391,31 +391,36 @@ _pack-initrd:
         exit 1
     fi
     echo "=== Cross-compile agent ==="
-    cargo build --release --target aarch64-unknown-linux-musl -p capsem-agent 2>&1 | tail -3
+    cargo build --release --target aarch64-unknown-linux-musl -p aivm-agent 2>&1 | tail -3
     echo ""
     echo "=== Repack initrd ==="
     WORKDIR=$(mktemp -d)
     cd "$WORKDIR"
     gzip -dc "$INITRD" | cpio -id 2>/dev/null
-    cp "$ROOT/images/capsem-init" init
+    cp "$ROOT/images/aivm-init" init
     chmod 755 init
-    rm -f capsem-pty-agent capsem-net-proxy capsem-mcp-server capsem-fs-watch
-    cp "$ROOT/target/aarch64-unknown-linux-musl/release/capsem-pty-agent" capsem-pty-agent
-    chmod 555 capsem-pty-agent
-    cp "$ROOT/target/aarch64-unknown-linux-musl/release/capsem-net-proxy" capsem-net-proxy
-    chmod 555 capsem-net-proxy
-    cp "$ROOT/target/aarch64-unknown-linux-musl/release/capsem-mcp-server" capsem-mcp-server
-    chmod 555 capsem-mcp-server
-    cp "$ROOT/target/aarch64-unknown-linux-musl/release/capsem-fs-watch" capsem-fs-watch
-    chmod 555 capsem-fs-watch
-    cp "$ROOT/images/capsem-doctor" capsem-doctor
-    chmod 755 capsem-doctor
-    cp "$ROOT/images/capsem-bench" capsem-bench
-    chmod 755 capsem-bench
+    rm -f aivm-pty-agent aivm-net-proxy aivm-mcp-server aivm-fs-watch aivm-port-watch
+    cp "$ROOT/target/aarch64-unknown-linux-musl/release/aivm-pty-agent" aivm-pty-agent
+    chmod 555 aivm-pty-agent
+    cp "$ROOT/target/aarch64-unknown-linux-musl/release/aivm-net-proxy" aivm-net-proxy
+    chmod 555 aivm-net-proxy
+    cp "$ROOT/target/aarch64-unknown-linux-musl/release/aivm-mcp-server" aivm-mcp-server
+    chmod 555 aivm-mcp-server
+    cp "$ROOT/target/aarch64-unknown-linux-musl/release/aivm-fs-watch" aivm-fs-watch
+    chmod 555 aivm-fs-watch
+    cp "$ROOT/target/aarch64-unknown-linux-musl/release/aivm-port-watch" aivm-port-watch
+    chmod 555 aivm-port-watch
+    cp "$ROOT/images/aivm-doctor" aivm-doctor
+    chmod 755 aivm-doctor
+    cp "$ROOT/images/aivm-bench" aivm-bench
+    chmod 755 aivm-bench
+    cp "$ROOT/images/aivm-bashrc" aivm-bashrc
+    cp "$ROOT/images/banner.txt" aivm-banner.txt
+    cp "$ROOT/images/tips.txt" aivm-tips.txt
     rm -rf diagnostics
     cp -r "$ROOT/images/diagnostics" diagnostics
     find . | cpio -o -H newc 2>/dev/null | gzip > "$INITRD"
     rm -rf "$WORKDIR"
     cd "$ROOT"
     (cd "{{assets_dir}}" && b3sum vmlinuz initrd.img rootfs.squashfs > B3SUMS)
-    echo "initrd repacked (with agent + net-proxy + mcp-server + fs-watch + doctor)"
+    echo "initrd repacked (with agent + net-proxy + mcp-server + fs-watch + port-watch + doctor)"

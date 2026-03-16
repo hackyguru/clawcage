@@ -1,5 +1,5 @@
 # ============================================================================
-# Capsem Settings Registry
+# Aivm Settings Registry
 # ============================================================================
 #
 # Single source of truth for all built-in settings. Embedded at compile time
@@ -182,7 +182,7 @@ collapsed = true
 
 [settings.ai.google.gemini.installation_id.default]
 path = "/root/.gemini/installation_id"
-content = "capsem-sandbox-00000000-0000-0000-0000-000000000000"
+content = "aivm-sandbox-00000000-0000-0000-0000-000000000000"
 
 # -- Package Registries ------------------------------------------------------
 

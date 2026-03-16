@@ -2,6 +2,9 @@
 // Active when window.__TAURI_INTERNALS__ is absent.
 import type {
   ConfigIssue,
+  DetectedPort,
+  ForwardedPort,
+  PortsResponse,
   QueryResult,
   ResolvedSetting,
   SessionInfo,
@@ -30,6 +33,7 @@ function ms(overrides: Partial<ResolvedSetting> & { id: string; category: string
     enabled_by: null,
     enabled: true,
     metadata: { domains: [], choices: [], min: null, max: null, rules: {} },
+    venv_overridden: false,
     ...overrides,
   };
 }
@@ -123,8 +127,8 @@ let mockSettings: ResolvedSetting[] = [
   ms({
     id: 'ai.google.gemini.installation_id', category: 'AI Providers', name: 'Gemini installation_id', setting_type: 'file',
     description: 'Stable UUID avoids first-run prompts.',
-    default_value: { path: '/root/.gemini/installation_id', content: 'capsem-sandbox-00000000-0000-0000-0000-000000000000' },
-    effective_value: { path: '/root/.gemini/installation_id', content: 'capsem-sandbox-00000000-0000-0000-0000-000000000000' },
+    default_value: { path: '/root/.gemini/installation_id', content: 'aivm-sandbox-00000000-0000-0000-0000-000000000000' },
+    effective_value: { path: '/root/.gemini/installation_id', content: 'aivm-sandbox-00000000-0000-0000-0000-000000000000' },
     enabled_by: 'ai.google.allow',
   }),
   // -- Search --
@@ -489,6 +493,21 @@ const MOCK_VM_STATE: VmStateResponse = {
 };
 
 // ---------------------------------------------------------------------------
+// Mock port data
+// ---------------------------------------------------------------------------
+
+let mockDetectedPorts: DetectedPort[] = [
+  { port: 3000, pid: 1234, process: 'node', detected_at: Date.now() - 30000 },
+  { port: 8080, pid: 1235, process: 'python3', detected_at: Date.now() - 15000 },
+  { port: 5432, pid: 1236, process: 'postgres', detected_at: Date.now() - 60000 },
+  { port: 5173, pid: 1237, process: 'node', detected_at: Date.now() - 5000 },
+];
+
+let mockForwardedPorts: ForwardedPort[] = [
+  { guest_port: 3000, host_port: 3000 },
+];
+
+// ---------------------------------------------------------------------------
 // Exported mock API (non-SQL commands only)
 // ---------------------------------------------------------------------------
 
@@ -530,6 +549,15 @@ export const mockApi = {
     s.modified = new Date().toISOString();
     recomputeEnabled();
   },
+  resetVenvSetting: async (_venvId: string, id: string) => {
+    const s = mockSettings.find(s => s.id === id);
+    if (!s) return;
+    s.effective_value = s.default_value;
+    s.source = 'default';
+    s.venv_overridden = false;
+    s.modified = null;
+    recomputeEnabled();
+  },
   getVmState: async () => MOCK_VM_STATE,
   getSessionInfo: async (): Promise<SessionInfo> => ({
     session_id: '20260225-143052-a7f3',
@@ -551,11 +579,36 @@ export const mockApi = {
     total_estimated_cost_usd: 0.42,
   }),
 
+  // Port forwarding
+  getPorts: async (): Promise<PortsResponse> => ({
+    detected: [...mockDetectedPorts],
+    forwarded: [...mockForwardedPorts],
+  }),
+  forwardPort: async (guestPort: number, hostPort?: number): Promise<number> => {
+    const hp = hostPort ?? guestPort;
+    if (!mockForwardedPorts.find((f) => f.guest_port === guestPort)) {
+      mockForwardedPorts.push({ guest_port: guestPort, host_port: hp });
+    }
+    return hp;
+  },
+  stopForward: async (guestPort: number) => {
+    mockForwardedPorts = mockForwardedPorts.filter((f) => f.guest_port !== guestPort);
+  },
+  onPortDetected: async (_cb: (port: DetectedPort) => void) => () => {},
+  onPortClosed: async (_cb: (data: { port: number }) => void) => () => {},
+
+  // Shell management
+  spawnShell: async (_sessionId: number) => {},
+  closeShell: async (_sessionId: number) => {},
+  listShells: async (): Promise<number[]> => [0],
+
   // Event listeners return no-op unsubscribers in mock mode
   onSerialOutput: async (_cb: (data: number[]) => void) => () => {},
   onVmStateChanged: async (_cb: (state: string) => void) => () => {},
   onTerminalSourceChanged: async (_cb: (source: string) => void) => () => {},
   onDownloadProgress: async (_cb: (progress: any) => void) => () => {},
+  onShellReady: async (_cb: (data: { session_id: number }) => void) => () => {},
+  onShellClosed: async (_cb: (data: { session_id: number; exit_code: number }) => void) => () => {},
 
   // Venv management
   listVenvs: async (): Promise<VenvInfo[]> => mockVenvs.map((v) => ({ ...v })),

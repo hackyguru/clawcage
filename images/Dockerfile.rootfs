@@ -1,4 +1,4 @@
-# Build a populated rootfs for the capsem VM.
+# Build a populated rootfs for the aivm VM.
 # Contains developer tools, runtimes, and AI coding CLIs.
 # Mounted read-only at boot; only /root is writable (tmpfs).
 
@@ -38,7 +38,7 @@ RUN GCS_BUCKET=$(curl -fsSL https://claude.ai/install.sh | grep 'GCS_BUCKET=' | 
     chmod 755 /usr/local/bin/claude
 
 # Other AI coding CLIs -- installed to /opt/ai-clis (staging area).
-# Copied to writable scratch disk at boot by capsem-init so that
+# Copied to writable scratch disk at boot by aivm-init so that
 # auto-update works (CLIs self-update and need writable node_modules).
 COPY npm-globals.txt /tmp/npm-globals.txt
 RUN grep -v '^\s*#' /tmp/npm-globals.txt | grep -v '^\s*$' | \
@@ -48,29 +48,29 @@ RUN grep -v '^\s*#' /tmp/npm-globals.txt | grep -v '^\s*$' | \
 
 # Install MITM CA certificate into system trust store
 # (copied into images/ by build.py before docker build)
-COPY capsem-ca.crt /usr/local/share/ca-certificates/capsem-ca.crt
+COPY aivm-ca.crt /usr/local/share/ca-certificates/aivm-ca.crt
 RUN update-ca-certificates
 
 # Patch certifi's CA bundle (Python requests/openai SDK use certifi, not system store)
 RUN uv pip install --system --break-system-packages certifi && \
     CERTIFI_BUNDLE=$(python3 -c "import certifi; print(certifi.where())") && \
-    cat /usr/local/share/ca-certificates/capsem-ca.crt >> "$CERTIFI_BUNDLE"
+    cat /usr/local/share/ca-certificates/aivm-ca.crt >> "$CERTIFI_BUNDLE"
 
 # PTY agent binary (built externally, cross-compiled for aarch64-linux-musl)
 # Bridges PTY I/O over vsock for high-performance terminal communication.
 # Read-only + execute (555): prevent guest processes from modifying the agent.
-COPY capsem-pty-agent /usr/local/bin/capsem-pty-agent
-RUN chmod 555 /usr/local/bin/capsem-pty-agent
+COPY aivm-pty-agent /usr/local/bin/aivm-pty-agent
+RUN chmod 555 /usr/local/bin/aivm-pty-agent
 
 # Net proxy binary (cross-compiled for aarch64-linux-musl)
 # Bridges TCP connections from the guest to the host SNI proxy via vsock.
-COPY capsem-net-proxy /usr/local/bin/capsem-net-proxy
-RUN chmod 555 /usr/local/bin/capsem-net-proxy
+COPY aivm-net-proxy /usr/local/bin/aivm-net-proxy
+RUN chmod 555 /usr/local/bin/aivm-net-proxy
 
-# Shell config (sourced by capsem-init via --rcfile)
-COPY capsem-bashrc /etc/capsem-bashrc
-COPY banner.txt /etc/capsem-banner.txt
-COPY tips.txt /etc/capsem-tips.txt
+# Shell config (sourced by aivm-init via --rcfile)
+COPY aivm-bashrc /etc/aivm-bashrc
+COPY banner.txt /etc/aivm-banner.txt
+COPY tips.txt /etc/aivm-tips.txt
 
 # Common Python packages (pre-installed so they're available immediately).
 # The boot-time venv uses --system-site-packages to inherit these.
@@ -80,17 +80,17 @@ RUN uv pip install --system --break-system-packages -r /tmp/requirements.txt && 
     rm /tmp/requirements.txt
 
 # Diagnostic test suite
-COPY diagnostics/ /usr/local/lib/capsem-tests/
+COPY diagnostics/ /usr/local/lib/aivm-tests/
 
 # Doctor script (entry point)
-COPY capsem-doctor /usr/local/bin/capsem-doctor
-RUN chmod 755 /usr/local/bin/capsem-doctor
-# Backward compat: capsem-test -> capsem-doctor
-RUN ln -sf capsem-doctor /usr/local/bin/capsem-test
+COPY aivm-doctor /usr/local/bin/aivm-doctor
+RUN chmod 755 /usr/local/bin/aivm-doctor
+# Backward compat: aivm-test -> aivm-doctor
+RUN ln -sf aivm-doctor /usr/local/bin/aivm-test
 
 # Bench script (disk I/O + HTTP performance benchmarks)
-COPY capsem-bench /usr/local/bin/capsem-bench
-RUN chmod 755 /usr/local/bin/capsem-bench
+COPY aivm-bench /usr/local/bin/aivm-bench
+RUN chmod 755 /usr/local/bin/aivm-bench
 
 # Remove PEP 668 EXTERNALLY-MANAGED marker.
 # This is an ephemeral sandboxed VM -- the protection is unnecessary and blocks

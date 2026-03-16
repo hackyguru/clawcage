@@ -15,9 +15,12 @@ async function ensureDeps() {
 }
 import type {
   ConfigIssue,
+  DetectedPort,
   DownloadProgress,
+  ForwardedPort,
   GuestConfigResponse,
   NetworkPolicyResponse,
+  PortsResponse,
   ResolvedSetting,
   SessionInfo,
   SettingsNode,
@@ -54,19 +57,35 @@ export function vmStatus(): Promise<string> {
 }
 
 
-export function serialInput(input: string): Promise<void> {
-  return ensureDeps().then(() => isMock ? mockApi.serialInput(input) : tauriInvoke('serial_input', { input }));
+export function serialInput(input: string, sessionId?: number): Promise<void> {
+  return ensureDeps().then(() => isMock ? mockApi.serialInput(input) : tauriInvoke('serial_input', { input, sessionId }));
 }
 
 
-export function terminalResize(cols: number, rows: number): Promise<void> {
-  return ensureDeps().then(() => isMock ? mockApi.terminalResize(cols, rows) : tauriInvoke('terminal_resize', { cols, rows }));
+export function terminalResize(cols: number, rows: number, sessionId?: number): Promise<void> {
+  return ensureDeps().then(() => isMock ? mockApi.terminalResize(cols, rows) : tauriInvoke('terminal_resize', { cols, rows, sessionId }));
 }
 
 
-/** Poll for terminal output. Returns bytes as a number array. */
-export function terminalPoll(): Promise<number[]> {
-  return ensureDeps().then(() => tauriInvoke<number[]>('terminal_poll'));
+/** Poll for terminal output for a specific shell session. Returns bytes as a number array. */
+export function terminalPoll(sessionId?: number): Promise<number[]> {
+  return ensureDeps().then(() => tauriInvoke<number[]>('terminal_poll', { sessionId }));
+}
+
+
+/** Spawn a new shell session in the VM. */
+export function spawnShell(sessionId: number): Promise<void> {
+  return ensureDeps().then(() => isMock ? mockApi.spawnShell(sessionId) : tauriInvoke('spawn_shell', { sessionId }));
+}
+
+/** Close a shell session in the VM. */
+export function closeShell(sessionId: number): Promise<void> {
+  return ensureDeps().then(() => isMock ? mockApi.closeShell(sessionId) : tauriInvoke('close_shell', { sessionId }));
+}
+
+/** List active shell session IDs. */
+export function listShells(): Promise<number[]> {
+  return ensureDeps().then(() => isMock ? mockApi.listShells() : tauriInvoke<number[]>('list_shells'));
 }
 
 
@@ -90,23 +109,28 @@ export function removeGuestEnv(key: string): Promise<void> {
 }
 
 
-export function getSettings(): Promise<ResolvedSetting[]> {
-  return ensureDeps().then(() => isMock ? mockApi.getSettings() : tauriInvoke<ResolvedSetting[]>('get_settings'));
+export function getSettings(venvId?: string): Promise<ResolvedSetting[]> {
+  return ensureDeps().then(() => isMock ? mockApi.getSettings() : tauriInvoke<ResolvedSetting[]>('get_settings', { venvId }));
 }
 
 
-export function getSettingsTree(): Promise<SettingsNode[]> {
-  return ensureDeps().then(() => isMock ? mockApi.getSettingsTree() : tauriInvoke<SettingsNode[]>('get_settings_tree'));
+export function getSettingsTree(venvId?: string): Promise<SettingsNode[]> {
+  return ensureDeps().then(() => isMock ? mockApi.getSettingsTree() : tauriInvoke<SettingsNode[]>('get_settings_tree', { venvId }));
 }
 
 
-export function lintConfig(): Promise<ConfigIssue[]> {
-  return ensureDeps().then(() => isMock ? mockApi.lintConfig() : tauriInvoke<ConfigIssue[]>('lint_config'));
+export function lintConfig(venvId?: string): Promise<ConfigIssue[]> {
+  return ensureDeps().then(() => isMock ? mockApi.lintConfig() : tauriInvoke<ConfigIssue[]>('lint_config', { venvId }));
 }
 
 
-export function updateSetting(id: string, value: SettingValue): Promise<void> {
-  return ensureDeps().then(() => isMock ? mockApi.updateSetting(id, value) : tauriInvoke('update_setting', { id, value }));
+export function updateSetting(id: string, value: SettingValue, venvId?: string): Promise<void> {
+  return ensureDeps().then(() => isMock ? mockApi.updateSetting(id, value) : tauriInvoke('update_setting', { id, value, venvId }));
+}
+
+
+export function resetVenvSetting(venvId: string, id: string): Promise<void> {
+  return ensureDeps().then(() => isMock ? mockApi.resetVenvSetting(venvId, id) : tauriInvoke('reset_venv_setting', { venvId, id }));
 }
 
 
@@ -157,6 +181,19 @@ export function onDownloadProgress(
   return ensureDeps().then(() => isMock ? mockApi.onDownloadProgress(callback) : tauriListen<DownloadProgress>('download-progress', callback));
 }
 
+
+export function onShellReady(
+  callback: (data: { session_id: number }) => void,
+): Promise<UnlistenFn> {
+  return ensureDeps().then(() => isMock ? mockApi.onShellReady(callback) : tauriListen<{ session_id: number }>('shell-ready', callback));
+}
+
+export function onShellClosed(
+  callback: (data: { session_id: number; exit_code: number }) => void,
+): Promise<UnlistenFn> {
+  return ensureDeps().then(() => isMock ? mockApi.onShellClosed(callback) : tauriListen<{ session_id: number; exit_code: number }>('shell-closed', callback));
+}
+
 // ---------------------------------------------------------------------------
 // Venv (virtual environment) management
 // ---------------------------------------------------------------------------
@@ -179,4 +216,28 @@ export function startVenv(id: string): Promise<void> {
 
 export function stopVenv(id: string): Promise<void> {
   return ensureDeps().then(() => isMock ? mockApi.stopVenv(id) : tauriInvoke<void>('stop_venv', { id }));
+}
+
+// ---------------------------------------------------------------------------
+// Port forwarding
+// ---------------------------------------------------------------------------
+
+export function getPorts(): Promise<PortsResponse> {
+  return ensureDeps().then(() => isMock ? mockApi.getPorts() : tauriInvoke<PortsResponse>('get_ports'));
+}
+
+export function forwardPort(guestPort: number, hostPort?: number): Promise<number> {
+  return ensureDeps().then(() => isMock ? mockApi.forwardPort(guestPort, hostPort) : tauriInvoke<number>('forward_port', { guestPort, hostPort }));
+}
+
+export function stopForward(guestPort: number): Promise<void> {
+  return ensureDeps().then(() => isMock ? mockApi.stopForward(guestPort) : tauriInvoke<void>('stop_forward', { guestPort }));
+}
+
+export function onPortDetected(callback: (port: DetectedPort) => void): Promise<UnlistenFn> {
+  return ensureDeps().then(() => isMock ? mockApi.onPortDetected(callback) : tauriListen<DetectedPort>('port-detected', callback));
+}
+
+export function onPortClosed(callback: (data: { port: number }) => void): Promise<UnlistenFn> {
+  return ensureDeps().then(() => isMock ? mockApi.onPortClosed(callback) : tauriListen<{ port: number }>('port-closed', callback));
 }

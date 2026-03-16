@@ -2,7 +2,7 @@
 
 We would love to accept your patches and contributions to this project!
 
-Check [open issues labeled as "help wanted"](https://github.com/google/capsem/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22) as a starting point.
+Check [open issues labeled as "help wanted"](https://github.com/google/aivm/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22) as a starting point.
 
 ## Before you begin
 

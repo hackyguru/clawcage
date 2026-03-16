@@ -8,7 +8,7 @@ TESTS_OUTPUT_DIR = pathlib.Path("/root/tests")
 
 
 def pytest_ignore_collect(collection_path, config):
-    """Cleanly ignore this directory if not running inside the capsem VM."""
+    """Cleanly ignore this directory if not running inside the aivm VM."""
     if os.geteuid() != 0 or not os.access("/root", os.W_OK):
         return True
     return False

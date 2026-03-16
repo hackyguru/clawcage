@@ -1,7 +1,7 @@
 #!/bin/bash
 # scripts/run_signed.sh
 #
-# Custom runner for Capsem development. 
+# Custom runner for Aivm development. 
 # Handles signing the binary with Virtualization entitlements on macOS.
 
 # Find the workspace root based on the script's location
@@ -27,9 +27,9 @@ if [ -f "$1" ]; then
     
     shift
     # Set the assets directory and execute the binary with remaining args.
-    # CAPSEM_ASSETS_DIR allows the VM to find vmlinuz/initrd/rootfs.
+    # AIVM_ASSETS_DIR allows the VM to find vmlinuz/initrd/rootfs.
     echo "[runner] launching $binary"
-    CAPSEM_ASSETS_DIR="$ROOT_DIR/assets" exec "$binary" "$@"
+    AIVM_ASSETS_DIR="$ROOT_DIR/assets" exec "$binary" "$@"
 fi
 
 # Fallback: just execute it.

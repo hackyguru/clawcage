@@ -47,7 +47,7 @@ def test_overlay_configured():
 
 def test_overlay_writes_are_ephemeral():
     """Writes to system paths succeed through overlay (goes to tmpfs upper, not squashfs)."""
-    test_file = "/usr/bin/.capsem_overlay_test"
+    test_file = "/usr/bin/.aivm_overlay_test"
     result = run(f'echo "overlay-ok" > {test_file} && cat {test_file}')
     assert result.returncode == 0, "write to /usr/bin through overlay failed"
     assert "overlay-ok" in result.stdout
@@ -57,8 +57,8 @@ def test_overlay_writes_are_ephemeral():
 @pytest.mark.parametrize("path", ["/root", "/tmp", "/run", "/var/log", "/var/tmp"])
 def test_writable_mounts(path):
     """Writable paths (/root=ext4 scratch, others=overlay tmpfs upper) must allow write + readback."""
-    test_file = f"{path}/.capsem_rw_test"
-    payload = "capsem-writable-ok"
+    test_file = f"{path}/.aivm_rw_test"
+    payload = "aivm-writable-ok"
     result = run(f'echo "{payload}" > {test_file} && cat {test_file}')
     assert result.returncode == 0
     assert payload in result.stdout
@@ -68,10 +68,10 @@ def test_writable_mounts(path):
 # -- Binary security --
 
 GUEST_BINARY_PATHS = [
-    "/usr/local/bin/capsem-pty-agent",
-    "/run/capsem-pty-agent",
-    "/usr/local/bin/capsem-net-proxy",
-    "/run/capsem-net-proxy",
+    "/usr/local/bin/aivm-pty-agent",
+    "/run/aivm-pty-agent",
+    "/usr/local/bin/aivm-net-proxy",
+    "/run/aivm-net-proxy",
 ]
 
 
@@ -162,9 +162,9 @@ def test_iptables_redirect():
 
 
 def test_net_proxy_running():
-    """capsem-net-proxy must be running."""
-    result = run("pgrep -f capsem-net-proxy")
-    assert result.returncode == 0, "capsem-net-proxy is not running"
+    """aivm-net-proxy must be running."""
+    result = run("pgrep -f aivm-net-proxy")
+    assert result.returncode == 0, "aivm-net-proxy is not running"
 
 
 def test_allowed_domain():
@@ -248,9 +248,9 @@ def test_no_real_nics():
 # -- Process integrity --
 
 def test_pty_agent_running():
-    """capsem-pty-agent must be running."""
-    result = run("pgrep -f capsem-pty-agent")
-    assert result.returncode == 0, "capsem-pty-agent is not running"
+    """aivm-pty-agent must be running."""
+    result = run("pgrep -f aivm-pty-agent")
+    assert result.returncode == 0, "aivm-pty-agent is not running"
 
 
 def test_dnsmasq_running():

@@ -1,20 +1,20 @@
-# Capsem Performance
+# Aivm Performance
 
-Benchmarks for the Capsem VM sandbox: disk I/O, rootfs reads, CLI startup, HTTP latency, and MITM proxy throughput.
+Benchmarks for the Aivm VM sandbox: disk I/O, rootfs reads, CLI startup, HTTP latency, and MITM proxy throughput.
 
 ## Running benchmarks
 
 ```bash
 just bench                        # all benchmarks (boots VM once)
-just run "capsem-bench throughput" # proxy throughput only
-just run "capsem-bench disk"       # scratch disk I/O only
-just run "capsem-bench http"       # HTTP latency only
-just run "capsem-bench startup"    # CLI cold-start only
+just run "aivm-bench throughput" # proxy throughput only
+just run "aivm-bench disk"       # scratch disk I/O only
+just run "aivm-bench http"       # HTTP latency only
+just run "aivm-bench startup"    # CLI cold-start only
 ```
 
 The `just bench` recipe is part of `just full-test`.
 
-## Benchmark suite (`capsem-bench`)
+## Benchmark suite (`aivm-bench`)
 
 | Mode | What it measures |
 |------|-----------------|
@@ -31,7 +31,7 @@ Output: rich table to stderr (human), JSON to stdout (machine).
 Tests the complete data path:
 
 ```
-guest curl -> iptables REDIRECT -> capsem-net-proxy (TCP 10443)
+guest curl -> iptables REDIRECT -> aivm-net-proxy (TCP 10443)
   -> vsock (port 5002) -> host MITM proxy
   -> TLS termination + policy check + upstream TLS
   -> ash-speed.hetzner.com -> back
@@ -49,19 +49,19 @@ Host-side Rust test (`mitm_proxy_download_throughput`): **30.3 MB/s** — confir
 
 ### Running the proxy throughput test
 
-In-VM (capsem-bench):
+In-VM (aivm-bench):
 ```bash
-just run "capsem-bench throughput"
+just run "aivm-bench throughput"
 ```
 
 Host-side Rust (skipped by default, requires internet):
 ```bash
-cargo test -p capsem-core --test mitm_integration -- --ignored mitm_proxy_download_throughput --nocapture
+cargo test -p aivm-core --test mitm_integration -- --ignored mitm_proxy_download_throughput --nocapture
 ```
 
-In-VM capsem-doctor (skips if domain not in allow list):
+In-VM aivm-doctor (skips if domain not in allow list):
 ```bash
-just run "capsem-doctor -k throughput"
+just run "aivm-doctor -k throughput"
 ```
 
 ### Domain allow list
@@ -70,7 +70,7 @@ just run "capsem-doctor -k throughput"
 - `config/defaults.toml` (`network.custom_allow`)
 - `config/integration-test-user.toml`
 
-For personal use, verify `~/.capsem/user.toml` includes it:
+For personal use, verify `~/.aivm/user.toml` includes it:
 ```toml
 [settings."network.custom_allow"]
 value = "elie.net, *.elie.net, ash-speed.hetzner.com"

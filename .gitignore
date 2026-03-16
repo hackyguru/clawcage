@@ -42,11 +42,11 @@ target/
 assets/*
 
 # Cross-compiled guest binaries (rebuilt by just run)
-images/capsem-net-proxy
-images/capsem-pty-agent
+images/aivm-net-proxy
+images/aivm-pty-agent
 
 # Tauri
-crates/capsem-app/gen/
+crates/aivm-app/gen/
 
 # Frontend
 frontend/dist/

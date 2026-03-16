@@ -1,6 +1,6 @@
-# Capsem Toolchain Skill
+# Aivm Toolchain Skill
 
-How to build, test, and ship Capsem. All workflows use `just` (not make).
+How to build, test, and ship Aivm. All workflows use `just` (not make).
 
 ## Daily Development
 
@@ -20,15 +20,15 @@ Three tiers, from fast to thorough:
 | Tier | Command | What it does | VM? |
 |------|---------|-------------|-----|
 | Fast | `just test` | Unit tests (llvm-cov) + cross-compile agent + frontend type-check + build | No |
-| Smoke | `just run "capsem-doctor"` | Repack + boot VM + run diagnostic suite | Yes |
-| Full | `just full-test` | `test` + capsem-doctor + integration test + bench | Yes (3x) |
+| Smoke | `just run "aivm-doctor"` | Repack + boot VM + run diagnostic suite | Yes |
+| Full | `just full-test` | `test` + aivm-doctor + integration test + bench | Yes (3x) |
 
 Always run `just test` before pushing. Run `just full-test` before releases.
 
 ### What each tier catches
 
 - **`just test`**: Rust logic bugs, cross-compile failures (platform-specific types), frontend type errors, bundling issues
-- **`just run "capsem-doctor"`**: Sandbox integrity, network isolation, MITM trust chain, runtime availability, MCP gateway
+- **`just run "aivm-doctor"`**: Sandbox integrity, network isolation, MITM trust chain, runtime availability, MCP gateway
 - **`just full-test`**: All of the above + telemetry pipeline correctness (fs/net/mcp/model/tool events) + performance regressions
 
 ## Release & Install
@@ -38,7 +38,7 @@ just release                          # full-test + build release .app + sign + 
 just install                          # full-test + build release .app + sign + /Applications
 ```
 
-Both gate on `full-test` passing first. `just release` produces `target/release/Capsem.dmg`. `just install` copies the `.app` to `/Applications` and launches it.
+Both gate on `full-test` passing first. `just release` produces `target/release/Aivm.dmg`. `just install` copies the `.app` to `/Applications` and launches it.
 
 ## VM Assets
 
@@ -46,7 +46,7 @@ Both gate on `full-test` passing first. `just release` produces `target/release/
 just build-assets                     # Full rebuild: kernel + initrd + rootfs (~10 min, Docker/Podman)
 ```
 
-Only needed when changing `Dockerfile.rootfs`, `capsem-bashrc`, `diagnostics/`, installed packages, or kernel config. Guest binary changes (capsem-init, capsem-agent, capsem-net-proxy, capsem-mcp-server, capsem-fs-watch) are handled by `just run` via initrd repack.
+Only needed when changing `Dockerfile.rootfs`, `aivm-bashrc`, `diagnostics/`, installed packages, or kernel config. Guest binary changes (aivm-init, aivm-agent, aivm-net-proxy, aivm-mcp-server, aivm-fs-watch) are handled by `just run` via initrd repack.
 
 ## Utilities
 
@@ -79,7 +79,7 @@ Internal `_`-prefixed recipes are hidden from `just --list` but called as depend
 |-----------|---------|
 | Changed Rust code (host-side) | `just run` or `just test` |
 | Changed guest binary (agent, net-proxy, mcp-server, fs-watch) | `just run` |
-| Changed capsem-init | `just run` |
+| Changed aivm-init | `just run` |
 | Changed rootfs (Dockerfile, bashrc, diagnostics) | `just build-assets` then `just run` |
 | Changed frontend | `just ui` (iterate) then `just test` (validate) |
 | Verify telemetry pipelines | `just run "<exercise command>"` then `just inspect-session` |

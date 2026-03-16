@@ -1,4 +1,4 @@
-# Capsem Design System
+# Aivm Design System
 
 ## Semantic-First Color Architecture
 

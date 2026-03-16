@@ -1,6 +1,6 @@
 """MCP gateway integration tests.
 
-Verifies that the capsem-mcp-server binary exists and that the host MCP
+Verifies that the aivm-mcp-server binary exists and that the host MCP
 gateway responds to JSON-RPC messages over vsock:5003.
 """
 
@@ -17,22 +17,22 @@ from conftest import run
 # ---------------------------------------------------------------------------
 
 def _mcp_call(messages, timeout=15):
-    """Send NDJSON messages to capsem-mcp-server, collect responses.
+    """Send NDJSON messages to aivm-mcp-server, collect responses.
 
-    capsem-mcp-server connects to vsock:5003 on the host and relays
+    aivm-mcp-server connects to vsock:5003 on the host and relays
     NDJSON lines bidirectionally. We send messages on stdin and read
     responses from stdout.
     """
     input_lines = "\n".join(json.dumps(m) for m in messages) + "\n"
     proc = subprocess.run(
-        ["/run/capsem-mcp-server"],
+        ["/run/aivm-mcp-server"],
         input=input_lines,
         capture_output=True,
         text=True,
         timeout=timeout,
     )
     assert proc.returncode == 0, (
-        f"capsem-mcp-server exited {proc.returncode}: {proc.stderr}"
+        f"aivm-mcp-server exited {proc.returncode}: {proc.stderr}"
     )
     responses = []
     for line in proc.stdout.strip().splitlines():
@@ -40,7 +40,7 @@ def _mcp_call(messages, timeout=15):
         if line:
             responses.append(json.loads(line))
     assert len(responses) > 0, (
-        f"capsem-mcp-server returned no responses (stderr: {proc.stderr})"
+        f"aivm-mcp-server returned no responses (stderr: {proc.stderr})"
     )
     return responses
 
@@ -50,8 +50,8 @@ def _mcp_call(messages, timeout=15):
 # ---------------------------------------------------------------------------
 
 def test_mcp_server_binary_exists():
-    """capsem-mcp-server binary is installed and executable."""
-    r = run("test -x /run/capsem-mcp-server && echo ok")
+    """aivm-mcp-server binary is installed and executable."""
+    r = run("test -x /run/aivm-mcp-server && echo ok")
     assert "ok" in r.stdout
 
 
@@ -65,7 +65,7 @@ def test_mcp_initialize():
             "params": {
                 "protocolVersion": "2024-11-05",
                 "capabilities": {},
-                "clientInfo": {"name": "capsem-doctor", "version": "1.0"},
+                "clientInfo": {"name": "aivm-doctor", "version": "1.0"},
             },
         },
     ])
@@ -73,7 +73,7 @@ def test_mcp_initialize():
     resp = responses[0]
     assert resp.get("id") == 1
     assert "result" in resp
-    assert resp["result"]["serverInfo"]["name"] == "capsem-mcp-gateway"
+    assert resp["result"]["serverInfo"]["name"] == "aivm-mcp-gateway"
 
 
 def test_mcp_tools_list():
@@ -86,7 +86,7 @@ def test_mcp_tools_list():
             "params": {
                 "protocolVersion": "2024-11-05",
                 "capabilities": {},
-                "clientInfo": {"name": "capsem-doctor", "version": "1.0"},
+                "clientInfo": {"name": "aivm-doctor", "version": "1.0"},
             },
         },
         {"jsonrpc": "2.0", "method": "notifications/initialized"},
@@ -112,7 +112,7 @@ def test_mcp_fetch_http_allowed_domain():
             "params": {
                 "protocolVersion": "2024-11-05",
                 "capabilities": {},
-                "clientInfo": {"name": "capsem-doctor", "version": "1.0"},
+                "clientInfo": {"name": "aivm-doctor", "version": "1.0"},
             },
         },
         {"jsonrpc": "2.0", "method": "notifications/initialized"},
@@ -144,7 +144,7 @@ def test_mcp_fetch_http_blocked_domain():
             "params": {
                 "protocolVersion": "2024-11-05",
                 "capabilities": {},
-                "clientInfo": {"name": "capsem-doctor", "version": "1.0"},
+                "clientInfo": {"name": "aivm-doctor", "version": "1.0"},
             },
         },
         {"jsonrpc": "2.0", "method": "notifications/initialized"},
@@ -175,7 +175,7 @@ def _init_and_call(tool_name, arguments, call_id=10, timeout=15):
             "params": {
                 "protocolVersion": "2024-11-05",
                 "capabilities": {},
-                "clientInfo": {"name": "capsem-doctor", "version": "1.0"},
+                "clientInfo": {"name": "aivm-doctor", "version": "1.0"},
             },
         },
         {"jsonrpc": "2.0", "method": "notifications/initialized"},

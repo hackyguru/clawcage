@@ -26,14 +26,14 @@ check_apple_certificate() {
     echo "== Apple Certificate =="
 
     local cert_dir="$ROOT_DIR/private/apple-certificate"
-    local p12="$cert_dir/capsem.p12"
+    local p12="$cert_dir/aivm.p12"
     local pass_file="$cert_dir/p12-password.txt"
 
     if [[ ! -f "$p12" ]]; then
-        fail "capsem.p12 not found at $p12"
+        fail "aivm.p12 not found at $p12"
         return
     fi
-    pass "capsem.p12 exists"
+    pass "aivm.p12 exists"
 
     local password
     password="$(tr -d '\n' < "$pass_file")"
@@ -81,11 +81,11 @@ check_b64_matches_p12() {
     echo "== Base64 Sync =="
 
     local cert_dir="$ROOT_DIR/private/apple-certificate"
-    local p12="$cert_dir/capsem.p12"
-    local b64="$cert_dir/capsem-b64.txt"
+    local p12="$cert_dir/aivm.p12"
+    local b64="$cert_dir/aivm-b64.txt"
 
     if [[ ! -f "$b64" ]]; then
-        fail "capsem-b64.txt not found"
+        fail "aivm-b64.txt not found"
         return
     fi
 
@@ -95,10 +95,10 @@ check_b64_matches_p12() {
     file_b64="$(tr -d '\n\r ' < "$b64")"
 
     if [[ "$disk_b64" != "$file_b64" ]]; then
-        fail "capsem-b64.txt does not match capsem.p12 -- regenerate with: base64 -i capsem.p12 -o capsem-b64.txt"
+        fail "aivm-b64.txt does not match aivm.p12 -- regenerate with: base64 -i aivm.p12 -o aivm-b64.txt"
         return
     fi
-    pass "capsem-b64.txt matches capsem.p12"
+    pass "aivm-b64.txt matches aivm.p12"
 }
 
 # --------------------------------------------------------------------------
@@ -141,7 +141,7 @@ check_notarization() {
     echo "== Notarization =="
 
     local cert_dir="$ROOT_DIR/private/apple-certificate"
-    local p8="$cert_dir/capsem.p8"
+    local p8="$cert_dir/aivm.p8"
     local info="$cert_dir/api-key-info.txt"
 
     if [[ ! -f "$p8" ]]; then
@@ -195,7 +195,7 @@ check_notarization() {
 }
 
 # --------------------------------------------------------------------------
-# Check: capsem-init does not allow state to persist between VM sessions.
+# Check: aivm-init does not allow state to persist between VM sessions.
 # Invariants:
 #   (1) scratch disk is always formatted unconditionally at boot (no ext4 detection skip)
 #   (2) overlay upperdir is always on tmpfs, never on the scratch disk
@@ -205,46 +205,46 @@ check_ephemeral_model() {
     echo ""
     echo "== Ephemeral VM Model =="
 
-    local init="$ROOT_DIR/images/capsem-init"
+    local init="$ROOT_DIR/images/aivm-init"
 
     if [[ ! -f "$init" ]]; then
-        fail "capsem-init not found at $init"
+        fail "aivm-init not found at $init"
         return
     fi
 
     # FAIL: conditional mke2fs skip (skip format if disk is already ext4)
     if grep -qE 'grep[[:space:]].*ext4|file[[:space:]].*ext4' "$init"; then
-        fail "capsem-init conditionally skips mke2fs -- scratch disk would persist across reboots"
+        fail "aivm-init conditionally skips mke2fs -- scratch disk would persist across reboots"
     else
-        pass "capsem-init: no conditional mke2fs skip"
+        pass "aivm-init: no conditional mke2fs skip"
     fi
 
     # FAIL: scratch disk used as overlay upper layer
     if grep -qE 'UPPER=.*scratch|upperdir[=[:space:]].*scratch' "$init"; then
-        fail "capsem-init uses scratch disk as overlayfs upper -- all rootfs writes would persist"
+        fail "aivm-init uses scratch disk as overlayfs upper -- all rootfs writes would persist"
     else
-        pass "capsem-init: scratch disk not used as overlay upper"
+        pass "aivm-init: scratch disk not used as overlay upper"
     fi
 
     # PASS: mke2fs must be present (scratch disk formatted at boot)
     if grep -q 'mke2fs' "$init"; then
-        pass "capsem-init: mke2fs present (scratch disk formatted at every boot)"
+        pass "aivm-init: mke2fs present (scratch disk formatted at every boot)"
     else
-        fail "capsem-init: mke2fs missing -- scratch disk never formatted"
+        fail "aivm-init: mke2fs missing -- scratch disk never formatted"
     fi
 
     # PASS: tmpfs used for overlay upper directory
     if grep -qE 'mount -t tmpfs tmpfs /mnt/b' "$init"; then
-        pass "capsem-init: tmpfs used for overlay upper layer"
+        pass "aivm-init: tmpfs used for overlay upper layer"
     else
-        fail "capsem-init: tmpfs overlay upper not found -- writes may persist"
+        fail "aivm-init: tmpfs overlay upper not found -- writes may persist"
     fi
 
     # PASS: tmpfs mount failure must abort boot (no silent degraded mode)
     if grep -qE 'exit 1' "$init" && grep -A3 'mount -t tmpfs tmpfs /mnt/b' "$init" | grep -q 'exit 1'; then
-        pass "capsem-init: tmpfs mount failure aborts boot (no silent degraded fallback)"
+        pass "aivm-init: tmpfs mount failure aborts boot (no silent degraded fallback)"
     else
-        fail "capsem-init: tmpfs mount failure does not abort boot -- VM may start with wrong upper layer"
+        fail "aivm-init: tmpfs mount failure does not abort boot -- VM may start with wrong upper layer"
     fi
 }
 
@@ -252,7 +252,7 @@ check_ephemeral_model() {
 # Run all checks
 # --------------------------------------------------------------------------
 main() {
-    echo "Capsem Release Preflight Checks"
+    echo "Aivm Release Preflight Checks"
     echo "================================"
 
     check_tools

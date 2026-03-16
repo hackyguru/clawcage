@@ -1,0 +1,27 @@
+#!/bin/bash
+# aivm-doctor -- VM self-diagnostic suite
+# Runs all pytest-based diagnostics and reports pass/fail.
+# Usage: aivm-doctor [pytest-args...]
+#   aivm-doctor              # run all tests
+#   aivm-doctor -k sandbox   # run only sandbox tests
+#   aivm-doctor -x           # stop on first failure
+
+set -o pipefail
+export PATH=/root/.npm-global/bin:/root/.local/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
+
+TESTS_DIR="/usr/local/lib/aivm-tests"
+
+echo "=== Aivm VM Diagnostics ==="
+echo ""
+
+python3 -m pytest "$TESTS_DIR" -v --tb=short --no-header "$@"
+EXIT_CODE=$?
+
+echo ""
+if [ $EXIT_CODE -eq 0 ]; then
+    echo "RESULT: PASS -- all diagnostics passed"
+else
+    echo "RESULT: FAIL -- diagnostics failed (exit $EXIT_CODE)"
+fi
+
+exit $EXIT_CODE

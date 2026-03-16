@@ -129,7 +129,7 @@ jobs:
 
       # Check-only -- actual cross-compile already ran in build-assets on Linux
       - name: Cross-compile check (guest binaries)
-        run: cargo check --release --target aarch64-unknown-linux-musl -p capsem-agent
+        run: cargo check --release --target aarch64-unknown-linux-musl -p aivm-agent
 
       - name: Frontend type-check and build
         run: cd frontend && pnpm run check && pnpm run build
@@ -198,11 +198,11 @@ jobs:
           APPLE_API_KEY_PATH: ${{ runner.temp }}/private_keys/AuthKey_${{ secrets.APPLE_API_KEY }}.p8
         with:
           tagName: v__VERSION__
-          releaseName: 'Capsem v__VERSION__'
+          releaseName: 'Aivm v__VERSION__'
           releaseBody: 'See the assets to download this version and install.'
           releaseDraft: true
           prerelease: false
-          projectPath: crates/capsem-app
+          projectPath: crates/aivm-app
           args: --skip-stapling
 
       # Upload rootfs as a separate release asset (not in the DMG).
@@ -219,10 +219,10 @@ jobs:
           subject-path: ${{ github.workspace }}/target/release/bundle/dmg/*.dmg
 
       - name: Generate SBOM
-        run: cargo sbom --output-format spdx_json_2_3 > capsem-sbom.spdx.json
+        run: cargo sbom --output-format spdx_json_2_3 > aivm-sbom.spdx.json
 
       - name: Attest SBOM
         uses: actions/attest-sbom@v2
         with:
           subject-path: ${{ github.workspace }}/target/release/bundle/dmg/*.dmg
-          sbom-path: capsem-sbom.spdx.json
+          sbom-path: aivm-sbom.spdx.json

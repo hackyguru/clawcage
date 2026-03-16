@@ -6,7 +6,7 @@
 #
 # Usage:
 #   just test-api-keys                # via justfile recipe
-#   ./tests/test_api_key_injection.sh # standalone (needs CAPSEM_ASSETS_DIR)
+#   ./tests/test_api_key_injection.sh # standalone (needs AIVM_ASSETS_DIR)
 #
 # What this tests:
 #   1. Settings path: ai.google.api_key in user.toml -> GEMINI_API_KEY in guest
@@ -16,9 +16,9 @@
 
 set -euo pipefail
 
-BINARY="${CAPSEM_BINARY:-target/debug/capsem}"
-ASSETS="${CAPSEM_ASSETS_DIR:-assets}"
-USER_TOML="$HOME/.capsem/user.toml"
+BINARY="${AIVM_BINARY:-target/debug/aivm}"
+ASSETS="${AIVM_ASSETS_DIR:-assets}"
+USER_TOML="$HOME/.aivm/user.toml"
 BACKUP=""
 PASS=0
 FAIL=0
@@ -44,7 +44,7 @@ else
 fi
 
 run_in_vm() {
-    CAPSEM_ASSETS_DIR="$ASSETS" "$BINARY" "$@" 2>&1
+    AIVM_ASSETS_DIR="$ASSETS" "$BINARY" "$@" 2>&1
 }
 
 assert_contains() {

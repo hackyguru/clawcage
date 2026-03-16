@@ -1,12 +1,12 @@
 # Architecture
 
-Capsem is a native macOS application that sandboxes AI agents in lightweight Linux VMs. It uses Apple's Virtualization.framework for hardware-accelerated VM execution on Apple Silicon.
+Aivm is a native macOS application that sandboxes AI agents in lightweight Linux VMs. It uses Apple's Virtualization.framework for hardware-accelerated VM execution on Apple Silicon.
 
 ## System Overview
 
 ```
 +---------------------------------------------+
-|  Capsem.app (macOS)                         |
+|  Aivm.app (macOS)                         |
 |  +---------------------------------------+  |
 |  | Tauri 2.0 Shell                       |  |
 |  | - Astro WebView (xterm.js terminal)  |  |
@@ -15,9 +15,9 @@ Capsem is a native macOS application that sandboxes AI agents in lightweight Lin
 |           |  Tauri IPC                       |
 |  +---------------------------------------+  |
 |  | Rust Backend                          |  |
-|  | - capsem-app  (GUI, CLI, IPC)        |  |
-|  | - capsem-core (VM library)           |  |
-|  | - capsem-proto (protocol types)      |  |
+|  | - aivm-app  (GUI, CLI, IPC)        |  |
+|  | - aivm-core (VM library)           |  |
+|  | - aivm-proto (protocol types)      |  |
 |  | - SNI proxy + domain policy          |  |
 |  | - Auto-updater (native dialog)       |  |
 |  +---------------------------------------+  |
@@ -34,11 +34,11 @@ Capsem is a native macOS application that sandboxes AI agents in lightweight Lin
             v
 +---------------------------------------------+
 | Debian ARM64 Linux VM                       |
-| - capsem-init (PID 1): mounts, network,    |
-|   launches capsem-pty-agent                  |
-| - capsem-pty-agent: PTY <-> vsock bridge,   |
+| - aivm-init (PID 1): mounts, network,    |
+|   launches aivm-pty-agent                  |
+| - aivm-pty-agent: PTY <-> vsock bridge,   |
 |   boot handshake (Ready/BootConfig/BootReady)|
-| - capsem-net-proxy: TCP:10443 -> vsock:5002 |
+| - aivm-net-proxy: TCP:10443 -> vsock:5002 |
 | - Air-gapped networking (dummy0 + fake DNS  |
 |   + iptables REDIRECT for SNI proxy)         |
 | - Read-only ext4 rootfs + tmpfs overlays    |
@@ -50,12 +50,12 @@ Capsem is a native macOS application that sandboxes AI agents in lightweight Lin
 
 The Rust workspace contains five crates:
 
-### capsem-proto
+### aivm-proto
 
 Shared protocol types for host/guest communication. No platform-specific deps -- cross-compiles for both macOS host and aarch64-linux-musl guest.
 
 ```
-crates/capsem-proto/src/
+crates/aivm-proto/src/
   lib.rs              HostToGuest, GuestToHost enums, encode/decode helpers
 ```
 
@@ -68,19 +68,19 @@ crates/capsem-proto/src/
 
 **Framing:** `[4-byte BE length][MessagePack payload]`, max frame size 256KB.
 
-### capsem-core
+### aivm-core
 
 The core VM library. Framework-agnostic -- no Tauri dependency.
 
 ```
-crates/capsem-core/src/
+crates/aivm-core/src/
   lib.rs              Public API re-exports
   vm/
     config.rs         VmConfig builder (CPU, RAM, kernel, initrd, rootfs disk, scratch disk, hashes)
     boot.rs           VZLinuxBootLoader setup via objc2-virtualization
     machine.rs        VirtualMachine create/start/stop lifecycle
     serial.rs         Serial console I/O via NSPipe + broadcast channel
-    vsock.rs          VsockManager, CoalesceBuffer, port constants, re-exports from capsem-proto
+    vsock.rs          VsockManager, CoalesceBuffer, port constants, re-exports from aivm-proto
   net/
     domain_policy.rs  Allow/block list with wildcard matching
     policy_config.rs  Settings engine: typed registry, user/corp merge, translation to policy objects
@@ -112,18 +112,18 @@ crates/capsem-core/src/
 - `GuestConfig` -- guest environment variables extracted from settings.
 - `ResolvedSetting` -- a fully resolved setting with effective value, source, and metadata.
 
-### capsem-agent
+### aivm-agent
 
 Guest-side binaries, cross-compiled for `aarch64-unknown-linux-musl`.
 
 ```
-crates/capsem-agent/src/
-  main.rs             capsem-pty-agent: PTY <-> vsock bridge with boot handshake
-  net_proxy.rs        capsem-net-proxy: TCP:10443 -> vsock:5002 relay
+crates/aivm-agent/src/
+  main.rs             aivm-pty-agent: PTY <-> vsock bridge with boot handshake
+  net_proxy.rs        aivm-net-proxy: TCP:10443 -> vsock:5002 relay
   vsock_io.rs         Shared vsock connect + fd I/O helpers
 ```
 
-**capsem-pty-agent boot sequence:**
+**aivm-pty-agent boot sequence:**
 
 1. Connect vsock control (port 5000) and terminal (port 5001)
 2. Send `GuestToHost::Ready { version }`
@@ -135,12 +135,12 @@ crates/capsem-agent/src/
 8. Send `GuestToHost::BootReady`
 9. Enter bridge loop: master PTY <-> vsock terminal, control loop in background thread
 
-### capsem-app
+### aivm-app
 
 The Tauri application binary. Handles GUI, CLI mode, asset resolution, and auto-updates.
 
 ```
-crates/capsem-app/src/
+crates/aivm-app/src/
   main.rs             Entry point, asset resolution, VM boot, boot handshake, updater
   commands.rs         Tauri IPC commands (vm_status, serial_input, terminal_resize, net_events)
   state.rs            AppState with per-VM instance state (serial + vsock fds, network state)
@@ -155,16 +155,16 @@ crates/capsem-app/src/
 
 The app needs four files: `vmlinuz`, `initrd.img`, `rootfs.img`, `B3SUMS`. The `resolve_assets_dir()` function searches these locations in order:
 
-1. `CAPSEM_ASSETS_DIR` environment variable (development override)
+1. `AIVM_ASSETS_DIR` environment variable (development override)
 2. `Contents/Resources/` inside the .app bundle (production)
 3. `./assets/` relative to CWD (workspace root, for `cargo run`)
-4. `../../assets/` relative to CWD (when CWD is `crates/capsem-app/`)
+4. `../../assets/` relative to CWD (when CWD is `crates/aivm-app/`)
 
-In the release .app bundle, Tauri copies assets into `Capsem.app/Contents/Resources/` during `cargo tauri build`. The binary at `Contents/MacOS/capsem` derives the Resources path from `std::env::current_exe()`.
+In the release .app bundle, Tauri copies assets into `Aivm.app/Contents/Resources/` during `cargo tauri build`. The binary at `Contents/MacOS/aivm` derives the Resources path from `std::env::current_exe()`.
 
 ## Build-Time Integrity
 
-The `build.rs` script reads `assets/B3SUMS` and embeds the hashes as compile-time constants via `cargo:rustc-env`. At runtime, `capsem-core` verifies each asset's BLAKE3 hash before booting the VM.
+The `build.rs` script reads `assets/B3SUMS` and embeds the hashes as compile-time constants via `cargo:rustc-env`. At runtime, `aivm-core` verifies each asset's BLAKE3 hash before booting the VM.
 
 ```
 build.rs reads B3SUMS
@@ -174,7 +174,7 @@ build.rs reads B3SUMS
 
 main.rs:
   option_env!("VMLINUZ_HASH") -> passed to VmConfig builder
-  capsem-core verifies hash before loading kernel
+  aivm-core verifies hash before loading kernel
 ```
 
 ## VM Image Pipeline
@@ -185,18 +185,18 @@ The `images/` directory builds the VM assets using Podman (or Docker):
 images/
   build.py            Orchestrator: runs container builds, extracts artifacts
   Dockerfile.kernel   Multi-stage build: installs Debian ARM64 kernel,
-                      creates custom initramfs with capsem-init
-  capsem-init         Custom /init script for the initramfs
-  capsem-bashrc       Shell environment for the VM
+                      creates custom initramfs with aivm-init
+  aivm-init         Custom /init script for the initramfs
+  aivm-bashrc       Shell environment for the VM
   modules.txt         Kernel modules to include in initramfs
-  hooks/capsem        initramfs-tools hook for module inclusion
+  hooks/aivm        initramfs-tools hook for module inclusion
 ```
 
 **Build flow:**
 
 1. `build.py` builds a container from `Dockerfile.kernel` on Debian bookworm ARM64
 2. Installs `linux-image-arm64`, extracts the kernel as `vmlinuz`
-3. Creates a custom initramfs with `capsem-init` as the init process
+3. Creates a custom initramfs with `aivm-init` as the init process
 4. Creates a 64MB ext4 `rootfs.img` (formatted inside a container since macOS lacks `mkfs.ext4`)
 5. Generates `B3SUMS` for all artifacts
 6. Outputs everything to `assets/`
@@ -253,7 +253,7 @@ Guest                                Host
 
 ### SNI proxy (vsock:5002)
 
-Guest-side `capsem-net-proxy` listens on TCP `127.0.0.1:10443`. iptables REDIRECT captures all port 443 traffic to this listener. The proxy bridges each connection to the host via vsock:5002. The host reads the TLS ClientHello, extracts the SNI hostname, checks it against the domain policy (allow/block lists from `user.toml` + `corp.toml`), and either bridges to the real server or rejects the connection. All decisions are logged to per-session `web.db`.
+Guest-side `aivm-net-proxy` listens on TCP `127.0.0.1:10443`. iptables REDIRECT captures all port 443 traffic to this listener. The proxy bridges each connection to the host via vsock:5002. The host reads the TLS ClientHello, extracts the SNI hostname, checks it against the domain policy (allow/block lists from `user.toml` + `corp.toml`), and either bridges to the real server or rejects the connection. All decisions are logged to per-session `web.db`.
 
 ## Auto-Update
 
@@ -289,11 +289,11 @@ frontend/
   astro.config.mjs                  Astro config (static output)
   src/
     pages/index.astro               Single page: tab bar + terminal + status bar
-    components/capsem-terminal.ts   Shadow DOM web component wrapping xterm.js
+    components/aivm-terminal.ts   Shadow DOM web component wrapping xterm.js
     styles/global.css               Plain CSS variables (no framework)
 ```
 
-The frontend uses Astro with static output for Tauri compatibility. The terminal runs inside a closed shadow DOM web component (`capsem-terminal`) with xterm.js + WebGL addon for rendering. Dependencies: `@tauri-apps/api`, `@xterm/xterm`, `@xterm/addon-fit`, `@xterm/addon-webgl`, `astro`.
+The frontend uses Astro with static output for Tauri compatibility. The terminal runs inside a closed shadow DOM web component (`aivm-terminal`) with xterm.js + WebGL addon for rendering. Dependencies: `@tauri-apps/api`, `@xterm/xterm`, `@xterm/addon-fit`, `@xterm/addon-webgl`, `astro`.
 
 ## Key Dependencies
 
@@ -331,7 +331,7 @@ Every VM boot sequence is instrumented with `tracing` spans. The subscriber uses
     - `vz_init` -- VZVirtualMachine instantiation
   - `vm_start` -- VM start + runloop spin
 
-**Usage:** `RUST_LOG=capsem=debug` for full breakdown, `RUST_LOG=capsem=info` for top-level boot time only.
+**Usage:** `RUST_LOG=aivm=debug` for full breakdown, `RUST_LOG=aivm=info` for top-level boot time only.
 
 ## Disk Architecture
 
@@ -342,9 +342,9 @@ The VM uses two virtio block devices with stable identifiers:
 | rootfs | `rootfs` | `/dev/vda` | Read-only | Immutable Debian base image |
 | scratch | `scratch` | `/dev/vdb` | Read-write | Ephemeral `/root` workspace |
 
-**Scratch disk lifecycle**: Host creates a sparse file (`~/.capsem/sessions/<vm_id>/scratch.img`), guest formats it at boot (`mke2fs -t ext4 -O ^has_journal`), mounts at `/root`. Deleted on VM stop. No journal for lower I/O overhead on ephemeral data.
+**Scratch disk lifecycle**: Host creates a sparse file (`~/.aivm/sessions/<vm_id>/scratch.img`), guest formats it at boot (`mke2fs -t ext4 -O ^has_journal`), mounts at `/root`. Deleted on VM stop. No journal for lower I/O overhead on ephemeral data.
 
-**Session directory** (`~/.capsem/sessions/<vm_id>/`):
+**Session directory** (`~/.aivm/sessions/<vm_id>/`):
 
 ```
 scratch.img      # ephemeral scratch disk (deleted on VM stop)
@@ -358,16 +358,16 @@ session.json     # metadata: vm_id, status, created_at, config snapshot
 
 The current scratch disk is ephemeral -- wiped on every boot. A future release will add **persistent custom disks** that users can configure, save, and reuse:
 
-- **Fork workflow**: Boot VM with a special `--setup` / config mode flag. User installs packages, configures tools, customizes environment. On exit, the scratch disk is NOT deleted -- instead it's saved as a named custom disk image (e.g., `~/.capsem/disks/my-ml-env.img`).
+- **Fork workflow**: Boot VM with a special `--setup` / config mode flag. User installs packages, configures tools, customizes environment. On exit, the scratch disk is NOT deleted -- instead it's saved as a named custom disk image (e.g., `~/.aivm/disks/my-ml-env.img`).
 - **Boot from custom disk**: User selects a saved disk image when creating a session. The image is attached as the scratch device instead of a fresh sparse file. Guest skips formatting (detects existing ext4 via superblock check) and mounts directly.
-- **Disk metadata**: Tracked in a central database (likely `~/.capsem/capsem.db`) rather than per-session JSON. Schema includes: disk name, creation date, size, base rootfs version, last-used timestamp, status (active/paused/stopped/archived), parent disk (for fork lineage), and associated session IDs.
+- **Disk metadata**: Tracked in a central database (likely `~/.aivm/aivm.db`) rather than per-session JSON. Schema includes: disk name, creation date, size, base rootfs version, last-used timestamp, status (active/paused/stopped/archived), parent disk (for fork lineage), and associated session IDs.
 - **Pause vs stop semantics**: A paused session keeps its disk intact and the VM state can be restored (once VZ checkpointing is wired up). A stopped session can optionally preserve or discard its disk. Disk metadata tracks which state each disk is in, so the UI can show "3 paused sessions, 1 running" etc.
 
-This replaces the per-session `session.json` approach with a proper relational model in `capsem.db` where disks, sessions, and VM lifecycle states are first-class entities.
+This replaces the per-session `session.json` approach with a proper relational model in `aivm.db` where disks, sessions, and VM lifecycle states are first-class entities.
 
 ## Settings Architecture
 
-Capsem uses a generic typed settings system for all configuration. Each setting has an ID, name, description, type, category, default value, and optional `enabled_by` pointer to a parent toggle.
+Aivm uses a generic typed settings system for all configuration. Each setting has an ID, name, description, type, category, default value, and optional `enabled_by` pointer to a parent toggle.
 
 ### Setting Registry
 
@@ -435,7 +435,7 @@ Example: `ai.anthropic.api_key` has `enabled_by: Some("ai.anthropic.allow")`. Th
 The current implementation covers Milestones 1-4 (VM boot, serial console, vsock PTY agent, CLI exec, MITM proxy, scratch disk). The planned architecture extends to:
 
 - **Custom disk images** with fork/save workflow for persistent environments
-- **Disk + session metadata database** (`capsem.db`) with pause/stop/archive states
+- **Disk + session metadata database** (`aivm.db`) with pause/stop/archive states
 - **VM pause/resume** using VZ framework's native pause support
 - **VM checkpointing** (macOS 14+) with `saveMachineStateTo` / `restoreMachineStateFrom`
 - **VirtioFS workspace sharing** for host-guest file access
@@ -447,14 +447,14 @@ See [docs/status.md](status.md) for milestone progress and [docs/overall_plan.md
 
 ## Analytics Data Architecture
 
-Capsem uses a two-database architecture for session telemetry:
+Aivm uses a two-database architecture for session telemetry:
 
 ### Two Databases
 
 | Database | Location | Purpose | Query Method |
 |----------|----------|---------|--------------|
-| **info.db** | `~/.capsem/sessions/<vm_id>/info.db` | Raw per-session events (net_events, model_calls, tool_calls, tool_responses, mcp_calls, fs_events) | `queryDb(sql)` via frontend |
-| **main.db** | `~/.capsem/capsem.db` | Cross-session summaries (sessions table with aggregated counters) | Dedicated Tauri commands (`getGlobalStats`, `getTopProviders`, etc.) |
+| **info.db** | `~/.aivm/sessions/<vm_id>/info.db` | Raw per-session events (net_events, model_calls, tool_calls, tool_responses, mcp_calls, fs_events) | `queryDb(sql)` via frontend |
+| **main.db** | `~/.aivm/aivm.db` | Cross-session summaries (sessions table with aggregated counters) | Dedicated Tauri commands (`getGlobalStats`, `getTopProviders`, etc.) |
 
 ### Data Flow
 
@@ -462,7 +462,7 @@ Capsem uses a two-database architecture for session telemetry:
 Guest VM telemetry
   -> vsock (ports 5002, 5003, 5005)
   -> Host MITM proxy / MCP gateway / FS watcher
-  -> DbWriter (capsem-logger) writes to info.db in real-time
+  -> DbWriter (aivm-logger) writes to info.db in real-time
   -> 30s periodic flush: aggregates info.db into main.db session row
 ```
 
@@ -494,7 +494,7 @@ When extending the Rust backend or guest agents, adhere to the following perform
    - While `spawn_blocking` is essential for disk I/O, calling it excessively inside high-frequency hot loops (e.g., per-keystroke from the terminal, or per-byte/chunk in a stream parser) will flood the Tokio thread pool. This causes severe context-switching overhead, CPU spikes, and lag.
    - **Rule:** For high-frequency events, do NOT spawn a new blocking task per event. Instead, use an `std::sync::mpsc::channel` to send the events instantly to a *single* dedicated background thread.
    - **Implementation (Terminal Input):** The `terminal_input_tx` in `AppState` uses a dedicated thread that survives the entire application lifecycle. It coalesces rapid sequential keystrokes using `try_recv` and reuses a single `File` handle (avoiding `dup/close` syscalls per char).
-   - **Rule (Guest Agent Buffering):** When scanning for sentinels in a stream (like the exit-code sentinel in `capsem-pty-agent`), never use fixed-size buffering that forces a lag. Only buffer the minimal amount of data that *actually matches* a prefix of the target sentinel, and flush everything else immediately to maintain real-time interactive performance.
+   - **Rule (Guest Agent Buffering):** When scanning for sentinels in a stream (like the exit-code sentinel in `aivm-pty-agent`), never use fixed-size buffering that forces a lag. Only buffer the minimal amount of data that *actually matches* a prefix of the target sentinel, and flush everything else immediately to maintain real-time interactive performance.
 
 3. **Prevent Bidirectional I/O Deadlocks:**
    - When bridging two blocking file descriptors bidirectionally (e.g., bridging a TCP socket to a vsock, or bridging the PTY to the vsock), doing both reads in a single thread using `poll(2)` is vulnerable to deadlocks. If both outgoing buffers fill up simultaneously, the single thread blocks on writing and stops reading, creating a mutual lockup.

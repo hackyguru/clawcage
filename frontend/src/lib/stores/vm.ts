@@ -32,6 +32,7 @@ function subscribe(listener: () => void) {
 }
 
 import { showToast } from './toast';
+import { resetShells } from './shells';
 export async function initVm() {
   try {
     vmState = (await vmStatus()).toLowerCase();
@@ -42,6 +43,9 @@ export async function initVm() {
   emit();
   onVmStateChanged((state) => {
     vmState = state.toLowerCase();
+    if (vmState === 'idle' || vmState === 'not created') {
+      resetShells();
+    }
     emit();
   });
   onDownloadProgress((progress) => {

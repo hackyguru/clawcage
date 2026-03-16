@@ -1,4 +1,4 @@
-# Capsem
+# Aivm
 
 Native macOS app that sandboxes AI agents in Linux VMs using Apple's Virtualization.framework.
 
@@ -6,7 +6,7 @@ Built with Rust, Tauri 2.0, and Astro.
 
 ## Install
 
-Download the latest release from [Releases](https://github.com/google/capsem/releases) and drag Capsem.app to your Applications folder.
+Download the latest release from [Releases](https://github.com/google/aivm/releases) and drag Aivm.app to your Applications folder.
 
 Or build from source:
 
@@ -21,7 +21,7 @@ Requires macOS 13+ on Apple Silicon.
 ### GUI
 
 ```sh
-open /Applications/Capsem.app
+open /Applications/Aivm.app
 ```
 
 ### CLI
@@ -29,12 +29,12 @@ open /Applications/Capsem.app
 Run a command inside the sandboxed Linux VM:
 
 ```sh
-capsem uname -a
-capsem echo hello
-capsem 'ls -la /proc/cpuinfo'
+aivm uname -a
+aivm echo hello
+aivm 'ls -la /proc/cpuinfo'
 ```
 
-The CLI binary lives at `/Applications/Capsem.app/Contents/MacOS/capsem`.
+The CLI binary lives at `/Applications/Aivm.app/Contents/MacOS/aivm`.
 
 ## Development
 
@@ -53,10 +53,10 @@ The CLI binary lives at `/Applications/Capsem.app/Contents/MacOS/capsem`.
 ### Project Structure
 
 ```
-crates/capsem-core/    Rust VM library (config, boot, serial, machine)
-crates/capsem-app/     Tauri 2.0 binary (GUI, CLI, updater, IPC commands)
+crates/aivm-core/    Rust VM library (config, boot, serial, machine)
+crates/aivm-app/     Tauri 2.0 binary (GUI, CLI, updater, IPC commands)
 frontend/              Astro + xterm.js (shadow DOM web component)
-images/                VM image build tooling (Dockerfile + build.py + capsem-init)
+images/                VM image build tooling (Dockerfile + build.py + aivm-init)
 assets/                Built VM assets (vmlinuz, initrd, rootfs -- gitignored)
 docs/                  Architecture and security documentation
 ```
@@ -74,7 +74,7 @@ All build workflows use `just`. Run `just --list` to see all targets.
 | `just run "CMD"` | Same but run a command instead of interactive shell |
 | `just build-assets` | Full VM asset rebuild (kernel, initrd, rootfs) via Docker/Podman |
 | `just test` | Unit tests + cross-compile check + frontend type-check (no VM) |
-| `just full-test` | test + capsem-doctor + integration test + bench (boots VM) |
+| `just full-test` | test + aivm-doctor + integration test + bench (boots VM) |
 | `just bench` | In-VM benchmarks (disk I/O, rootfs read, CLI startup, HTTP) |
 | `just release` | full-test + release `.app` + codesign + DMG |
 | `just install` | full-test + release `.app` + install to /Applications + launch |
@@ -117,7 +117,7 @@ just run        # cross-compile + repack + build + sign + boot VM (~10s)
 ### Release
 
 ```sh
-just release    # full-test + build + sign + DMG (target/release/Capsem.dmg)
+just release    # full-test + build + sign + DMG (target/release/Aivm.dmg)
 just install    # full-test + build + sign + install to /Applications + launch
 ```
 
@@ -145,20 +145,20 @@ The mock mode is transparent -- `src/lib/api.ts` detects the absence of `window.
 **In-VM diagnostics** -- a pytest suite that runs inside the guest VM to verify the sandbox actually works end-to-end. It checks sandbox security (read-only rootfs, no kernel modules, no networking), unix utilities, dev runtimes (Python, Node.js, git), AI CLI availability, and file I/O workflows.
 
 ```sh
-just run "capsem-doctor"              # repack + build + sign + boot VM + run diagnostics (~10s)
+just run "aivm-doctor"              # repack + build + sign + boot VM + run diagnostics (~10s)
 just run                              # or boot interactively, then:
-capsem-doctor                         # run all diagnostics
-capsem-doctor -k sandbox              # run only sandbox tests
-capsem-doctor -x                      # stop on first failure
+aivm-doctor                         # run all diagnostics
+aivm-doctor -k sandbox              # run only sandbox tests
+aivm-doctor -x                      # stop on first failure
 ```
 
-The diagnostic suite lives in `images/diagnostics/` and is baked into the rootfs via `Dockerfile.rootfs`. `capsem-doctor` (aliased as `capsem-test`) is the entry point. It returns a non-zero exit code on failure, so `just run "capsem-doctor"` fails the build when tests fail.
+The diagnostic suite lives in `images/diagnostics/` and is baked into the rootfs via `Dockerfile.rootfs`. `aivm-doctor` (aliased as `aivm-test`) is the entry point. It returns a non-zero exit code on failure, so `just run "aivm-doctor"` fails the build when tests fail.
 
 **Full validation** -- to test everything end-to-end (Rust tests + cross-compile + frontend + VM boot + diagnostics + integration + bench):
 
 ```sh
 just test                             # host-side: llvm-cov + cross-compile + frontend
-just full-test                        # everything: test + capsem-doctor + integration + bench
+just full-test                        # everything: test + aivm-doctor + integration + bench
 ```
 
 ### Entitlements
@@ -167,7 +167,7 @@ The binary must be signed with `com.apple.security.virtualization` or Virtualiza
 
 ## Security
 
-Capsem assumes the AI agent inside the VM is adversarial. The sandbox is hardened at every layer:
+Aivm assumes the AI agent inside the VM is adversarial. The sandbox is hardened at every layer:
 
 - **Hardware VM isolation** -- Apple Silicon Stage 2 page tables, no shared memory
 - **Custom hardened kernel** -- compiled from source with `CONFIG_MODULES=n` (no rootkits), `CONFIG_INET=n` (no IP stack), KASLR, stack protector, FORTIFY_SOURCE. 7MB vs 30MB stock Debian. See `images/defconfig` for the full config.
@@ -180,7 +180,7 @@ Full threat model and security analysis: **[docs/security.md](docs/security.md)*
 
 ## Defaults
 
-AI agents run in **yolo mode** by default -- all permission prompts are bypassed because Capsem's VM sandbox is the security boundary. Telemetry, auto-updates, and first-run prompts are also disabled since they serve no purpose in an air-gapped VM.
+AI agents run in **yolo mode** by default -- all permission prompts are bypassed because Aivm's VM sandbox is the security boundary. Telemetry, auto-updates, and first-run prompts are also disabled since they serve no purpose in an air-gapped VM.
 
 ### Claude Code
 
@@ -188,7 +188,7 @@ Boot files injected to `~/.claude/settings.json` and `~/.claude.json`:
 
 | Setting | Value | Why |
 |---------|-------|-----|
-| `permissions.defaultMode` | `bypassPermissions` | Capsem is the sandbox -- Claude's own permission prompts are redundant |
+| `permissions.defaultMode` | `bypassPermissions` | Aivm is the sandbox -- Claude's own permission prompts are redundant |
 | `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` | `1` | Master switch: disables telemetry, error reporting, auto-updates, and `/bug` command. The VM is air-gapped anyway. |
 | `hasCompletedOnboarding` | `true` | Skips the first-run onboarding wizard |
 | `hasTrustDialogAccepted` | `true` | No "trust this folder?" prompt |
@@ -201,18 +201,18 @@ Boot files injected to `~/.gemini/settings.json`, `projects.json`, `trustedFolde
 
 | Setting | Value | Why |
 |---------|-------|-----|
-| `approvalMode` | `yolo` | Auto-approve all tool calls -- Capsem is the sandbox |
+| `approvalMode` | `yolo` | Auto-approve all tool calls -- Aivm is the sandbox |
 | `enableAutoUpdate` | `false` | VM has a fixed version, update checks would fail anyway |
 | `telemetry.enabled` | `false` | No telemetry in an air-gapped VM |
 | `usageStatisticsEnabled` | `false` | No usage stats collection |
 | `folderTrust.enabled` | `false` | No folder trust prompts -- `/root` is pre-trusted |
-| `tools.sandbox` | `false` | Disable Gemini's own sandbox (Capsem IS the sandbox) |
+| `tools.sandbox` | `false` | Disable Gemini's own sandbox (Aivm IS the sandbox) |
 | `hideTips`, `showShortcutsHint` | suppressed | Reduce terminal noise |
 | `homeDirectoryWarningDismissed` | `true` | No "running in home dir" warning |
 
 ### Overriding defaults
 
-All defaults can be overridden per-setting in `~/.capsem/user.toml`. Corporate deployments can lock settings via `/etc/capsem/corp.toml` (MDM-distributed). See [docs/security.md](docs/security.md) for details.
+All defaults can be overridden per-setting in `~/.aivm/user.toml`. Corporate deployments can lock settings via `/etc/aivm/corp.toml` (MDM-distributed). See [docs/security.md](docs/security.md) for details.
 
 ## Documentation
 

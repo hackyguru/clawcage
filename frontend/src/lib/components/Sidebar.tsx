@@ -1,12 +1,13 @@
 // Sidebar component
 import { useSidebar } from '../stores/sidebar';
 import { useVenvs, closeVenv } from '../stores/venvs';
-import { HomeIcon, TerminalIcon, StatsIcon, SettingsIcon } from '../icons/Icons';
+import { HomeIcon, TerminalIcon, PortsIcon, StatsIcon, SettingsIcon } from '../icons/Icons';
 import type { ViewName } from '../types';
 import type { FC } from 'react';
 
 const vmItems: { view: ViewName; label: string; Icon: FC<{ className?: string }> }[] = [
   { view: 'terminal', label: 'Console', Icon: TerminalIcon },
+  { view: 'ports', label: 'Ports', Icon: PortsIcon },
   { view: 'stats', label: 'Stats', Icon: StatsIcon },
   { view: 'settings', label: 'Settings', Icon: SettingsIcon },
 ];

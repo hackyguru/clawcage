@@ -4,8 +4,8 @@
 - **Scratch Disk (4K Random Write):** Improved from 1.9 MB/s to ~37 MB/s (~19x speedup, ~9,500 IOPS).
 - **Scratch Disk (4K Random Read):** Improved from 1,654.0 MB/s to 7,989.1 MB/s (nearly 5x speedup, jumping from 423K IOPS to over 2.04 Million IOPS).
 - **Rootfs (4K Random Read):** Improved from 4.3 MB/s to 112.2 MB/s (~26x speedup).
-- **Strategy (Host):** Enabled host-level caching (`VZDiskImageCachingMode::Cached`) and disabled strict synchronization barriers (`VZDiskImageSynchronizationMode::None`) for both rootfs and ephemeral scratch disks in `crates/capsem-core/src/vm/machine.rs`.
-- **Strategy (Guest):** Added `sysfs` tuning to `images/capsem-init` setting the I/O scheduler to `none` (delegating to macOS) and increasing `read_ahead_kb` to `4096` and `nr_requests` to `256` for all VirtIO block devices. Added `noatime` and `nodiratime` to ext4 mount options.
+- **Strategy (Host):** Enabled host-level caching (`VZDiskImageCachingMode::Cached`) and disabled strict synchronization barriers (`VZDiskImageSynchronizationMode::None`) for both rootfs and ephemeral scratch disks in `crates/aivm-core/src/vm/machine.rs`.
+- **Strategy (Guest):** Added `sysfs` tuning to `images/aivm-init` setting the I/O scheduler to `none` (delegating to macOS) and increasing `read_ahead_kb` to `4096` and `nr_requests` to `256` for all VirtIO block devices. Added `noatime` and `nodiratime` to ext4 mount options.
 
 ## Squashfs + Overlayfs Migration (Milestone 3)
 
@@ -54,7 +54,7 @@ Scratch disk numbers vary run-to-run due to host page cache state. No meaningful
 The random 4K regression primarily affects `import` storms in Python/Node (many small `.py`/`.js` files). For the distribution use case (shipping a DMG), the 81% size reduction is the priority.
 
 ## Network Proxy Performance Results
-- **Async Implementation:** Replaced the synchronous, thread-per-connection `net-proxy` with a Tokio-based async implementation in `capsem-agent`. This resolves potential deadlocks and improves concurrency handling.
+- **Async Implementation:** Replaced the synchronous, thread-per-connection `net-proxy` with a Tokio-based async implementation in `aivm-agent`. This resolves potential deadlocks and improves concurrency handling.
 - **Latency Analysis:** Identified that the ~180ms latency floor for Google is primarily due to geographical network distance. Verified with `elie.net` (Cloudflare) which shows a raw latency floor of ~85ms through the proxy stack.
 - **Keep-alive:** Verified that HTTP keep-alive and connection reuse are working correctly across the proxy, maintaining persistent connections from guest-to-host and host-to-upstream.
 
