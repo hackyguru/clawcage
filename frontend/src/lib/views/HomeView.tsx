@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useVenvs, loadVenvs, createVenvAction, deleteVenvAction, startVenvAction, stopVenvAction, openVenv } from '../stores/venvs';
 import { useSidebar } from '../stores/sidebar';
 import { PlusIcon, PlayIcon, StopIcon, TrashIcon, TerminalIcon } from '../icons/Icons';
+import Dialog, { ConfirmDialog } from '../components/Dialog';
 import type { VenvInfo } from '../types';
 
 function relativeTime(iso: string | null): string {
@@ -35,14 +36,11 @@ function statusText(status: VenvInfo['status']): string {
   }
 }
 
-function VenvCard({ venv }: { venv: VenvInfo }) {
+function VenvCard({ venv, onDelete }: { venv: VenvInfo; onDelete: (v: VenvInfo) => void }) {
   const { setView } = useSidebar();
-  const [confirming, setConfirming] = useState(false);
 
   const handleOpen = useCallback(() => {
     openVenv(venv.id);
-    // Always start — backend handles stopping any currently running venv.
-    // Even if status shows 'running', it may be stale from a previous session.
     startVenvAction(venv.id);
     setView('terminal');
   }, [venv.id, setView]);
@@ -51,16 +49,6 @@ function VenvCard({ venv }: { venv: VenvInfo }) {
     e.stopPropagation();
     stopVenvAction(venv.id);
   }, [venv.id]);
-
-  const handleDelete = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!confirming) {
-      setConfirming(true);
-      setTimeout(() => setConfirming(false), 3000);
-      return;
-    }
-    deleteVenvAction(venv.id);
-  }, [venv.id, confirming]);
 
   return (
     <div
@@ -105,9 +93,9 @@ function VenvCard({ venv }: { venv: VenvInfo }) {
             </button>
           )}
           <button
-            className={`p-1 rounded hover:bg-surface-alt transition-colors ${confirming ? 'text-denied' : 'text-content/50 hover:text-denied'}`}
-            onClick={handleDelete}
-            title={confirming ? 'Click again to confirm' : 'Delete'}
+            className="p-1 rounded hover:bg-surface-alt text-content/50 hover:text-denied transition-colors"
+            onClick={(e) => { e.stopPropagation(); onDelete(venv); }}
+            title="Delete"
           >
             <TrashIcon className="size-3.5" />
           </button>
@@ -127,6 +115,7 @@ export default function HomeView() {
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
   const [newEphemeral, setNewEphemeral] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<VenvInfo | null>(null);
 
   useEffect(() => {
     loadVenvs();
@@ -140,6 +129,19 @@ export default function HomeView() {
     setNewEphemeral(false);
     setCreating(false);
   }, [newName, newEphemeral]);
+
+  const handleCloseCreate = useCallback(() => {
+    setCreating(false);
+    setNewName('');
+    setNewEphemeral(false);
+  }, []);
+
+  const handleConfirmDelete = useCallback(() => {
+    if (deleteTarget) {
+      deleteVenvAction(deleteTarget.id);
+      setDeleteTarget(null);
+    }
+  }, [deleteTarget]);
 
   return (
     <div className="flex flex-col h-full overflow-auto">
@@ -159,54 +161,61 @@ export default function HomeView() {
           </button>
         </div>
 
-        {/* Create modal inline */}
-        {creating && (
-          <div className="bg-surface border border-edge rounded-xl p-4 mb-6 shadow-sm">
-            <h3 className="text-sm font-semibold mb-3">New Environment</h3>
-            <div className="flex flex-col gap-3">
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  className="flex-1 px-2.5 py-1.5 text-sm border border-edge rounded-md bg-surface focus:outline-none focus:ring-2 focus:ring-interactive/40"
-                  placeholder="Environment name..."
-                  value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') handleCreate(); if (e.key === 'Escape') setCreating(false); }}
-                  autoFocus
-                />
-              </div>
-              <div className="flex items-center justify-between">
-                <label className="flex items-center gap-2 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    className="toggle-switch"
-                    checked={newEphemeral}
-                    onChange={(e) => setNewEphemeral(e.target.checked)}
-                  />
-                  <span className="text-sm">Ephemeral</span>
-                  <span className="text-[11px] text-content/40">
-                    {newEphemeral ? 'Files are wiped on every restart' : 'Files persist across restarts'}
-                  </span>
-                </label>
-                <div className="flex items-center gap-2">
-                  <button
-                    className="px-3 py-1.5 text-sm rounded-lg hover:bg-surface-alt transition-colors"
-                    onClick={() => { setCreating(false); setNewName(''); setNewEphemeral(false); }}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-interactive text-white hover:opacity-90 transition font-medium"
-                    onClick={handleCreate}
-                    disabled={!newName.trim()}
-                  >
-                    Create
-                  </button>
-                </div>
-              </div>
+        {/* Create dialog */}
+        <Dialog open={creating} onClose={handleCloseCreate} title="New Environment">
+          <div className="flex flex-col gap-3">
+            <div>
+              <label className="text-xs text-content/50 mb-1 block">Name</label>
+              <input
+                type="text"
+                className="w-full px-2.5 py-1.5 text-sm border border-edge rounded-md bg-surface focus:outline-none focus:ring-2 focus:ring-interactive/40"
+                placeholder="my-project"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleCreate(); }}
+                autoFocus
+              />
+            </div>
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                className="toggle-switch"
+                checked={newEphemeral}
+                onChange={(e) => setNewEphemeral(e.target.checked)}
+              />
+              <span className="text-sm">Ephemeral</span>
+              <span className="text-[11px] text-content/40">
+                {newEphemeral ? 'Files are wiped on every restart' : 'Files persist across restarts'}
+              </span>
+            </label>
+            <div className="flex items-center justify-end gap-2 pt-1">
+              <button
+                className="px-3 py-1.5 text-sm rounded-lg hover:bg-surface-alt transition-colors"
+                onClick={handleCloseCreate}
+              >
+                Cancel
+              </button>
+              <button
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-interactive text-white hover:opacity-90 transition font-medium disabled:opacity-40"
+                onClick={handleCreate}
+                disabled={!newName.trim()}
+              >
+                Create
+              </button>
             </div>
           </div>
-        )}
+        </Dialog>
+
+        {/* Delete confirmation dialog */}
+        <ConfirmDialog
+          open={deleteTarget !== null}
+          onClose={() => setDeleteTarget(null)}
+          onConfirm={handleConfirmDelete}
+          title="Delete Environment"
+          message={deleteTarget ? `Are you sure you want to delete "${deleteTarget.name}"? ${deleteTarget.ephemeral ? 'This environment is ephemeral so no data will be lost.' : 'All persistent data for this environment will be permanently removed.'}` : ''}
+          confirmLabel="Delete"
+          variant="danger"
+        />
 
         {/* Loading state */}
         {loading && venvs.length === 0 && (
@@ -239,7 +248,7 @@ export default function HomeView() {
         {venvs.length > 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {venvs.map((v) => (
-              <VenvCard key={v.id} venv={v} />
+              <VenvCard key={v.id} venv={v} onDelete={setDeleteTarget} />
             ))}
           </div>
         )}

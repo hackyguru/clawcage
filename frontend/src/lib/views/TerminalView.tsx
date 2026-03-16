@@ -5,80 +5,100 @@ import StatsBar from '../components/StatsBar';
 import { useVenvs, stopVenvAction, deleteVenvAction } from '../stores/venvs';
 import { useSidebar } from '../stores/sidebar';
 import { useShells } from '../stores/shells';
+import { ConfirmDialog } from '../components/Dialog';
 import { StopIcon, TrashIcon, HomeIcon, PlusIcon, CloseIcon } from '../icons/Icons';
 
 function TerminalToolbar() {
   const { activeVenv } = useVenvs();
   const { setView } = useSidebar();
   const { spawnShell } = useShells();
-  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [showStopDialog, setShowStopDialog] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
-  const handleStop = useCallback(() => {
+  const handleConfirmStop = useCallback(() => {
     if (activeVenv) {
       stopVenvAction(activeVenv.id);
       setView('home');
     }
   }, [activeVenv, setView]);
 
-  const handleDelete = useCallback(() => {
-    if (!activeVenv) return;
-    if (!confirmDelete) {
-      setConfirmDelete(true);
-      setTimeout(() => setConfirmDelete(false), 3000);
-      return;
+  const handleConfirmDelete = useCallback(() => {
+    if (activeVenv) {
+      deleteVenvAction(activeVenv.id);
+      setView('home');
     }
-    deleteVenvAction(activeVenv.id);
-    setView('home');
-  }, [activeVenv, confirmDelete, setView]);
+  }, [activeVenv, setView]);
 
   if (!activeVenv) return null;
 
   return (
-    <div className="flex items-center gap-2 px-3 py-1.5 bg-neutral-950 border-b border-white/5 select-none">
-      <button
-        className="text-neutral-500 hover:text-interactive transition-colors"
-        onClick={() => setView('home')}
-        title="Back to environments"
-      >
-        <HomeIcon className="size-3.5" />
-      </button>
-      <span className="text-neutral-600">·</span>
-      <span className="text-xs font-medium text-neutral-300 truncate">{activeVenv.name}</span>
-      {activeVenv.ephemeral && (
-        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-caution/15 text-caution">ephemeral</span>
-      )}
-      <span className="flex-1" />
-      {activeVenv.status === 'running' && (
+    <>
+      <div className="flex items-center gap-2 px-3 py-1.5 bg-neutral-950 border-b border-white/5 select-none">
         <button
-          className="flex items-center gap-1 text-[11px] text-neutral-500 hover:text-interactive transition-colors"
-          onClick={() => spawnShell()}
-          title="New shell"
+          className="text-neutral-500 hover:text-interactive transition-colors"
+          onClick={() => setView('home')}
+          title="Back to environments"
         >
-          <PlusIcon className="size-3" />
-          Shell
+          <HomeIcon className="size-3.5" />
         </button>
-      )}
-      {activeVenv.status === 'running' && (
+        <span className="text-neutral-600">·</span>
+        <span className="text-xs font-medium text-neutral-300 truncate">{activeVenv.name}</span>
+        {activeVenv.ephemeral && (
+          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-caution/15 text-caution">ephemeral</span>
+        )}
+        <span className="flex-1" />
+        {activeVenv.status === 'running' && (
+          <button
+            className="flex items-center gap-1 text-[11px] text-neutral-500 hover:text-interactive transition-colors"
+            onClick={() => spawnShell()}
+            title="New shell"
+          >
+            <PlusIcon className="size-3" />
+            Shell
+          </button>
+        )}
+        {activeVenv.status === 'running' && (
+          <button
+            className="flex items-center gap-1 text-[11px] text-neutral-500 hover:text-denied transition-colors"
+            onClick={() => setShowStopDialog(true)}
+            title="Stop environment"
+          >
+            <StopIcon className="size-3" />
+            Stop
+          </button>
+        )}
         <button
           className="flex items-center gap-1 text-[11px] text-neutral-500 hover:text-denied transition-colors"
-          onClick={handleStop}
-          title="Stop environment"
+          onClick={() => setShowDeleteDialog(true)}
+          title="Delete environment"
         >
-          <StopIcon className="size-3" />
-          Stop
+          <TrashIcon className="size-3" />
+          Delete
         </button>
-      )}
-      <button
-        className={`flex items-center gap-1 text-[11px] transition-colors ${
-          confirmDelete ? 'text-denied' : 'text-neutral-500 hover:text-denied'
-        }`}
-        onClick={handleDelete}
-        title={confirmDelete ? 'Click again to confirm' : 'Delete environment'}
-      >
-        <TrashIcon className="size-3" />
-        {confirmDelete ? 'Confirm?' : 'Delete'}
-      </button>
-    </div>
+      </div>
+
+      {/* Stop confirmation */}
+      <ConfirmDialog
+        open={showStopDialog}
+        onClose={() => setShowStopDialog(false)}
+        onConfirm={handleConfirmStop}
+        title="Stop Environment"
+        message={`Stop "${activeVenv.name}"? ${activeVenv.ephemeral ? 'This is an ephemeral environment — all files will be lost.' : 'Persistent files will be saved.'}`}
+        confirmLabel="Stop"
+        variant="caution"
+      />
+
+      {/* Delete confirmation */}
+      <ConfirmDialog
+        open={showDeleteDialog}
+        onClose={() => setShowDeleteDialog(false)}
+        onConfirm={handleConfirmDelete}
+        title="Delete Environment"
+        message={`Are you sure you want to delete "${activeVenv.name}"? ${activeVenv.ephemeral ? 'This environment is ephemeral so no data will be lost.' : 'All persistent data for this environment will be permanently removed.'}`}
+        confirmLabel="Delete"
+        variant="danger"
+      />
+    </>
   );
 }
 

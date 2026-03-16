@@ -10,6 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Multi-shell terminals: create multiple shell sessions within the same VM with a tab bar UI, each backed by its own PTY over multiplexed vsock framing
 - Ports view: new sidebar page (Cmd+2) showing all TCP listening ports detected inside the VM with process name, PID, and forwarding status
+- Reusable `Dialog` and `ConfirmDialog` components for modal overlays with backdrop dismiss, Escape key, and entrance animation
+- Confirmation dialogs for destructive actions: delete environment (from both home and terminal views), stop environment (with ephemeral data loss warning)
+- New Environment dialog: create form now opens as a centered modal instead of inline card
+
+### Fixed
+- Persistent venvs: files now survive stop/start cycles — VM stop sync command uses framed vsock encoding matching the multi-shell agent protocol, and flush timeout increased to 1500ms for journalless ext4
+- Terminal view no longer re-initializes when switching between sidebar pages — TerminalView stays mounted (hidden) so xterm.js state, scroll buffer, and prompt survive navigation
 - Port forwarding: forward guest ports to host localhost with one click, making in-VM web servers accessible from the host browser via vsock relay bridge (port 5007)
 - Port detection daemon (`aivm-port-watch`): guest-side binary that polls `/proc/net/tcp` and sends `PortOpened`/`PortClosed` events over vsock port 5006, also runs relay workers for port forwarding
 - Per-venv port scoping: detected and forwarded ports are tracked per virtual environment

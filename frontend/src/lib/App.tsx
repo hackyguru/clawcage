@@ -90,9 +90,17 @@ function AppInner() {
         <ToastContainer />
 
         {/* Main content area */}
-        <div className="flex-1 min-h-0 overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-hidden relative">
           {currentView === 'home' && <HomeView />}
-          {currentView === 'terminal' && <TerminalView key={activeVenvId ?? 'none'} />}
+          {/* Keep TerminalView mounted (hidden) so xterm state survives view switches */}
+          {activeVenvId && (
+            <div
+              className="absolute inset-0"
+              style={{ display: currentView === 'terminal' ? 'block' : 'none' }}
+            >
+              <TerminalView key={activeVenvId} />
+            </div>
+          )}
           <Suspense fallback={<div className="flex items-center justify-center h-full"><span className="spinner w-6 h-6 text-content/30" /></div>}>
             {currentView === 'ports' && <PortsView />}
             {currentView === 'stats' && <StatsView />}
