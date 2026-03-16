@@ -19,13 +19,13 @@ interface SubMenuProps {
 
 export default function SubMenu({ groups, active, onSelect }: SubMenuProps) {
   return (
-    <aside className="shrink-0 w-48 border-r border-base-300 bg-base-100 overflow-y-auto py-3 px-2">
+    <aside className="shrink-0 w-48 border-r border-edge bg-surface overflow-y-auto py-3 px-2">
       {groups.map((group, gi) => (
         <div key={group.label || gi}>
-          {gi > 0 && <div className="my-2 border-t border-base-300" />}
+          {gi > 0 && <div className="my-2 border-t border-edge" />}
           <ul className="flex flex-col gap-0.5 p-0">
             {group.items.length > 1 && group.label && (
-              <li className="text-[10px] uppercase tracking-wider text-base-content/40 font-semibold mb-1 mt-2 px-2">{group.label}</li>
+              <li className="text-[10px] uppercase tracking-wider text-content/40 font-semibold mb-1 mt-2 px-2">{group.label}</li>
             )}
             {group.items.map((item) => (
               <li key={item.id}>
@@ -33,7 +33,7 @@ export default function SubMenu({ groups, active, onSelect }: SubMenuProps) {
                   className={`w-full text-left text-xs px-2 py-1.5 rounded-md transition-colors duration-100 ${
                     active === item.id
                       ? 'bg-interactive/15 text-interactive font-semibold'
-                      : 'hover:bg-base-200 text-base-content/70 hover:text-base-content'
+                      : 'hover:bg-surface-alt text-content/70 hover:text-content'
                   }`}
                   onClick={() => onSelect(item.id)}
                 >

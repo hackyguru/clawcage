@@ -188,7 +188,7 @@ export default function Terminal() {
       />
       {booting && !isMock && (
         <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-neutral-950">
-          <span className="loading loading-spinner loading-md text-interactive mb-3" />
+          <span className="spinner w-6 h-6 text-interactive mb-3" />
           <span className="text-sm text-neutral-400">Starting environment...</span>
         </div>
       )}

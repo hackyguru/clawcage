@@ -75,12 +75,12 @@ function AppInner() {
   const currentView = activeView;
 
   return (
-  <div className="flex h-screen w-screen overflow-hidden bg-[--color-base-100] text-base-content">
+  <div className="flex h-screen w-screen overflow-hidden bg-surface text-content">
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
         {/* Download overlay */}
         {isDownloading && downloadProgress && (
-          <div className="absolute inset-0 z-50 flex items-center justify-center bg-[--color-base-100]/90 backdrop-blur-sm">
+          <div className="absolute inset-0 z-50 flex items-center justify-center bg-surface/90 backdrop-blur-sm">
             <DownloadProgress />
           </div>
         )}
@@ -92,7 +92,7 @@ function AppInner() {
         <div className="flex-1 min-h-0 overflow-hidden">
           {currentView === 'home' && <HomeView />}
           {currentView === 'terminal' && <TerminalView key={activeVenvId ?? 'none'} />}
-          <Suspense fallback={<div className="flex items-center justify-center h-full"><span className="loading loading-spinner loading-md" /></div>}>
+          <Suspense fallback={<div className="flex items-center justify-center h-full"><span className="spinner w-6 h-6 text-content/30" /></div>}>
             {currentView === 'stats' && <StatsView />}
             {currentView === 'settings' && <SettingsView />}
           </Suspense>

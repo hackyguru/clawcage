@@ -83,8 +83,8 @@ export default function ToolsTab() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Timeline */}
-          <div className="bg-base-100 border border-base-300 rounded-lg p-3 shadow-xs">
-            <h3 className="text-xs font-semibold text-base-content/70 mb-2">Calls Over Time</h3>
+          <div className="bg-surface border border-edge rounded-lg p-3 shadow-xs">
+            <h3 className="text-xs font-semibold text-content/70 mb-2">Calls Over Time</h3>
             {timeline.length > 0 ? (
               <ResponsiveContainer width="100%" height={180}>
                 <BarChart data={timeline}>
@@ -96,13 +96,13 @@ export default function ToolsTab() {
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <div className="flex items-center justify-center h-44 text-base-content/30 text-sm">No data yet</div>
+              <div className="flex items-center justify-center h-44 text-content/30 text-sm">No data yet</div>
             )}
           </div>
 
           {/* Top tools pie */}
-          <div className="bg-base-100 border border-base-300 rounded-lg p-3 shadow-xs">
-            <h3 className="text-xs font-semibold text-base-content/70 mb-2">Top Tools</h3>
+          <div className="bg-surface border border-edge rounded-lg p-3 shadow-xs">
+            <h3 className="text-xs font-semibold text-content/70 mb-2">Top Tools</h3>
             {toolPieData.length > 0 ? (
               <ResponsiveContainer width="100%" height={180}>
                 <PieChart>
@@ -115,7 +115,7 @@ export default function ToolsTab() {
                 </PieChart>
               </ResponsiveContainer>
             ) : (
-              <div className="flex items-center justify-center h-44 text-base-content/30 text-sm">No data yet</div>
+              <div className="flex items-center justify-center h-44 text-content/30 text-sm">No data yet</div>
             )}
           </div>
         </div>
@@ -123,17 +123,17 @@ export default function ToolsTab() {
         {/* Event list */}
         <div>
           <div className="flex items-center gap-2 mb-2">
-            <h3 className="text-xs font-semibold text-base-content/70">Events</h3>
+            <h3 className="text-xs font-semibold text-content/70">Events</h3>
             <input
               type="text"
               placeholder="Search tools..."
-              className="input input-xs input-bordered w-48"
+              className="px-2 py-1 text-xs border border-edge rounded bg-surface focus:outline-none focus:ring-1 focus:ring-interactive/40 w-48"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
           <div className="overflow-x-auto max-h-72 overflow-y-auto">
-            <table className="table table-xs table-pin-rows">
+            <table className="data-table">
               <thead>
                 <tr>
                   <th>Time</th>
@@ -148,7 +148,7 @@ export default function ToolsTab() {
                 {events.slice(0, 200).map((ev, i) => (
                   <tr
                     key={i}
-                    className="cursor-pointer hover:bg-base-300"
+                    className="hover:bg-surface-alt"
                     onClick={() => setDetail({
                       type: ev.source === 'mcp' ? 'mcp_call' : 'tool',
                       data: ev as unknown as Record<string, unknown>,
@@ -157,7 +157,7 @@ export default function ToolsTab() {
                     <td className="font-mono text-xs">{ev.timestamp?.split('T')[1]?.slice(0, 8) ?? ''}</td>
                     <td className="font-mono text-xs truncate max-w-32">{ev.tool_name ?? ev.method ?? '-'}</td>
                     <td className="text-xs">{ev.server_name}</td>
-                    <td><span className={`badge badge-xs ${ev.source === 'mcp' ? 'bg-interactive/15 text-interactive badge-outline' : 'badge-ghost'}`}>{ev.source}</span></td>
+                    <td><span className={`inline-flex items-center px-1.5 py-0.5 text-[10px] rounded-full ${ev.source === 'mcp' ? 'bg-interactive/15 text-interactive' : 'bg-surface-alt text-content/60'}`}>{ev.source}</span></td>
                     <td><span className={`text-xs ${ev.decision === 'allowed' ? 'text-allowed' : 'text-denied'}`}>{ev.decision}</span></td>
                     <td className="text-right font-mono text-xs">{ev.duration_ms ? `${ev.duration_ms}ms` : '-'}</td>
                   </tr>

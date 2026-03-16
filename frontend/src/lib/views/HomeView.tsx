@@ -22,7 +22,7 @@ function statusDot(status: VenvInfo['status']): string {
     case 'running': return 'bg-allowed';
     case 'booting': return 'bg-caution';
     case 'error': return 'bg-denied';
-    default: return 'bg-base-content/20';
+    default: return 'bg-content/20';
   }
 }
 
@@ -31,7 +31,7 @@ function statusText(status: VenvInfo['status']): string {
     case 'running': return 'text-allowed';
     case 'booting': return 'text-caution';
     case 'error': return 'text-denied';
-    default: return 'text-base-content/40';
+    default: return 'text-content/40';
   }
 }
 
@@ -64,7 +64,7 @@ function VenvCard({ venv }: { venv: VenvInfo }) {
 
   return (
     <div
-      className="group bg-base-100 border border-base-300 rounded-xl p-4 shadow-xs hover:shadow-md hover:border-interactive/30 transition-all cursor-pointer"
+      className="group bg-surface border border-edge rounded-xl p-4 shadow-xs hover:shadow-md hover:border-interactive/30 transition-all cursor-pointer"
       onClick={handleOpen}
     >
       <div className="flex items-start justify-between gap-3">
@@ -89,7 +89,7 @@ function VenvCard({ venv }: { venv: VenvInfo }) {
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
           {venv.status === 'running' ? (
             <button
-              className="btn btn-ghost btn-xs text-base-content/50 hover:text-denied"
+              className="p-1 rounded hover:bg-surface-alt text-content/50 hover:text-denied transition-colors"
               onClick={handleStop}
               title="Stop"
             >
@@ -97,7 +97,7 @@ function VenvCard({ venv }: { venv: VenvInfo }) {
             </button>
           ) : (
             <button
-              className="btn btn-ghost btn-xs text-base-content/50 hover:text-allowed"
+              className="p-1 rounded hover:bg-surface-alt text-content/50 hover:text-allowed transition-colors"
               onClick={(e) => { e.stopPropagation(); handleOpen(); }}
               title="Start"
             >
@@ -105,7 +105,7 @@ function VenvCard({ venv }: { venv: VenvInfo }) {
             </button>
           )}
           <button
-            className={`btn btn-ghost btn-xs ${confirming ? 'text-denied' : 'text-base-content/50 hover:text-denied'}`}
+            className={`p-1 rounded hover:bg-surface-alt transition-colors ${confirming ? 'text-denied' : 'text-content/50 hover:text-denied'}`}
             onClick={handleDelete}
             title={confirming ? 'Click again to confirm' : 'Delete'}
           >
@@ -114,7 +114,7 @@ function VenvCard({ venv }: { venv: VenvInfo }) {
         </div>
       </div>
 
-      <div className="mt-3 flex items-center justify-between text-[11px] text-base-content/40">
+      <div className="mt-3 flex items-center justify-between text-[11px] text-content/40">
         <span>Last used: {relativeTime(venv.last_used)}</span>
         <span>{new Date(venv.created_at).toLocaleDateString()}</span>
       </div>
@@ -148,10 +148,10 @@ export default function HomeView() {
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-xl font-bold">Environments</h1>
-            <p className="text-sm text-base-content/50 mt-1">Create and manage isolated virtual environments</p>
+            <p className="text-sm text-content/50 mt-1">Create and manage isolated virtual environments</p>
           </div>
           <button
-            className="btn bg-interactive text-white btn-sm gap-1.5"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-interactive text-white hover:opacity-90 transition font-medium"
             onClick={() => setCreating(true)}
           >
             <PlusIcon className="size-4" />
@@ -161,13 +161,13 @@ export default function HomeView() {
 
         {/* Create modal inline */}
         {creating && (
-          <div className="bg-base-100 border border-base-300 rounded-xl p-4 mb-6 shadow-sm">
+          <div className="bg-surface border border-edge rounded-xl p-4 mb-6 shadow-sm">
             <h3 className="text-sm font-semibold mb-3">New Environment</h3>
             <div className="flex flex-col gap-3">
               <div className="flex items-center gap-2">
                 <input
                   type="text"
-                  className="input input-sm input-bordered flex-1"
+                  className="flex-1 px-2.5 py-1.5 text-sm border border-edge rounded-md bg-surface focus:outline-none focus:ring-2 focus:ring-interactive/40"
                   placeholder="Environment name..."
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
@@ -179,24 +179,24 @@ export default function HomeView() {
                 <label className="flex items-center gap-2 cursor-pointer select-none">
                   <input
                     type="checkbox"
-                    className="toggle toggle-sm toggle-primary"
+                    className="toggle-switch"
                     checked={newEphemeral}
                     onChange={(e) => setNewEphemeral(e.target.checked)}
                   />
                   <span className="text-sm">Ephemeral</span>
-                  <span className="text-[11px] text-base-content/40">
+                  <span className="text-[11px] text-content/40">
                     {newEphemeral ? 'Files are wiped on every restart' : 'Files persist across restarts'}
                   </span>
                 </label>
                 <div className="flex items-center gap-2">
                   <button
-                    className="btn btn-ghost btn-sm"
+                    className="px-3 py-1.5 text-sm rounded-lg hover:bg-surface-alt transition-colors"
                     onClick={() => { setCreating(false); setNewName(''); setNewEphemeral(false); }}
                   >
                     Cancel
                   </button>
                   <button
-                    className="btn bg-interactive text-white btn-sm"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-interactive text-white hover:opacity-90 transition font-medium"
                     onClick={handleCreate}
                     disabled={!newName.trim()}
                   >
@@ -211,7 +211,7 @@ export default function HomeView() {
         {/* Loading state */}
         {loading && venvs.length === 0 && (
           <div className="flex items-center justify-center py-20">
-            <span className="loading loading-spinner loading-md" />
+            <span className="spinner w-6 h-6 text-content/30" />
           </div>
         )}
 
@@ -222,11 +222,11 @@ export default function HomeView() {
               <TerminalIcon className="size-8 text-interactive" />
             </div>
             <h2 className="text-lg font-semibold mb-1">No environments yet</h2>
-            <p className="text-sm text-base-content/50 mb-4 max-w-xs">
+            <p className="text-sm text-content/50 mb-4 max-w-xs">
               Create your first sandboxed virtual environment to get started.
             </p>
             <button
-              className="btn bg-interactive text-white btn-sm gap-1.5"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-interactive text-white hover:opacity-90 transition font-medium"
               onClick={() => setCreating(true)}
             >
               <PlusIcon className="size-4" />

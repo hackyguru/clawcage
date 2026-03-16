@@ -16,19 +16,18 @@ function SidebarButton({ label, Icon, active, onClick }: {
 }) {
   return (
     <li>
-      <div className="tooltip tooltip-right" data-tip={label}>
-        <button
-          className={`flex items-center justify-center w-9 h-9 rounded-lg transition-all duration-100 focus:outline-none focus:ring-1 focus:ring-white/20 ${
-            active
-              ? 'bg-interactive/20 text-interactive'
-              : 'text-neutral-500 hover:bg-white/8 hover:text-neutral-300'
-          }`}
-          onClick={onClick}
-          aria-label={label}
-        >
-          <Icon className="size-4.5" />
-        </button>
-      </div>
+      <button
+        className={`flex items-center justify-center w-9 h-9 rounded-lg transition-all duration-100 focus:outline-none focus:ring-1 focus:ring-white/20 ${
+          active
+            ? 'bg-interactive/20 text-interactive'
+            : 'text-neutral-500 hover:bg-white/8 hover:text-neutral-300'
+        }`}
+        onClick={onClick}
+        aria-label={label}
+        title={label}
+      >
+        <Icon className="size-4.5" />
+      </button>
     </li>
   );
 }

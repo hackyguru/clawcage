@@ -90,8 +90,8 @@ export default function FilesTab() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Timeline */}
-          <div className="bg-base-100 border border-base-300 rounded-lg p-3 shadow-xs">
-            <h3 className="text-xs font-semibold text-neutral-700 mb-2">Events Over Time</h3>
+          <div className="bg-surface border border-edge rounded-lg p-3 shadow-xs">
+            <h3 className="text-xs font-semibold text-content/70 mb-2">Events Over Time</h3>
             {timeline.length > 0 ? (
               <ResponsiveContainer width="100%" height={180}>
                 <BarChart data={timeline}>
@@ -110,13 +110,13 @@ export default function FilesTab() {
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <div className="flex items-center justify-center h-44 text-neutral-300 text-sm">No data yet</div>
+              <div className="flex items-center justify-center h-44 text-content/30 text-sm">No data yet</div>
             )}
           </div>
 
           {/* Actions pie */}
-          <div className="bg-base-100 border border-base-300 rounded-lg p-3 shadow-xs">
-            <h3 className="text-xs font-semibold text-base-content/70 mb-2">Actions</h3>
+          <div className="bg-surface border border-edge rounded-lg p-3 shadow-xs">
+            <h3 className="text-xs font-semibold text-content/70 mb-2">Actions</h3>
             {actionPieData.length > 0 ? (
               <ResponsiveContainer width="100%" height={180}>
                 <PieChart>
@@ -129,7 +129,7 @@ export default function FilesTab() {
                 </PieChart>
               </ResponsiveContainer>
             ) : (
-              <div className="flex items-center justify-center h-44 text-base-content/30 text-sm">No data yet</div>
+              <div className="flex items-center justify-center h-44 text-content/30 text-sm">No data yet</div>
             )}
           </div>
         </div>
@@ -137,17 +137,17 @@ export default function FilesTab() {
         {/* Event list */}
         <div>
           <div className="flex items-center gap-2 mb-2">
-            <h3 className="text-xs font-semibold text-base-content/70">Events</h3>
+            <h3 className="text-xs font-semibold text-content/70">Events</h3>
             <input
               type="text"
               placeholder="Search paths..."
-              className="input input-xs input-bordered w-48"
+              className="px-2 py-1 text-xs border border-edge rounded bg-surface focus:outline-none focus:ring-1 focus:ring-interactive/40 w-48"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
           <div className="overflow-x-auto max-h-72 overflow-y-auto">
-            <table className="table table-xs table-pin-rows">
+            <table className="data-table">
               <thead>
                 <tr>
                   <th>Time</th>
@@ -160,12 +160,12 @@ export default function FilesTab() {
                 {events.slice(0, 200).map((ev) => (
                   <tr
                     key={ev.id}
-                    className="cursor-pointer hover:bg-base-300"
+                    className="hover:bg-surface-alt"
                     onClick={() => setDetail({ type: 'file_event', data: ev as unknown as Record<string, unknown> })}
                   >
                     <td className="font-mono text-xs">{ev.timestamp?.split('T')[1]?.slice(0, 8) ?? ''}</td>
                     <td>
-                      <span className="badge badge-xs" style={{ backgroundColor: ACTION_COLORS[ev.action] ?? undefined }}>
+                      <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] text-white rounded-full" style={{ backgroundColor: ACTION_COLORS[ev.action] ?? undefined }}>
                         {ev.action}
                       </span>
                     </td>

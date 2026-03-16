@@ -36,7 +36,7 @@ export default function SettingsView() {
       <div className="flex-1 min-w-0 overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center h-full">
-            <span className="loading loading-spinner loading-sm" />
+            <span className="spinner w-4 h-4 text-content/30" />
           </div>
         ) : activeSection ? (
           <SettingsSection sectionName={activeSection} />

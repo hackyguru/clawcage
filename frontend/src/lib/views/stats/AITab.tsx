@@ -157,8 +157,8 @@ export default function AITab() {
         {/* Charts row */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Token timeline (stacked bar by model) */}
-          <div className="bg-base-100 border border-base-300 rounded-lg p-3 shadow-xs">
-            <h3 className="text-xs font-semibold text-base-content/70 mb-2">Tokens Over Time</h3>
+          <div className="bg-surface border border-edge rounded-lg p-3 shadow-xs">
+            <h3 className="text-xs font-semibold text-content/70 mb-2">Tokens Over Time</h3>
             {tokenTimeline.length > 0 ? (
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={tokenTimeline}>
@@ -176,13 +176,13 @@ export default function AITab() {
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <div className="flex items-center justify-center h-48 text-base-content/30 text-sm">No data yet</div>
+              <div className="flex items-center justify-center h-48 text-content/30 text-sm">No data yet</div>
             )}
           </div>
 
           {/* Cost by provider pie */}
-          <div className="bg-base-100 border border-base-300 rounded-lg p-3 shadow-xs">
-            <h3 className="text-xs font-semibold text-base-content/70 mb-2">Cost by Provider</h3>
+          <div className="bg-surface border border-edge rounded-lg p-3 shadow-xs">
+            <h3 className="text-xs font-semibold text-content/70 mb-2">Cost by Provider</h3>
             {costPieData.length > 0 ? (
               <ResponsiveContainer width="100%" height={200}>
                 <PieChart>
@@ -195,17 +195,17 @@ export default function AITab() {
                 </PieChart>
               </ResponsiveContainer>
             ) : (
-              <div className="flex items-center justify-center h-48 text-base-content/30 text-sm">No data yet</div>
+              <div className="flex items-center justify-center h-48 text-content/30 text-sm">No data yet</div>
             )}
           </div>
         </div>
 
         {/* Model breakdown table */}
         {models.length > 0 && (
-          <div className="bg-base-100 border border-base-300 rounded-lg p-3 shadow-xs">
-            <h3 className="text-xs font-semibold text-base-content/70 mb-2">Models</h3>
+          <div className="bg-surface border border-edge rounded-lg p-3 shadow-xs">
+            <h3 className="text-xs font-semibold text-content/70 mb-2">Models</h3>
             <div className="overflow-x-auto">
-              <table className="table table-xs">
+              <table className="data-table">
                 <thead>
                   <tr>
                     <th>Model</th>
@@ -238,16 +238,16 @@ export default function AITab() {
 
         {/* Trace viewer */}
         <div>
-          <h3 className="text-xs font-semibold text-base-content/70 mb-2">Recent Traces</h3>
+          <h3 className="text-xs font-semibold text-content/70 mb-2">Recent Traces</h3>
           {traces.length === 0 ? (
-            <div className="text-base-content/30 text-sm py-4 text-center">No traces yet</div>
+            <div className="text-content/30 text-sm py-4 text-center">No traces yet</div>
           ) : (
             <div className="space-y-1">
               {traces.map((trace) => (
-                <div key={trace.trace_id} className="bg-[--color-base-100] rounded-lg overflow-hidden">
+                <div key={trace.trace_id} className="bg-surface rounded-lg overflow-hidden">
                   {/* Trace header row */}
                   <button
-                    className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-base-300 transition-colors"
+                    className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-surface-alt transition-colors"
                     onClick={() => toggleTrace(trace.trace_id)}
                   >
                     {expandedTrace === trace.trace_id ? (
@@ -257,17 +257,17 @@ export default function AITab() {
                     )}
                     <span className="inline-block w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: providerColor(trace.provider) }} />
                     <span className="text-xs font-mono truncate flex-1">{trace.model}</span>
-                    <span className="text-xs text-base-content/50">{fmtTokens(trace.total_input_tokens + trace.total_output_tokens)} tok</span>
-                    <span className="text-xs text-base-content/50">{fmtDuration(trace.total_duration_ms)}</span>
-                    <span className="text-xs text-base-content/50">{fmtCost(trace.total_cost)}</span>
+                    <span className="text-xs text-content/50">{fmtTokens(trace.total_input_tokens + trace.total_output_tokens)} tok</span>
+                    <span className="text-xs text-content/50">{fmtDuration(trace.total_duration_ms)}</span>
+                    <span className="text-xs text-content/50">{fmtCost(trace.total_cost)}</span>
                     {trace.total_tool_calls > 0 && (
-                      <span className="badge badge-xs badge-ghost">{trace.total_tool_calls} tools</span>
+                      <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] rounded-full bg-surface-alt text-content/60">{trace.total_tool_calls} tools</span>
                     )}
                   </button>
 
                   {/* Expanded trace detail */}
                   {expandedTrace === trace.trace_id && (
-                    <div className="border-t border-base-300 px-3 py-2 space-y-1">
+                    <div className="border-t border-edge px-3 py-2 space-y-1">
                       {traceCalls.map((call) => {
                         const callTools = traceToolCalls.filter((t) => t.model_call_id === call.id);
                         return (
@@ -276,12 +276,12 @@ export default function AITab() {
                             <div className="flex items-center gap-2 text-xs">
                               <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: modelColor(call.model, call.provider) }} />
                               <span className="font-mono truncate">{call.model}</span>
-                              <span className="text-base-content/50">{fmtTokens(call.input_tokens + call.output_tokens)}</span>
-                              <span className="text-base-content/50">{fmtDuration(call.duration_ms)}</span>
+                              <span className="text-content/50">{fmtTokens(call.input_tokens + call.output_tokens)}</span>
+                              <span className="text-content/50">{fmtDuration(call.duration_ms)}</span>
                               <span className="flex-1" />
                               {call.thinking_content && (
                                 <button
-                                  className="btn btn-ghost btn-xs text-info"
+                                  className="px-1.5 py-0.5 text-xs rounded hover:bg-surface-alt text-allowed transition-colors"
                                   onClick={() => setDetail({ type: 'thinking', data: call as unknown as Record<string, unknown> })}
                                 >
                                   thinking
@@ -289,7 +289,7 @@ export default function AITab() {
                               )}
                               {call.text_content && (
                                 <button
-                                  className="btn btn-ghost btn-xs"
+                                  className="px-1.5 py-0.5 text-xs rounded hover:bg-surface-alt transition-colors"
                                   onClick={() => setDetail({ type: 'text', data: call as unknown as Record<string, unknown> })}
                                 >
                                   response
@@ -302,7 +302,7 @@ export default function AITab() {
                               return (
                                 <button
                                   key={tc.id}
-                                  className="flex items-center gap-2 text-xs pl-5 w-full text-left hover:bg-base-300 rounded py-0.5 transition-colors"
+                                  className="flex items-center gap-2 text-xs pl-5 w-full text-left hover:bg-surface-alt rounded py-0.5 transition-colors"
                                   onClick={() => setDetail({
                                     type: 'tool',
                                     data: { ...tc, response_preview: resp?.content_preview, is_error: resp?.is_error } as unknown as Record<string, unknown>,
@@ -310,7 +310,7 @@ export default function AITab() {
                                 >
                                   <span className="text-warning">⚡</span>
                                   <span className="font-mono truncate">{tc.tool_name}</span>
-                                  {resp?.is_error ? <span className="badge badge-xs badge-error">err</span> : null}
+                                  {resp?.is_error ? <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] rounded-full bg-denied/15 text-denied">err</span> : null}
                                 </button>
                               );
                             })}

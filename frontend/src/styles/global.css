@@ -1,20 +1,23 @@
 @import "tailwindcss";
-@plugin "daisyui" {
-  themes: light --default, dark --prefersdark;
-}
 @source "../lib/**/*.tsx";
 @source "../lib/**/*.ts";
 @source "../components/**/*.ts";
 
 
-/* --- Design tokens (see docs/design.md) --- */
+/* --- Design tokens (dark mode defaults) --- */
 
 @theme {
-  /* Layerchart surface colors (mapped to Tailwind base palette) */
-  --color-surface-content: var(--color-base-content);
-  --color-surface-100: var(--color-base-100);
+  /* Surface / background */
+  --color-surface: #0a0a0a;
+  --color-surface-alt: #161616;
 
-  /* Interactive (purple H=277 -- matches Tailwind primary) */
+  /* Border */
+  --color-edge: oklch(1 0 0 / 0.08);
+
+  /* Text */
+  --color-content: #e5e5e5;
+
+  /* Interactive (purple) */
   --color-interactive: oklch(0.58 0.233 277);
 
   /* Status */
@@ -46,30 +49,27 @@
   --color-json-number: oklch(0.75 0.14 60);
 
   /* Span types (trace viewer) */
-  --color-span-thinking: oklch(0.7 0.15 250);   /* blue */
-  --color-span-tool: oklch(0.72 0.14 145);       /* green */
-  --color-span-answer: oklch(0.65 0.15 300);     /* purple */
+  --color-span-thinking: oklch(0.7 0.15 250);
+  --color-span-tool: oklch(0.72 0.14 145);
+  --color-span-answer: oklch(0.65 0.15 300);
 
   /* Chart infrastructure */
   --color-chart-grid: oklch(0.4 0.01 250 / 0.15);
   --color-chart-label: oklch(0.6 0.02 250);
 }
 
-/* --- Component CSS var overrides --- */
 
-/* Toggle checked uses interactive */
-.toggle:checked {
-  --input-color: var(--color-interactive);
+/* --- Light mode overrides --- */
+
+[data-theme="light"] {
+  --color-surface: #fafafa;
+  --color-surface-alt: #f0f0f0;
+  --color-edge: oklch(0 0 0 / 0.1);
+  --color-content: #171717;
 }
 
-/* Menu active state uses interactive */
-.menu :where(li > *):where(.menu-active),
-.menu :where(li > *):is(:active) {
-  background-color: oklch(from var(--color-interactive) l c h / 0.15);
-  color: var(--color-interactive);
-}
 
-/* --- JSON syntax highlight classes (consolidated) --- */
+/* --- JSON syntax highlight --- */
 
 .json-key    { color: var(--color-json-key); }
 .json-string { color: var(--color-json-string); }
@@ -77,20 +77,112 @@
 .json-number { color: var(--color-json-number); }
 
 
-/* --- Theme overrides --- */
+/* --- Spinner --- */
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.spinner {
+  display: inline-block;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 9999px;
+  animation: spin 0.6s linear infinite;
+}
+
+
+/* --- Toggle switch --- */
+
+.toggle-switch {
+  appearance: none;
+  width: 36px;
+  height: 20px;
+  border-radius: 10px;
+  background: oklch(0.35 0 0);
+  position: relative;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  flex-shrink: 0;
+}
+
+.toggle-switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: white;
+  transition: transform 0.2s;
+}
+
+.toggle-switch:checked {
+  background: var(--color-interactive);
+}
+
+.toggle-switch:checked::after {
+  transform: translateX(16px);
+}
+
+.toggle-switch:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+[data-theme="light"] .toggle-switch {
+  background: oklch(0.8 0 0);
+}
+
+
+/* --- Data table --- */
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.75rem;
+}
+
+.data-table th {
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: color-mix(in oklch, var(--color-content), transparent 60%);
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--color-edge);
+  position: sticky;
+  top: 0;
+  background: var(--color-surface);
+}
+
+.data-table td {
+  padding: 4px 8px;
+}
+
+.data-table th.text-right,
+.data-table td.text-right {
+  text-align: right;
+}
+
+.data-table tbody tr {
+  transition: background-color 0.1s;
+}
+
+.data-table tbody tr:hover {
+  background: var(--color-surface-alt);
+}
+
+
+/* --- Base styles --- */
 
 :root {
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
     "Liberation Mono", "Courier New", monospace;
 }
 
-/* Light mode base surface overrides */
-[data-theme="light"] {
-  --color-base-content: #171717;
-  --color-base-100: #fafafa;
-}
-
-/* Full-viewport shell */
 html,
 body {
   height: 100%;

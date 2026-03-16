@@ -13,7 +13,7 @@ function BoolField({ leaf, onChange }: { leaf: SettingsLeaf; onChange: (v: boole
   return (
     <input
       type="checkbox"
-  className="h-4 w-4 rounded border-2 border-primary-400 bg-[--color-base-100] checked:bg-primary-500 focus:ring-2 focus:ring-primary-400 disabled:opacity-40 transition"
+  className="toggle-switch"
       checked={leaf.effective_value === true}
       disabled={leaf.corp_locked || !leaf.enabled}
       onChange={(e) => onChange(e.target.checked)}
@@ -30,7 +30,7 @@ function TextField({ leaf, onChange }: { leaf: SettingsLeaf; onChange: (v: strin
     <div className="flex items-center gap-1">
       <input
         type={revealed ? 'text' : inputType}
-  className="w-full max-w-xs font-mono text-xs px-2 py-1 border border-neutral-300 rounded bg-[--color-base-100] focus:outline-none focus:ring-2 focus:ring-primary-400 disabled:opacity-40 transition"
+  className="w-full max-w-xs font-mono text-xs px-2 py-1 border border-edge rounded bg-surface focus:outline-none focus:ring-2 focus:ring-interactive/40 disabled:opacity-40 transition"
         value={value}
         disabled={leaf.corp_locked || !leaf.enabled}
         placeholder={String(leaf.default_value ?? '')}
@@ -40,7 +40,7 @@ function TextField({ leaf, onChange }: { leaf: SettingsLeaf; onChange: (v: strin
       />
       {(leaf.setting_type === 'password' || leaf.setting_type === 'apikey') && (
         <button
-          className="btn btn-ghost btn-xs"
+          className="px-1.5 py-0.5 text-xs rounded hover:bg-surface-alt transition-colors"
           onClick={() => setRevealed(!revealed)}
           title={revealed ? 'Hide' : 'Reveal'}
         >
@@ -57,7 +57,7 @@ function NumberField({ leaf, onChange }: { leaf: SettingsLeaf; onChange: (v: num
   return (
     <input
       type="number"
-  className="w-28 font-mono text-xs px-2 py-1 border border-neutral-300 rounded bg-[--color-base-100] focus:outline-none focus:ring-2 focus:ring-primary-400 disabled:opacity-40 transition"
+  className="w-28 font-mono text-xs px-2 py-1 border border-edge rounded bg-surface focus:outline-none focus:ring-2 focus:ring-interactive/40 disabled:opacity-40 transition"
       value={value}
       disabled={leaf.corp_locked || !leaf.enabled}
       min={leaf.metadata.min ?? undefined}
@@ -79,21 +79,21 @@ function FileField({ leaf, onChange }: { leaf: SettingsLeaf; onChange: (v: { pat
   return (
     <div className="space-y-1">
       <div className="flex items-center gap-2">
-        <span className="font-mono text-xs text-base-content/60">{fileValue.path || 'No file'}</span>
-        <button className="btn btn-ghost btn-xs" onClick={() => setEditing(!editing)}>
+        <span className="font-mono text-xs text-content/60">{fileValue.path || 'No file'}</span>
+        <button className="px-1.5 py-0.5 text-xs rounded hover:bg-surface-alt transition-colors" onClick={() => setEditing(!editing)}>
           {editing ? 'Close' : 'Edit'}
         </button>
       </div>
       {editing && (
         <div className="space-y-1">
           <textarea
-            className="w-full font-mono h-32 text-xs px-2 py-1 border border-neutral-300 rounded bg-[--color-base-100] focus:outline-none focus:ring-2 focus:ring-primary-400 disabled:opacity-40 transition"
+            className="w-full font-mono h-32 text-xs px-2 py-1 border border-edge rounded bg-surface focus:outline-none focus:ring-2 focus:ring-interactive/40 disabled:opacity-40 transition"
             value={content}
             onChange={(e) => setContent(e.target.value)}
             disabled={leaf.corp_locked || !leaf.enabled}
           />
           <button
-            className="btn bg-interactive text-white btn-xs"
+            className="px-2 py-0.5 text-xs rounded bg-interactive text-white hover:opacity-90 transition font-medium"
             onClick={() => { onChange({ path: fileValue.path, content }); setEditing(false); }}
           >
             Save
@@ -123,9 +123,9 @@ function LeafNode({ leaf }: { leaf: SettingsLeaf }) {
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium">{leaf.name}</span>
             {leaf.corp_locked && <span className="inline-block px-2 py-0.5 rounded bg-caution/15 text-caution text-xs font-semibold ml-1">Locked</span>}
-            {sourceLabel && <span className="text-xs text-base-content/50">{sourceLabel}</span>}
+            {sourceLabel && <span className="text-xs text-content/50">{sourceLabel}</span>}
           </div>
-          <p className="text-xs text-base-content/60 mt-0.5">{leaf.description}</p>
+          <p className="text-xs text-content/60 mt-0.5">{leaf.description}</p>
           {issues.length > 0 && (
             <div className="mt-1 space-y-0.5">
               {issues.map((issue, i) => (
@@ -155,14 +155,14 @@ function GroupNode({ group, depth }: { group: SettingsGroup; depth: number }) {
   const [collapsed, setCollapsed] = useState(group.collapsed ?? depth > 1);
 
   return (
-    <div className={depth > 0 ? 'ml-2 border-l border-base-300 pl-2' : ''}>
+    <div className={depth > 0 ? 'ml-2 border-l border-edge pl-2' : ''}>
       <button
-  className="flex items-center gap-1.5 py-1.5 w-full text-left hover:bg-[--color-base-100] rounded px-1 transition-colors"
+  className="flex items-center gap-1.5 py-1.5 w-full text-left hover:bg-surface rounded px-1 transition-colors"
         onClick={() => setCollapsed(!collapsed)}
       >
         {collapsed ? <ChevronRight className="size-3" /> : <ChevronDown className="size-3" />}
         <span className={`font-semibold ${depth === 0 ? 'text-sm' : 'text-xs'}`}>{group.name}</span>
-        {group.description && <span className="text-xs text-base-content/50 truncate">{group.description}</span>}
+        {group.description && <span className="text-xs text-content/50 truncate">{group.description}</span>}
       </button>
       {!collapsed && (
         <div className="space-y-0.5">
@@ -192,12 +192,12 @@ export default function SettingsSection({ sectionName }: Props) {
   const { section, loading, error } = useSettings();
   const group = section(sectionName);
 
-  if (loading) return <div className="p-4 text-base-content/50 text-sm">Loading settings…</div>;
-  if (error) return <div className="p-4 text-error text-sm">{error}</div>;
-  if (!group) return <div className="p-4 text-base-content/30 text-sm">Section "{sectionName}" not found</div>;
+  if (loading) return <div className="p-4 text-content/50 text-sm">Loading settings…</div>;
+  if (error) return <div className="p-4 text-denied text-sm">{error}</div>;
+  if (!group) return <div className="p-4 text-content/30 text-sm">Section "{sectionName}" not found</div>;
 
   return (
-  <div className="p-4 space-y-1 overflow-auto h-full hover:bg-[--color-base-100]">
+  <div className="p-4 space-y-1 overflow-auto h-full hover:bg-surface">
       {group.kind === 'group' ? (
         group.children.map((child) => (
           <SettingsNodeComponent key={child.kind === 'leaf' ? child.id : child.key} node={child} depth={0} />
