@@ -12,6 +12,7 @@ import {
 import { colors } from '../../css-var';
 import StatCards from './StatCards';
 import DetailPanel from './DetailPanel';
+import { showToast } from '../../stores/toast';
 import type { DetailSelection } from '../../types';
 
 interface FileStats { total: number; created: number; modified: number; deleted: number }
@@ -59,6 +60,7 @@ export default function FilesTab() {
       setTimeline(Array.from(bucketMap.values()));
     } catch (e) {
       console.error('FilesTab load failed:', e);
+      showToast('Failed to load file data', 'error');
     }
   }, [search]);
 
@@ -144,7 +146,11 @@ export default function FilesTab() {
               className="px-2 py-1 text-xs border border-edge rounded bg-surface focus:outline-none focus:ring-1 focus:ring-interactive/40 w-48"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              aria-label="Search file events"
             />
+            {search && (
+              <span className="text-xs text-content/40">{events.length} result{events.length !== 1 ? 's' : ''}</span>
+            )}
           </div>
           <div className="overflow-x-auto max-h-72 overflow-y-auto">
             <table className="data-table">

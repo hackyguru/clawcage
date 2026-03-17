@@ -18,6 +18,7 @@ import HomeView from './views/HomeView';
 
 // Lazy-load heavy views (StatsView pulls in recharts ~700KB)
 const PortsView = lazy(() => import('./views/PortsView'));
+const FilesView = lazy(() => import('./views/FilesView'));
 const StatsView = lazy(() => import('./views/StatsView'));
 const SettingsView = lazy(() => import('./views/SettingsView'));
 
@@ -52,8 +53,8 @@ function AppInner() {
   const { isDownloading, downloadProgress } = useVm();
   const { activeVenvId } = useVenvs();
 
-  // Keyboard shortcuts: Cmd+1 = Console, Cmd+2 = Ports, Cmd+3 = Stats, Cmd+4 = Settings
-  const viewKeys: Record<string, ViewName> = { '1': 'terminal', '2': 'ports', '3': 'stats', '4': 'settings' };
+  // Keyboard shortcuts: Cmd+1 = Console, Cmd+2 = Ports, Cmd+3 = Files, Cmd+4 = Stats, Cmd+5 = Settings
+  const viewKeys: Record<string, ViewName> = { '1': 'terminal', '2': 'ports', '3': 'files', '4': 'stats', '5': 'settings' };
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if ((e.metaKey || e.ctrlKey) && viewKeys[e.key]) {
       e.preventDefault();
@@ -103,6 +104,7 @@ function AppInner() {
           )}
           <Suspense fallback={<div className="flex items-center justify-center h-full"><span className="spinner w-6 h-6 text-content/30" /></div>}>
             {currentView === 'ports' && <PortsView />}
+            {currentView === 'files' && <FilesView />}
             {currentView === 'stats' && <StatsView />}
             {currentView === 'settings' && <SettingsView />}
           </Suspense>

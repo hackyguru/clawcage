@@ -1,13 +1,14 @@
 // Sidebar component
 import { useSidebar } from '../stores/sidebar';
 import { useVenvs, closeVenv } from '../stores/venvs';
-import { HomeIcon, TerminalIcon, PortsIcon, StatsIcon, SettingsIcon } from '../icons/Icons';
+import { HomeIcon, TerminalIcon, PortsIcon, FolderIcon, StatsIcon, SettingsIcon } from '../icons/Icons';
 import type { ViewName } from '../types';
 import type { FC } from 'react';
 
 const vmItems: { view: ViewName; label: string; Icon: FC<{ className?: string }> }[] = [
   { view: 'terminal', label: 'Console', Icon: TerminalIcon },
   { view: 'ports', label: 'Ports', Icon: PortsIcon },
+  { view: 'files', label: 'Files', Icon: FolderIcon },
   { view: 'stats', label: 'Stats', Icon: StatsIcon },
   { view: 'settings', label: 'Settings', Icon: SettingsIcon },
 ];
@@ -43,8 +44,8 @@ export default function Sidebar() {
   };
 
   return (
-    <aside className="flex flex-col shrink-0 border-r border-white/5 bg-neutral-900 w-12 overflow-hidden">
-      <nav className="flex-1 py-3">
+    <aside className="flex flex-col shrink-0 border-r border-white/5 bg-neutral-900 w-12 overflow-hidden" role="complementary" aria-label="Sidebar navigation">
+      <nav className="flex-1 py-3" aria-label="Main navigation">
         <ul className="flex flex-col gap-1 px-1.5">
           {/* Home always visible */}
           <SidebarButton

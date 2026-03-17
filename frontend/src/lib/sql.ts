@@ -345,3 +345,24 @@ export const FILE_EVENTS_SEARCH_SQL = `
   WHERE path LIKE ?
   ORDER BY id DESC
 `;
+
+// -- File browser (unique file paths with latest state) --------------------
+
+export const FILE_TREE_SQL = `
+  SELECT path, action, size, timestamp
+  FROM fs_events
+  WHERE id IN (
+    SELECT MAX(id) FROM fs_events GROUP BY path
+  )
+  ORDER BY path ASC
+`;
+
+export const FILE_TREE_SEARCH_SQL = `
+  SELECT path, action, size, timestamp
+  FROM fs_events
+  WHERE id IN (
+    SELECT MAX(id) FROM fs_events GROUP BY path
+  )
+  AND path LIKE ?
+  ORDER BY path ASC
+`;

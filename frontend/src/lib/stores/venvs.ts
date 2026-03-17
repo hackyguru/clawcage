@@ -1,6 +1,7 @@
 // Virtual environment store for React
 import { useSyncExternalStore } from 'react';
 import { listVenvs, createVenv as apiCreateVenv, deleteVenv as apiDeleteVenv, startVenv as apiStartVenv, stopVenv as apiStopVenv } from '../api';
+import { showToast } from './toast';
 import type { VenvInfo } from '../types';
 
 let venvs: VenvInfo[] = [];
@@ -32,6 +33,7 @@ export async function loadVenvs() {
     venvs = await listVenvs();
   } catch (e) {
     console.error('Failed to load venvs:', e);
+    showToast('Failed to load environments: ' + String(e), 'error');
   }
   loading = false;
   emit();
@@ -45,6 +47,7 @@ export async function createVenvAction(name: string, ephemeral: boolean = false,
     return v;
   } catch (e) {
     console.error('Failed to create venv:', e);
+    showToast('Failed to create environment: ' + String(e), 'error');
     return null;
   }
 }
@@ -57,6 +60,7 @@ export async function deleteVenvAction(id: string) {
     emit();
   } catch (e) {
     console.error('Failed to delete venv:', e);
+    showToast('Failed to delete environment: ' + String(e), 'error');
   }
 }
 
@@ -88,6 +92,7 @@ export async function startVenvAction(id: string) {
     }
     emit();
     console.error('Failed to start venv:', e);
+    showToast('Failed to start environment: ' + String(e), 'error');
   }
 
   // Reload from backend to get authoritative state for all venvs.
@@ -109,6 +114,7 @@ export async function stopVenvAction(id: string) {
     await apiStopVenv(id);
   } catch (e) {
     console.error('Failed to stop venv:', e);
+    showToast('Failed to stop environment: ' + String(e), 'error');
   }
 
   // Reload from backend.

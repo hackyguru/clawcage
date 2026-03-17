@@ -166,6 +166,7 @@ function HardwareSection({ cpu, ram, disk, onCpu, onRam, onDisk }: {
 function VenvCard({ venv, onDelete }: { venv: VenvInfo; onDelete: (v: VenvInfo) => void }) {
   const { setView } = useSidebar();
   const tmpl = getTemplate(venv.template);
+  const [showStopDialog, setShowStopDialog] = useState(false);
 
   const handleOpen = useCallback(() => {
     openVenv(venv.id);
@@ -173,68 +174,82 @@ function VenvCard({ venv, onDelete }: { venv: VenvInfo; onDelete: (v: VenvInfo) 
     setView('terminal');
   }, [venv.id, setView]);
 
-  const handleStop = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleConfirmStop = useCallback(() => {
     stopVenvAction(venv.id);
   }, [venv.id]);
 
   return (
-    <div
-      className="group bg-surface border border-edge rounded-xl p-4 shadow-xs hover:shadow-md hover:border-interactive/30 transition-all cursor-pointer"
-      onClick={handleOpen}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-interactive/10 text-interactive shrink-0">
-              <TemplateIcon icon={tmpl.icon} className="size-4" />
-            </div>
-            <div className="min-w-0">
-              <h3 className="text-sm font-semibold truncate">{venv.name}</h3>
-              <div className="flex items-center gap-1.5 mt-0.5">
-                <span className={`inline-block size-1.5 rounded-full ${statusDot(venv.status)}`} />
-                <span className={`text-[11px] capitalize ${statusText(venv.status)}`}>{venv.status}</span>
-                <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${venv.ephemeral ? 'bg-caution/15 text-caution' : 'bg-allowed/15 text-allowed'}`}>
-                  {venv.ephemeral ? 'ephemeral' : 'persistent'}
-                </span>
+    <>
+      <div
+        className="group bg-surface border border-edge rounded-xl p-4 shadow-xs hover:shadow-md hover:border-interactive/30 transition-all cursor-pointer"
+        onClick={handleOpen}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-interactive/10 text-interactive shrink-0">
+                <TemplateIcon icon={tmpl.icon} className="size-4" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="text-sm font-semibold truncate">{venv.name}</h3>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className={`inline-block size-1.5 rounded-full ${statusDot(venv.status)}`} />
+                  <span className={`text-[11px] capitalize ${statusText(venv.status)}`}>{venv.status}</span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${venv.ephemeral ? 'bg-caution/15 text-caution' : 'bg-allowed/15 text-allowed'}`}>
+                    {venv.ephemeral ? 'ephemeral' : 'persistent'}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
-          {venv.status === 'running' ? (
+          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+            {venv.status === 'running' ? (
+              <button
+                className="p-1 rounded hover:bg-surface-alt text-content/50 hover:text-denied transition-colors"
+                onClick={(e) => { e.stopPropagation(); setShowStopDialog(true); }}
+                title="Stop"
+                aria-label={`Stop ${venv.name}`}
+              >
+                <StopIcon className="size-3.5" />
+              </button>
+            ) : (
+              <button
+                className="p-1 rounded hover:bg-surface-alt text-content/50 hover:text-allowed transition-colors"
+                onClick={(e) => { e.stopPropagation(); handleOpen(); }}
+                title="Start"
+                aria-label={`Start ${venv.name}`}
+              >
+                <PlayIcon className="size-3.5" />
+              </button>
+            )}
             <button
               className="p-1 rounded hover:bg-surface-alt text-content/50 hover:text-denied transition-colors"
-              onClick={handleStop}
-              title="Stop"
+              onClick={(e) => { e.stopPropagation(); onDelete(venv); }}
+              title="Delete"
+              aria-label={`Delete ${venv.name}`}
             >
-              <StopIcon className="size-3.5" />
+              <TrashIcon className="size-3.5" />
             </button>
-          ) : (
-            <button
-              className="p-1 rounded hover:bg-surface-alt text-content/50 hover:text-allowed transition-colors"
-              onClick={(e) => { e.stopPropagation(); handleOpen(); }}
-              title="Start"
-            >
-              <PlayIcon className="size-3.5" />
-            </button>
-          )}
-          <button
-            className="p-1 rounded hover:bg-surface-alt text-content/50 hover:text-denied transition-colors"
-            onClick={(e) => { e.stopPropagation(); onDelete(venv); }}
-            title="Delete"
-          >
-            <TrashIcon className="size-3.5" />
-          </button>
+          </div>
+        </div>
+
+        <div className="mt-3 flex items-center justify-between text-[11px] text-content/40">
+          <span>Last used: {relativeTime(venv.last_used)}</span>
+          <span>{new Date(venv.created_at).toLocaleDateString()}</span>
         </div>
       </div>
 
-      <div className="mt-3 flex items-center justify-between text-[11px] text-content/40">
-        <span>Last used: {relativeTime(venv.last_used)}</span>
-        <span>{new Date(venv.created_at).toLocaleDateString()}</span>
-      </div>
-    </div>
+      <ConfirmDialog
+        open={showStopDialog}
+        onClose={() => setShowStopDialog(false)}
+        onConfirm={handleConfirmStop}
+        title="Stop Environment"
+        message={`Stop "${venv.name}"? ${venv.ephemeral ? 'This is an ephemeral environment — all files will be lost.' : 'Persistent files will be saved.'}`}
+        confirmLabel="Stop"
+        variant="caution"
+      />
+    </>
   );
 }
 
@@ -248,6 +263,7 @@ export default function HomeView() {
   const [hwRam, setHwRam] = useState(HW_DEFAULTS.ram);
   const [hwDisk, setHwDisk] = useState(HW_DEFAULTS.disk);
   const [deleteTarget, setDeleteTarget] = useState<VenvInfo | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     loadVenvs();
@@ -269,17 +285,22 @@ export default function HomeView() {
 
   const handleCreate = useCallback(async () => {
     const name = newName.trim();
-    if (!name) return;
-    const venv = await createVenvAction(name, newEphemeral, selectedTemplate.id);
-    if (venv) {
-      // Save non-default hardware settings as per-venv overrides.
-      if (hwCpu !== HW_DEFAULTS.cpu) updateSetting('vm.cpu_count', hwCpu, venv.id);
-      if (hwRam !== HW_DEFAULTS.ram) updateSetting('vm.ram_gb', hwRam, venv.id);
-      if (hwDisk !== HW_DEFAULTS.disk) updateSetting('vm.scratch_disk_size_gb', hwDisk, venv.id);
+    if (!name || submitting) return;
+    setSubmitting(true);
+    try {
+      const venv = await createVenvAction(name, newEphemeral, selectedTemplate.id);
+      if (venv) {
+        // Save non-default hardware settings as per-venv overrides.
+        if (hwCpu !== HW_DEFAULTS.cpu) updateSetting('vm.cpu_count', hwCpu, venv.id);
+        if (hwRam !== HW_DEFAULTS.ram) updateSetting('vm.ram_gb', hwRam, venv.id);
+        if (hwDisk !== HW_DEFAULTS.disk) updateSetting('vm.scratch_disk_size_gb', hwDisk, venv.id);
+      }
+      resetForm();
+      setCreating(false);
+    } finally {
+      setSubmitting(false);
     }
-    resetForm();
-    setCreating(false);
-  }, [newName, newEphemeral, selectedTemplate, hwCpu, hwRam, hwDisk, resetForm]);
+  }, [newName, newEphemeral, selectedTemplate, hwCpu, hwRam, hwDisk, resetForm, submitting]);
 
   const handleCloseCreate = useCallback(() => {
     setCreating(false);
@@ -305,6 +326,7 @@ export default function HomeView() {
           <button
             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-interactive text-white hover:opacity-90 transition font-medium"
             onClick={() => setCreating(true)}
+            aria-label="Create new environment"
           >
             <PlusIcon className="size-4" />
             New
@@ -353,9 +375,10 @@ export default function HomeView() {
               <button
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-interactive text-white hover:opacity-90 transition font-medium disabled:opacity-40"
                 onClick={handleCreate}
-                disabled={!newName.trim()}
+                disabled={!newName.trim() || submitting}
               >
-                Create
+                {submitting && <span className="spinner w-3.5 h-3.5" />}
+                {submitting ? 'Creating...' : 'Create'}
               </button>
             </div>
           </div>

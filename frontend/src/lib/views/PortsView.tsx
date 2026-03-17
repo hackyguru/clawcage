@@ -1,6 +1,7 @@
 // PortsView -- shows detected guest VM ports with forwarding controls
 import { useEffect } from 'react';
 import { usePorts, startPorts, stopPorts, forwardPortAction, stopForwardAction } from '../stores/ports';
+import { showToast } from '../stores/toast';
 
 export default function PortsView() {
   const { detected, forwarded, loading, error } = usePorts();
@@ -93,9 +94,13 @@ export default function PortsView() {
                             <span className="text-xs text-allowed font-medium">
                               Forwarded
                             </span>
-                            <span className="text-xs text-content/40 font-mono">
-                              localhost:{hostPort}
-                            </span>
+                            <button
+                              className="text-xs text-content/40 font-mono hover:text-interactive transition-colors"
+                              onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(`localhost:${hostPort}`); showToast('Copied to clipboard', 'success', 2000); }}
+                              title="Copy address"
+                            >
+                              localhost:{hostPort} 📋
+                            </button>
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1.5">

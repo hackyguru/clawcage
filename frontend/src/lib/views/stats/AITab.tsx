@@ -13,6 +13,7 @@ import {
 import { providerColor, modelColor, colors } from '../../css-var';
 import StatCards from './StatCards';
 import DetailPanel from './DetailPanel';
+import { showToast } from '../../stores/toast';
 import type { TraceSummary, TraceModelCall, ToolCallEntry, ToolResponseEntry, DetailSelection } from '../../types';
 import { ChevronRight, ChevronDown } from '../../icons/Icons';
 
@@ -95,6 +96,7 @@ export default function AITab() {
       setTokenTimeline(Array.from(bucketMap.values()));
     } catch (e) {
       console.error('AITab load failed:', e);
+      showToast('Failed to load AI data', 'error');
     }
   }, []);
 
@@ -126,6 +128,7 @@ export default function AITab() {
       setTraceToolResponses(queryAll<ToolResponseEntry>(respResult));
     } catch (e) {
       console.error('Trace detail load failed:', e);
+      showToast('Failed to load trace details', 'error');
     }
   }, [expandedTrace]);
 

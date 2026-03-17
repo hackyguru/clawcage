@@ -37,6 +37,9 @@ export default function Dialog({ open, onClose, title, children, width = 'max-w-
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm"
       onClick={handleBackdrop}
+      role="dialog"
+      aria-modal="true"
+      aria-label={title ?? 'Dialog'}
     >
       <div
         ref={panelRef}
@@ -48,6 +51,7 @@ export default function Dialog({ open, onClose, title, children, width = 'max-w-
             <button
               className="p-1 rounded hover:bg-surface-alt text-content/40 hover:text-content transition-colors"
               onClick={onClose}
+              aria-label="Close dialog"
             >
               <CloseIcon className="size-3.5" />
             </button>

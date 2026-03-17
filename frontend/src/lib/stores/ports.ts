@@ -1,6 +1,7 @@
 // Ports store for React -- tracks detected and forwarded guest VM ports
 import { useSyncExternalStore } from 'react';
 import { getPorts, forwardPort as apiForward, stopForward as apiStop, onPortDetected, onPortClosed } from '../api';
+import { showToast } from './toast';
 import type { DetectedPort, ForwardedPort } from '../types';
 
 let detected: DetectedPort[] = [];
@@ -86,6 +87,7 @@ export async function forwardPortAction(guestPort: number, hostPort?: number) {
     emit();
   } catch (e) {
     console.error('Forward port failed:', e);
+    showToast('Failed to forward port: ' + String(e), 'error');
     error = String(e);
     emit();
   }
@@ -98,6 +100,7 @@ export async function stopForwardAction(guestPort: number) {
     emit();
   } catch (e) {
     console.error('Stop forward failed:', e);
+    showToast('Failed to stop port forward: ' + String(e), 'error');
     error = String(e);
     emit();
   }

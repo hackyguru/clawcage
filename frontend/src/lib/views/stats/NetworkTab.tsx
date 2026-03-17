@@ -12,6 +12,7 @@ import {
 import { colors } from '../../css-var';
 import StatCards from './StatCards';
 import DetailPanel from './DetailPanel';
+import { showToast } from '../../stores/toast';
 import type { DetailSelection } from '../../types';
 
 interface NetStats { total: number; allowed: number; denied: number; avg_latency: number }
@@ -62,6 +63,7 @@ export default function NetworkTab() {
       setEvents(queryAll<NetEvent>(evRes));
     } catch (e) {
       console.error('NetworkTab load failed:', e);
+      showToast('Failed to load network data', 'error');
     }
   }, [search]);
 
@@ -154,7 +156,11 @@ export default function NetworkTab() {
               className="px-2 py-1 text-xs border border-edge rounded bg-surface focus:outline-none focus:ring-1 focus:ring-interactive/40 w-48"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              aria-label="Search network events"
             />
+            {search && (
+              <span className="text-xs text-content/40">{events.length} result{events.length !== 1 ? 's' : ''}</span>
+            )}
           </div>
           <div className="overflow-x-auto max-h-72 overflow-y-auto">
             <table className="data-table">

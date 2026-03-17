@@ -19,6 +19,9 @@ export default function Terminal({ sessionId = 0 }: TerminalProps) {
   const inputTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isMock, setIsMock] = useState(false);
   const [booting, setBooting] = useState(true);
+  const [disconnected, setDisconnected] = useState(false);
+  const failCountRef = useRef(0);
+  const DISCONNECT_THRESHOLD = 8; // ~2s of consecutive failures
   // Boot phases: 'booting' = discard all output, 'buffering' = vsock connected
   // but bashrc hasn't cleared screen yet (accumulate), 'ready' = pass-through.
   const phaseRef = useRef<'booting' | 'buffering' | 'ready'>('booting');
@@ -94,6 +97,10 @@ export default function Terminal({ sessionId = 0 }: TerminalProps) {
         while (mountedRef.current) {
           try {
             const data = await terminalPoll(sessionId);
+            if (failCountRef.current > 0) {
+              failCountRef.current = 0;
+              setDisconnected(false);
+            }
             if (data.length === 0) continue;
 
             if (phaseRef.current === 'ready') {
@@ -118,6 +125,10 @@ export default function Terminal({ sessionId = 0 }: TerminalProps) {
               }
             }
           } catch {
+            failCountRef.current++;
+            if (failCountRef.current >= DISCONNECT_THRESHOLD) {
+              setDisconnected(true);
+            }
             await new Promise((r) => setTimeout(r, 250));
           }
         }
@@ -191,9 +202,15 @@ export default function Terminal({ sessionId = 0 }: TerminalProps) {
         class="block h-full w-full"
       />
       {booting && !isMock && (
-        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-neutral-950">
+        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-base-300">
           <span className="spinner w-6 h-6 text-interactive mb-3" />
-          <span className="text-sm text-neutral-400">Starting environment...</span>
+          <span className="text-sm text-content/50">Starting environment...</span>
+        </div>
+      )}
+      {disconnected && !booting && (
+        <div className="absolute top-0 inset-x-0 z-10 flex items-center justify-center py-1.5 bg-denied/90 text-white text-xs font-medium gap-2">
+          <span className="inline-block w-2 h-2 rounded-full bg-white/60 animate-pulse" />
+          Connection lost — waiting to reconnect...
         </div>
       )}
     </div>

@@ -12,6 +12,7 @@ import {
 import { colors, serverColor } from '../../css-var';
 import StatCards from './StatCards';
 import DetailPanel from './DetailPanel';
+import { showToast } from '../../stores/toast';
 import type { DetailSelection } from '../../types';
 
 interface ToolStats { total: number; native: number; mcp: number; allowed: number; denied: number }
@@ -52,6 +53,7 @@ export default function ToolsTab() {
       setEvents(queryAll<UnifiedRow>(eventsRes));
     } catch (e) {
       console.error('ToolsTab load failed:', e);
+      showToast('Failed to load tools data', 'error');
     }
   }, [search]);
 
@@ -130,7 +132,11 @@ export default function ToolsTab() {
               className="px-2 py-1 text-xs border border-edge rounded bg-surface focus:outline-none focus:ring-1 focus:ring-interactive/40 w-48"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              aria-label="Search tool events"
             />
+            {search && (
+              <span className="text-xs text-content/40">{events.length} result{events.length !== 1 ? 's' : ''}</span>
+            )}
           </div>
           <div className="overflow-x-auto max-h-72 overflow-y-auto">
             <table className="data-table">

@@ -92,12 +92,21 @@ export function useShells() {
     emit();
   }, []);
 
+  const renameShell = useCallback((sessionId: number, label: string) => {
+    const tab = tabs.find((t) => t.sessionId === sessionId);
+    if (tab && label.trim()) {
+      tab.label = label.trim();
+      emit();
+    }
+  }, []);
+
   return {
     tabs: currentTabs,
     activeSessionId: currentActive,
     spawnShell,
     closeShell,
     setActiveSession,
+    renameShell,
   };
 }
 

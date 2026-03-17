@@ -142,7 +142,7 @@ export interface VenvInfo {
 }
 
 /** Sidebar view names. */
-export type ViewName = 'home' | 'terminal' | 'ports' | 'stats' | 'settings';
+export type ViewName = 'home' | 'terminal' | 'ports' | 'files' | 'stats' | 'settings';
 
 /** A detected listening port inside the guest VM. */
 export interface DetectedPort {

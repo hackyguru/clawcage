@@ -1,6 +1,7 @@
 // SettingsSection -- recursive settings tree renderer
 import { useState, useMemo, useCallback } from 'react';
 import { useSettings } from '../../stores/settings';
+import { showToast } from '../../stores/toast';
 import { ChevronRight, ChevronDown } from '../../icons/Icons';
 import type {
   SettingsNode, SettingsGroup, SettingsLeaf,
@@ -39,13 +40,24 @@ function TextField({ leaf, onChange }: { leaf: SettingsLeaf; onChange: (v: strin
         onKeyDown={(e) => { if (e.key === 'Enter') onChange(value); }}
       />
       {(leaf.setting_type === 'password' || leaf.setting_type === 'apikey') && (
-        <button
-          className="px-1.5 py-0.5 text-xs rounded hover:bg-surface-alt transition-colors"
-          onClick={() => setRevealed(!revealed)}
-          title={revealed ? 'Hide' : 'Reveal'}
-        >
-          {revealed ? '🙈' : '👁'}
-        </button>
+        <>
+          <button
+            className="px-1.5 py-0.5 text-xs rounded hover:bg-surface-alt transition-colors"
+            onClick={() => setRevealed(!revealed)}
+            title={revealed ? 'Hide' : 'Reveal'}
+          >
+            {revealed ? '🙈' : '👁'}
+          </button>
+          {value && (
+            <button
+              className="px-1.5 py-0.5 text-xs rounded hover:bg-surface-alt transition-colors text-content/50 hover:text-content"
+              onClick={() => { navigator.clipboard.writeText(value); showToast('Copied to clipboard', 'success', 2000); }}
+              title="Copy"
+            >
+              📋
+            </button>
+          )}
+        </>
       )}
     </div>
   );
