@@ -17,6 +17,7 @@ import type {
   ConfigIssue,
   DetectedPort,
   DownloadProgress,
+  FileDownloadProgress,
   ForwardedPort,
   GuestConfigResponse,
   NetworkPolicyResponse,
@@ -25,6 +26,7 @@ import type {
   SessionInfo,
   SettingsNode,
   SettingValue,
+  QueryResult,
   VenvInfo,
   VmStateResponse,
 } from './types';
@@ -182,6 +184,13 @@ export function onDownloadProgress(
 }
 
 
+export function onFileDownloadProgress(
+  callback: (progress: FileDownloadProgress) => void,
+): Promise<UnlistenFn> {
+  return ensureDeps().then(() => isMock ? mockApi.onFileDownloadProgress(callback) : tauriListen<FileDownloadProgress>('file-download-progress', callback));
+}
+
+
 export function onShellReady(
   callback: (data: { session_id: number }) => void,
 ): Promise<UnlistenFn> {
@@ -241,3 +250,39 @@ export function onPortDetected(callback: (port: DetectedPort) => void): Promise<
 export function onPortClosed(callback: (data: { port: number }) => void): Promise<UnlistenFn> {
   return ensureDeps().then(() => isMock ? mockApi.onPortClosed(callback) : tauriListen<{ port: number }>('port-closed', callback));
 }
+
+// ---------------------------------------------------------------------------
+// File operations (guest VM)
+// ---------------------------------------------------------------------------
+
+/** Download a file from the guest VM to a host path. */
+export function downloadFile(guestPath: string, hostPath: string): Promise<void> {
+  return ensureDeps().then(() => isMock ? mockApi.downloadFile(guestPath, hostPath) : tauriInvoke('download_file', { guestPath, hostPath }));
+}
+
+/** Read a file from the guest VM and return its content as a string. */
+export function readFile(guestPath: string): Promise<string> {
+  return ensureDeps().then(() => isMock ? mockApi.readFile(guestPath) : tauriInvoke<string>('read_file', { guestPath }));
+}
+
+/** Save file content back to the guest VM. */
+export function saveFile(guestPath: string, content: string): Promise<void> {
+  return ensureDeps().then(() => isMock ? mockApi.saveFile(guestPath, content) : tauriInvoke('save_file', { guestPath, content }));
+}
+
+// ---------------------------------------------------------------------------
+// Session DB queries
+// ---------------------------------------------------------------------------
+
+/** Run a SELECT query against the session DB (or fixture in mock mode). */
+export async function queryDb(sql: string, db?: string, params?: unknown[]): Promise<QueryResult> {
+  await ensureDeps();
+  if (isMock) {
+    const { queryFixture, queryFixtureMain } = await import('./mock');
+    return db === 'main' ? queryFixtureMain(sql, params) : queryFixture(sql, params);
+  }
+  const raw = await tauriInvoke<string>('query_db', { sql, db, params });
+  return JSON.parse(raw);
+}
+
+

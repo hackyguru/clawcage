@@ -600,6 +600,13 @@ export const mockApi = {
   onPortDetected: async (_cb: (port: DetectedPort) => void) => () => {},
   onPortClosed: async (_cb: (data: { port: number }) => void) => () => {},
 
+  // File operations (mock)
+  downloadFile: async (_guestPath: string, _hostPath: string) => {},
+  readFile: async (guestPath: string): Promise<string> => {
+    return `# Mock file content for ${guestPath}\n\nThis is placeholder content shown in mock mode.\nEdit and save will not persist without a running VM.\n`;
+  },
+  saveFile: async (_guestPath: string, _content: string) => {},
+
   // Shell management
   spawnShell: async (_sessionId: number) => {},
   closeShell: async (_sessionId: number) => {},
@@ -610,6 +617,7 @@ export const mockApi = {
   onVmStateChanged: async (_cb: (state: string) => void) => () => {},
   onTerminalSourceChanged: async (_cb: (source: string) => void) => () => {},
   onDownloadProgress: async (_cb: (progress: any) => void) => () => {},
+  onFileDownloadProgress: async (_cb: (progress: any) => void) => () => {},
   onShellReady: async (_cb: (data: { session_id: number }) => void) => () => {},
   onShellClosed: async (_cb: (data: { session_id: number; exit_code: number }) => void) => () => {},
 

@@ -115,16 +115,8 @@ impl AsyncWrite for AsyncVsock {
 
 impl Drop for AsyncVsock {
     fn drop(&mut self) {
-        // Close the underlying file descriptor
-        unsafe {
-            libc::close(self.fd);
-        }
-        // Let the std_stream drop as normal, but its FD is now closed,
-        // which might cause an issue on drop, so we take it out using into_raw_fd if we could.
-        // Actually, UnixStream Drop will close it. So let's not double-close.
-        // wait, we used UnixStream::from_raw_fd. So when inner is dropped,
-        // the std UnixStream is dropped, which closes the fd automatically!
-        // So we MUST NOT call libc::close(self.fd) manually.
+        // The UnixStream inside AsyncFd owns the fd and closes it on drop.
+        // Do NOT call libc::close(self.fd) here -- that would double-close.
     }
 }
 

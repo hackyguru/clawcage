@@ -16,7 +16,7 @@ export default function StatCards({ cards }: Props) {
   return (
     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
       {cards.map((card, i) => (
-        <div key={i} className="bg-surface border border-edge rounded-lg p-3 shadow-xs">
+        <div key={i} className="glass border border-edge rounded-lg p-3 shadow-xs">
           <div className="text-[10px] text-content/40 uppercase tracking-widest font-semibold">{card.label}</div>
           <div className="text-xl font-bold mt-1.5 tabular-nums" style={card.color ? { color: card.color } : undefined}>
             {card.value}

@@ -43,7 +43,7 @@ export default function Dialog({ open, onClose, title, children, width = 'max-w-
     >
       <div
         ref={panelRef}
-        className={`${width} w-full mx-4 bg-surface border border-edge rounded-xl shadow-2xl animate-in`}
+        className={`${width} w-full mx-4 glass-elevated border border-edge rounded-xl shadow-2xl animate-in`}
       >
         {title && (
           <div className="flex items-center justify-between px-5 pt-4 pb-0">

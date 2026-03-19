@@ -119,7 +119,7 @@ export default function PortsView() {
                           </button>
                         ) : (
                           <button
-                            className="px-2.5 py-1 text-xs rounded-md bg-interactive text-white hover:opacity-90 transition-opacity font-medium"
+                            className="px-2.5 py-1 text-xs rounded-md bg-interactive text-on-interactive hover:opacity-90 transition-opacity font-medium"
                             onClick={() => forwardPortAction(p.port)}
                           >
                             Forward

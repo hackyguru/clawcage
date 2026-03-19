@@ -160,7 +160,7 @@ export default function AITab() {
         {/* Charts row */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Token timeline (stacked bar by model) */}
-          <div className="bg-surface border border-edge rounded-lg p-3 shadow-xs">
+          <div className="glass border border-edge rounded-lg p-3 shadow-xs">
             <h3 className="text-xs font-semibold text-content/70 mb-2">Tokens Over Time</h3>
             {tokenTimeline.length > 0 ? (
               <ResponsiveContainer width="100%" height={200}>
@@ -184,7 +184,7 @@ export default function AITab() {
           </div>
 
           {/* Cost by provider pie */}
-          <div className="bg-surface border border-edge rounded-lg p-3 shadow-xs">
+          <div className="glass border border-edge rounded-lg p-3 shadow-xs">
             <h3 className="text-xs font-semibold text-content/70 mb-2">Cost by Provider</h3>
             {costPieData.length > 0 ? (
               <ResponsiveContainer width="100%" height={200}>
@@ -205,7 +205,7 @@ export default function AITab() {
 
         {/* Model breakdown table */}
         {models.length > 0 && (
-          <div className="bg-surface border border-edge rounded-lg p-3 shadow-xs">
+          <div className="glass border border-edge rounded-lg p-3 shadow-xs">
             <h3 className="text-xs font-semibold text-content/70 mb-2">Models</h3>
             <div className="overflow-x-auto">
               <table className="data-table">

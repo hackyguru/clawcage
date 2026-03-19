@@ -217,6 +217,39 @@ fn run_watcher() {
         wd_to_path.len()
     );
 
+    // Initial scan: emit FileCreated for every file already present so the
+    // UI starts with a complete picture instead of only seeing post-boot changes.
+    let mut init_count: u32 = 0;
+    fn scan_existing(dir: &str, fd: RawFd, count: &mut u32) {
+        let Ok(entries) = std::fs::read_dir(dir) else { return };
+        for entry in entries.flatten() {
+            let Ok(ft) = entry.file_type() else { continue };
+            let path = entry.path().to_string_lossy().to_string();
+            if ft.is_dir() {
+                let name = entry.file_name();
+                let name = name.to_string_lossy();
+                if name == ".git" {
+                    // Emit .git marker for git repo detection.
+                    let rel = strip_root_prefix(&path).to_string();
+                    send_event(fd, &GuestToHost::FileCreated { path: rel, size: 0 });
+                    *count += 1;
+                } else if !should_exclude_path(&path) {
+                    scan_existing(&path, fd, count);
+                }
+            } else if ft.is_file() {
+                if should_exclude_path(&path) { continue; }
+                let size = entry.metadata().map(|m| m.len()).unwrap_or(0);
+                let rel = strip_root_prefix(&path).to_string();
+                send_event(fd, &GuestToHost::FileCreated { path: rel, size });
+                *count += 1;
+            }
+        }
+    }
+    scan_existing(WATCH_ROOT, vsock_fd, &mut init_count);
+    if init_count > 0 {
+        eprintln!("[aivm-fs-watch] initial scan: {init_count} existing files");
+    }
+
     let mut debouncer = Debouncer::new();
     
     // Set up signal handler for graceful shutdown
@@ -281,16 +314,24 @@ fn run_watcher() {
 
             let full_path = format!("{parent_path}/{name}");
 
+            let is_dir = event.mask.contains(AddWatchFlags::IN_ISDIR);
+
+            // Emit a marker when a .git directory is created so the UI can
+            // show a git icon on the parent folder.  Don't recurse into it.
+            if is_dir && name == ".git" && event.mask.contains(AddWatchFlags::IN_CREATE) {
+                let rel_path = strip_root_prefix(&full_path).to_string();
+                debouncer.record(rel_path, DebouncedAction::Created, Some(0));
+                continue;
+            }
+
             if should_exclude_path(&full_path) {
                 continue;
             }
 
-            let is_dir = event.mask.contains(AddWatchFlags::IN_ISDIR);
-
             // New directory: add watch and scan for missed files.
             if is_dir && event.mask.contains(AddWatchFlags::IN_CREATE) {
                 add_watches_recursive(&inotify, &full_path, flags, &mut wd_to_path);
-                // Scan directory for files created during race window.
+                // Scan directory for files and .git dirs created during race window.
                 if let Ok(entries) = std::fs::read_dir(&full_path) {
                     for entry in entries.flatten() {
                         if let Ok(ft) = entry.file_type() {
@@ -299,6 +340,11 @@ fn run_watcher() {
                                 let size = entry.metadata().map(|m| m.len()).unwrap_or(0);
                                 let rel = strip_root_prefix(&file_path).to_string();
                                 debouncer.record(rel, DebouncedAction::Created, Some(size));
+                            } else if ft.is_dir() && entry.file_name() == ".git" {
+                                // .git created before watch was added (e.g. git clone race).
+                                let git_path = entry.path().to_string_lossy().to_string();
+                                let rel = strip_root_prefix(&git_path).to_string();
+                                debouncer.record(rel, DebouncedAction::Created, Some(0));
                             }
                         }
                     }
@@ -585,5 +631,15 @@ mod tests {
         assert_eq!(d.pending.len(), 1);
         let entry = d.pending.get("hot.rs").unwrap();
         assert_eq!(entry.size, Some(99));
+    }
+
+    #[test]
+    fn git_dir_excluded_but_not_gitignore() {
+        // .git as a path component is excluded (internal git objects).
+        assert!(should_exclude_path("/root/project/.git"));
+        assert!(should_exclude_path("/root/project/.git/objects"));
+        // But files named .gitignore, .gitattributes etc. are NOT excluded.
+        assert!(!should_exclude_path("/root/project/.gitignore"));
+        assert!(!should_exclude_path("/root/project/.gitattributes"));
     }
 }

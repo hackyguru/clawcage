@@ -2,7 +2,7 @@ use std::collections::{HashMap, VecDeque};
 use std::os::unix::io::RawFd;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, RwLock};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 use aivm_core::VirtualMachine;
 use aivm_core::HostStateMachine;
@@ -236,6 +236,15 @@ pub struct AssetConfig {
 /// Terminal input message: (vsock_fd, session_id, data).
 type TerminalInputMsg = (RawFd, u32, String);
 
+/// Result type for pending file downloads from the guest VM.
+pub type DownloadResult = Result<Vec<u8>, String>;
+
+/// Tracks a chunked file download in progress.
+pub struct PartialDownload {
+    pub total_size: u64,
+    pub data: Vec<u8>,
+}
+
 pub struct AppState {
     pub vms: Mutex<HashMap<String, VmInstance>>,
     pub session_index: Mutex<SessionIndex>,
@@ -243,6 +252,12 @@ pub struct AppState {
     pub active_venv_id: Mutex<Option<String>>,
     pub terminal_output: Arc<TerminalOutputMap>,
     pub terminal_input_tx: std::sync::mpsc::Sender<TerminalInputMsg>,
+    /// Monotonic counter for file download request IDs.
+    pub download_id_counter: AtomicU64,
+    /// Pending file download requests awaiting guest response.
+    pub pending_downloads: Mutex<HashMap<u64, tokio::sync::oneshot::Sender<DownloadResult>>>,
+    /// In-progress chunked file downloads accumulating data.
+    pub partial_downloads: Mutex<HashMap<u64, PartialDownload>>,
 }
 
 impl AppState {
@@ -296,6 +311,9 @@ impl AppState {
             active_venv_id: Mutex::new(None),
             terminal_output: Arc::new(TerminalOutputMap::new()),
             terminal_input_tx: tx,
+            download_id_counter: AtomicU64::new(1),
+            pending_downloads: Mutex::new(HashMap::new()),
+            partial_downloads: Mutex::new(HashMap::new()),
         }
     }
 }

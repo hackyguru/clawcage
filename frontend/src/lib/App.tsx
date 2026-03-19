@@ -10,6 +10,7 @@ import { showToast } from './stores/toast';
 import type { ViewName } from './types';
 
 import Sidebar from './components/Sidebar';
+import TitleBar from './components/TitleBar';
 import StatusBar from './components/StatusBar';
 import DownloadProgress from './components/DownloadProgress';
 
@@ -19,6 +20,7 @@ import HomeView from './views/HomeView';
 // Lazy-load heavy views (StatsView pulls in recharts ~700KB)
 const PortsView = lazy(() => import('./views/PortsView'));
 const FilesView = lazy(() => import('./views/FilesView'));
+const LogsView = lazy(() => import('./views/LogsView'));
 const StatsView = lazy(() => import('./views/StatsView'));
 const SettingsView = lazy(() => import('./views/SettingsView'));
 
@@ -54,7 +56,7 @@ function AppInner() {
   const { activeVenvId } = useVenvs();
 
   // Keyboard shortcuts: Cmd+1 = Console, Cmd+2 = Ports, Cmd+3 = Files, Cmd+4 = Stats, Cmd+5 = Settings
-  const viewKeys: Record<string, ViewName> = { '1': 'terminal', '2': 'ports', '3': 'files', '4': 'stats', '5': 'settings' };
+  const viewKeys: Record<string, ViewName> = { '1': 'terminal', '2': 'ports', '3': 'files', '4': 'logs', '5': 'stats', '6': 'settings' };
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if ((e.metaKey || e.ctrlKey) && viewKeys[e.key]) {
       e.preventDefault();
@@ -77,41 +79,45 @@ function AppInner() {
   const currentView = activeView;
 
   return (
-  <div className="flex h-screen w-screen overflow-hidden bg-surface text-content">
-      <Sidebar />
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
-        {/* Download overlay */}
-        {isDownloading && downloadProgress && (
-          <div className="absolute inset-0 z-50 flex items-center justify-center bg-surface/90 backdrop-blur-sm">
-            <DownloadProgress />
-          </div>
-        )}
-
-        {/* Toast notifications */}
-        <ToastContainer />
-
-        {/* Main content area */}
-        <div className="flex-1 min-h-0 overflow-hidden relative">
-          {currentView === 'home' && <HomeView />}
-          {/* Keep TerminalView mounted (hidden) so xterm state survives view switches */}
-          {activeVenvId && (
-            <div
-              className="absolute inset-0"
-              style={{ display: currentView === 'terminal' ? 'block' : 'none' }}
-            >
-              <TerminalView key={activeVenvId} />
+    <div className="flex flex-col h-screen w-screen overflow-hidden bg-surface text-content rounded-[10px] border border-edge">
+      <TitleBar />
+      <div className="flex flex-1 min-h-0 overflow-hidden">
+        <Sidebar />
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
+          {/* Download overlay */}
+          {isDownloading && downloadProgress && (
+            <div className="absolute inset-0 z-50 flex items-center justify-center bg-surface/90 backdrop-blur-sm">
+              <DownloadProgress />
             </div>
           )}
-          <Suspense fallback={<div className="flex items-center justify-center h-full"><span className="spinner w-6 h-6 text-content/30" /></div>}>
-            {currentView === 'ports' && <PortsView />}
-            {currentView === 'files' && <FilesView />}
-            {currentView === 'stats' && <StatsView />}
-            {currentView === 'settings' && <SettingsView />}
-          </Suspense>
-        </div>
 
-        {/* Status bar */}
-        <StatusBar />
+          {/* Toast notifications */}
+          <ToastContainer />
+
+          {/* Main content area */}
+          <div className="flex-1 min-h-0 overflow-hidden relative">
+            {currentView === 'home' && <HomeView />}
+            {/* Keep TerminalView mounted (hidden) so xterm state survives view switches */}
+            {activeVenvId && (
+              <div
+                className="absolute inset-0"
+                style={{ display: currentView === 'terminal' ? 'block' : 'none' }}
+              >
+                <TerminalView key={activeVenvId} />
+              </div>
+            )}
+            <Suspense fallback={<div className="flex items-center justify-center h-full"><span className="spinner w-6 h-6 text-content/30" /></div>}>
+              {currentView === 'ports' && <PortsView />}
+              {currentView === 'files' && <FilesView />}
+              {currentView === 'logs' && <LogsView />}
+              {currentView === 'stats' && <StatsView />}
+              {currentView === 'settings' && <SettingsView />}
+            </Suspense>
+          </div>
+
+          {/* Status bar */}
+          <StatusBar />
+        </div>
       </div>
     </div>
   );

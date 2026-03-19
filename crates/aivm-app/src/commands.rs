@@ -792,6 +792,187 @@ pub async fn stop_forward(
     Ok(())
 }
 
+// ---------------------------------------------------------------------------
+// File download from guest VM
+// ---------------------------------------------------------------------------
+
+/// Download a file from the guest VM to the host filesystem.
+///
+/// Sends a FileRead request over the vsock control channel, waits for the
+/// guest agent to respond with FileContent (or FileError), then saves the
+/// file to `host_path`.
+#[tauri::command]
+pub async fn download_file(
+    guest_path: String,
+    host_path: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    use std::sync::atomic::Ordering;
+
+    let vm_id = active_vm_id(&state)?;
+
+    let (control_fd, host_state) = {
+        let vms = state.vms.lock().unwrap();
+        let instance = vms.get(&vm_id).ok_or("no VM running")?;
+        let fd = instance.vsock_control_fd.ok_or("vsock control not connected")?;
+        (fd, instance.state_machine.state())
+    };
+
+    // Allocate a unique download ID and register a oneshot channel.
+    let id = state.download_id_counter.fetch_add(1, Ordering::Relaxed);
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    state.pending_downloads.lock().unwrap().insert(id, tx);
+
+    // Send FileRead to the guest.
+    let msg = HostToGuest::FileRead { id, path: guest_path.clone() };
+    validate_host_msg(&msg, host_state)
+        .map_err(|e| format!("{e}"))?;
+    let frame = encode_host_msg(&msg).map_err(|e| format!("{e}"))?;
+
+    let mut file = clone_fd(control_fd)
+        .map_err(|e| format!("clone control fd failed: {e}"))?;
+    tokio::task::spawn_blocking(move || {
+        file.write_all(&frame)
+            .map_err(|e| format!("write FileRead failed: {e}"))
+    })
+    .await
+    .map_err(|e| format!("spawn_blocking: {e}"))??;
+
+    // Wait for the guest response with a generous timeout (5 minutes for large files).
+    let data = tokio::time::timeout(std::time::Duration::from_secs(300), rx)
+        .await
+        .map_err(|_| {
+            // Clean up on timeout.
+            state.pending_downloads.lock().unwrap().remove(&id);
+            "file download timed out".to_string()
+        })?
+        .map_err(|_| "download channel closed".to_string())?
+        .map_err(|e| e)?;
+
+    // Save to host filesystem.
+    tokio::task::spawn_blocking(move || {
+        // Ensure parent directory exists.
+        if let Some(parent) = std::path::Path::new(&host_path).parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|e| format!("create dir failed: {e}"))?;
+        }
+        std::fs::write(&host_path, &data)
+            .map_err(|e| format!("write file failed: {e}"))
+    })
+    .await
+    .map_err(|e| format!("spawn_blocking: {e}"))?
+}
+
+// ---------------------------------------------------------------------------
+// File read/save for inline editor
+// ---------------------------------------------------------------------------
+
+/// Read a file from the guest VM and return its content as a UTF-8 string.
+///
+/// Returns the file content for display/editing in the frontend. Limited to
+/// 1MB to avoid overwhelming the UI textarea.
+#[tauri::command]
+pub async fn read_file(
+    guest_path: String,
+    state: State<'_, AppState>,
+) -> Result<String, String> {
+    use std::sync::atomic::Ordering;
+
+    const MAX_EDIT_SIZE: usize = 1_048_576; // 1MB
+
+    let vm_id = active_vm_id(&state)?;
+
+    let (control_fd, host_state) = {
+        let vms = state.vms.lock().unwrap();
+        let instance = vms.get(&vm_id).ok_or("no VM running")?;
+        let fd = instance.vsock_control_fd.ok_or("vsock control not connected")?;
+        (fd, instance.state_machine.state())
+    };
+
+    let id = state.download_id_counter.fetch_add(1, Ordering::Relaxed);
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    state.pending_downloads.lock().unwrap().insert(id, tx);
+
+    let msg = HostToGuest::FileRead { id, path: guest_path.clone() };
+    validate_host_msg(&msg, host_state)
+        .map_err(|e| format!("{e}"))?;
+    let frame = encode_host_msg(&msg).map_err(|e| format!("{e}"))?;
+
+    let mut file = clone_fd(control_fd)
+        .map_err(|e| format!("clone control fd failed: {e}"))?;
+    tokio::task::spawn_blocking(move || {
+        file.write_all(&frame)
+            .map_err(|e| format!("write FileRead failed: {e}"))
+    })
+    .await
+    .map_err(|e| format!("spawn_blocking: {e}"))??;
+
+    let data = tokio::time::timeout(std::time::Duration::from_secs(30), rx)
+        .await
+        .map_err(|_| {
+            state.pending_downloads.lock().unwrap().remove(&id);
+            "file read timed out".to_string()
+        })?
+        .map_err(|_| "read channel closed".to_string())?
+        .map_err(|e| e)?;
+
+    if data.len() > MAX_EDIT_SIZE {
+        return Err(format!("file too large to edit ({} bytes, max {})", data.len(), MAX_EDIT_SIZE));
+    }
+
+    String::from_utf8(data)
+        .map_err(|_| "file contains binary content and cannot be edited as text".to_string())
+}
+
+/// Save file content back to the guest VM.
+#[tauri::command]
+pub async fn save_file(
+    guest_path: String,
+    content: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    use std::sync::atomic::Ordering;
+
+    let vm_id = active_vm_id(&state)?;
+
+    let (control_fd, host_state) = {
+        let vms = state.vms.lock().unwrap();
+        let instance = vms.get(&vm_id).ok_or("no VM running")?;
+        let fd = instance.vsock_control_fd.ok_or("vsock control not connected")?;
+        (fd, instance.state_machine.state())
+    };
+
+    let id = state.download_id_counter.fetch_add(1, Ordering::Relaxed);
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    state.pending_downloads.lock().unwrap().insert(id, tx);
+
+    let msg = HostToGuest::FileSave { id, path: guest_path.clone(), data: content.into_bytes() };
+    validate_host_msg(&msg, host_state)
+        .map_err(|e| format!("{e}"))?;
+    let frame = encode_host_msg(&msg).map_err(|e| format!("{e}"))?;
+
+    let mut file = clone_fd(control_fd)
+        .map_err(|e| format!("clone control fd failed: {e}"))?;
+    tokio::task::spawn_blocking(move || {
+        file.write_all(&frame)
+            .map_err(|e| format!("write FileSave failed: {e}"))
+    })
+    .await
+    .map_err(|e| format!("spawn_blocking: {e}"))??;
+
+    let _data = tokio::time::timeout(std::time::Duration::from_secs(30), rx)
+        .await
+        .map_err(|_| {
+            state.pending_downloads.lock().unwrap().remove(&id);
+            "file save timed out".to_string()
+        })?
+        .map_err(|_| "save channel closed".to_string())?
+        .map_err(|e| e)?;
+
+    Ok(())
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;

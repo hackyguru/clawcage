@@ -17,6 +17,13 @@ use serde::{Deserialize, Serialize};
 /// Generous buffer for large payloads like CA bundles and file writes.
 pub const MAX_FRAME_SIZE: u32 = 262_144;
 
+/// Chunk size for large file transfers (200KB).
+/// Leaves room for MessagePack framing overhead within MAX_FRAME_SIZE.
+pub const FILE_CHUNK_SIZE: usize = 204_800;
+
+/// Maximum downloadable file size (100MB).
+pub const MAX_DOWNLOAD_SIZE: u64 = 100 * 1024 * 1024;
+
 /// Maximum number of env vars allowed during boot handshake.
 pub const MAX_BOOT_ENV_VARS: usize = 128;
 
@@ -92,6 +99,8 @@ pub enum HostToGuest {
     },
     /// Request file content from guest.
     FileRead { id: u64, path: String },
+    /// Save file content at runtime (response: FileSaved or FileError).
+    FileSave { id: u64, path: String, data: Vec<u8> },
     /// Delete file in guest workspace.
     FileDelete { path: String },
     // -- Multi-shell --
@@ -128,11 +137,24 @@ pub enum GuestToHost {
     FileModified { path: String, size: u64 },
     /// Telemetry: file deleted in guest.
     FileDeleted { path: String },
-    /// Response to FileRead.
+    /// Response to FileRead (success).
     FileContent {
         id: u64,
         path: String,
         data: Vec<u8>,
+    },
+    /// Response to FileRead (error) or FileSave (error).
+    FileError { id: u64, error: String },
+    /// Confirmation that a file was saved successfully (response to FileSave).
+    FileSaved { id: u64 },
+    /// Chunk of a large file transfer (response to FileRead).
+    /// Sent for files too large to fit in a single FileContent message.
+    /// Transfer is complete when `offset + data.len() == total_size`.
+    FileChunk {
+        id: u64,
+        offset: u64,
+        data: Vec<u8>,
+        total_size: u64,
     },
     // -- Multi-shell --
     /// Shell session is ready (response to SpawnShell).
@@ -569,6 +591,67 @@ mod tests {
         }
     }
 
+    #[test]
+    fn roundtrip_file_error() {
+        let msg = GuestToHost::FileError {
+            id: 7,
+            error: "file not found".into(),
+        };
+        let frame = encode_guest_msg(&msg).unwrap();
+        let decoded = decode_guest_msg(&frame[4..]).unwrap();
+        match decoded {
+            GuestToHost::FileError { id, error } => {
+                assert_eq!(id, 7);
+                assert_eq!(error, "file not found");
+            }
+            other => panic!("expected FileError, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn roundtrip_file_chunk() {
+        let data = vec![42u8; 1024];
+        let msg = GuestToHost::FileChunk {
+            id: 3,
+            offset: 4096,
+            data: data.clone(),
+            total_size: 8192,
+        };
+        let frame = encode_guest_msg(&msg).unwrap();
+        let decoded = decode_guest_msg(&frame[4..]).unwrap();
+        match decoded {
+            GuestToHost::FileChunk {
+                id,
+                offset,
+                data: d,
+                total_size,
+            } => {
+                assert_eq!(id, 3);
+                assert_eq!(offset, 4096);
+                assert_eq!(d, data);
+                assert_eq!(total_size, 8192);
+            }
+            other => panic!("expected FileChunk, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn file_chunk_max_data_fits_in_frame() {
+        // Verify that a chunk with ~200KB data fits within MAX_FRAME_SIZE.
+        let msg = GuestToHost::FileChunk {
+            id: u64::MAX,
+            offset: u64::MAX,
+            data: vec![0; 204_800],
+            total_size: u64::MAX,
+        };
+        let frame = encode_guest_msg(&msg).unwrap();
+        let payload_len = frame.len() - 4;
+        assert!(
+            payload_len <= MAX_FRAME_SIZE as usize,
+            "FileChunk with 200KB data is {payload_len} bytes, exceeds max {MAX_FRAME_SIZE}"
+        );
+    }
+
     // -------------------------------------------------------------------
     // Frame format
     // -------------------------------------------------------------------
@@ -734,6 +817,11 @@ mod tests {
                 id: 1,
                 path: "/test".into(),
             },
+            HostToGuest::FileSave {
+                id: 1,
+                path: "/test".into(),
+                data: vec![0; 10],
+            },
             HostToGuest::FileDelete {
                 path: "/test".into(),
             },
@@ -779,6 +867,17 @@ mod tests {
                 id: 1,
                 path: "/test".into(),
                 data: vec![0; 10],
+            },
+            GuestToHost::FileError {
+                id: 1,
+                error: "not found".into(),
+            },
+            GuestToHost::FileSaved { id: 1 },
+            GuestToHost::FileChunk {
+                id: 1,
+                offset: 0,
+                data: vec![0; 10],
+                total_size: 100,
             },
             GuestToHost::ShellReady { session_id: u32::MAX },
             GuestToHost::ShellClosed { session_id: u32::MAX, exit_code: i32::MIN },

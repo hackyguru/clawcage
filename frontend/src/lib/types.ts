@@ -119,6 +119,13 @@ export interface DownloadProgress {
   phase: string;
 }
 
+/** Progress of a file download from the guest VM. */
+export interface FileDownloadProgress {
+  id: number;
+  received: number;
+  total: number;
+}
+
 /** A venv creation template. */
 export interface VenvTemplate {
   id: string;
@@ -142,7 +149,7 @@ export interface VenvInfo {
 }
 
 /** Sidebar view names. */
-export type ViewName = 'home' | 'terminal' | 'ports' | 'files' | 'stats' | 'settings';
+export type ViewName = 'home' | 'terminal' | 'ports' | 'files' | 'logs' | 'stats' | 'settings';
 
 /** A detected listening port inside the guest VM. */
 export interface DetectedPort {

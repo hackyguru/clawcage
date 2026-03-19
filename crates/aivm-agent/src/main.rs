@@ -24,6 +24,7 @@ use aivm_proto::{
     encode_terminal_frame, DEFAULT_SHELL_SESSION_ID, TERMINAL_FRAME_HEADER_SIZE,
     validate_env_key, validate_env_value, validate_file_path,
     MAX_BOOT_ENV_VARS, MAX_BOOT_FILES, MAX_BOOT_FILE_BYTES,
+    FILE_CHUNK_SIZE, MAX_DOWNLOAD_SIZE,
 };
 use nix::libc;
 use nix::poll::{PollFd, PollFlags, PollTimeout, poll};
@@ -842,6 +843,144 @@ fn control_loop(
                 if let Err(e) = send_guest_msg(control_fd, &GuestToHost::Pong) {
                     eprintln!("[aivm-agent] failed to send Pong: {e}");
                     break;
+                }
+            }
+            Ok(HostToGuest::FileRead { id, path }) => {
+                eprintln!("[aivm-agent] FileRead[{id}]: {path}");
+                // Validate path: no traversal.
+                if let Err(e) = aivm_proto::validate_file_path(&path) {
+                    let _ = send_guest_msg(control_fd, &GuestToHost::FileError {
+                        id,
+                        error: format!("invalid path: {e}"),
+                    });
+                    continue;
+                }
+                // fs_events stores paths relative to /root/, so resolve
+                // relative paths against /root.
+                let path = if path.starts_with('/') {
+                    path
+                } else {
+                    format!("/root/{path}")
+                };
+                match std::fs::metadata(&path) {
+                    Ok(meta) if !meta.is_file() => {
+                        let _ = send_guest_msg(control_fd, &GuestToHost::FileError {
+                            id,
+                            error: "not a regular file".into(),
+                        });
+                    }
+                    Ok(meta) if meta.len() > MAX_DOWNLOAD_SIZE => {
+                        let _ = send_guest_msg(control_fd, &GuestToHost::FileError {
+                            id,
+                            error: format!(
+                                "file too large ({} bytes, max {} MB)",
+                                meta.len(),
+                                MAX_DOWNLOAD_SIZE / (1024 * 1024)
+                            ),
+                        });
+                    }
+                    Ok(meta) if meta.len() as usize <= FILE_CHUNK_SIZE => {
+                        // Small file: send in a single FileContent message.
+                        match std::fs::read(&path) {
+                            Ok(data) => {
+                                let _ = send_guest_msg(control_fd, &GuestToHost::FileContent {
+                                    id,
+                                    path: path.clone(),
+                                    data,
+                                });
+                            }
+                            Err(e) => {
+                                let _ = send_guest_msg(control_fd, &GuestToHost::FileError {
+                                    id,
+                                    error: format!("read error: {e}"),
+                                });
+                            }
+                        }
+                    }
+                    Ok(meta) => {
+                        // Large file: send as chunks.
+                        let total_size = meta.len();
+                        eprintln!("[aivm-agent] FileRead[{id}]: sending {} bytes in chunks", total_size);
+                        match std::fs::File::open(&path) {
+                            Ok(mut file) => {
+                                use std::io::Read;
+                                let mut offset: u64 = 0;
+                                let mut buf = vec![0u8; FILE_CHUNK_SIZE];
+                                let mut failed = false;
+                                loop {
+                                    let n = match file.read(&mut buf) {
+                                        Ok(0) => break,
+                                        Ok(n) => n,
+                                        Err(e) => {
+                                            let _ = send_guest_msg(control_fd, &GuestToHost::FileError {
+                                                id,
+                                                error: format!("read error at offset {offset}: {e}"),
+                                            });
+                                            failed = true;
+                                            break;
+                                        }
+                                    };
+                                    if send_guest_msg(control_fd, &GuestToHost::FileChunk {
+                                        id,
+                                        offset,
+                                        data: buf[..n].to_vec(),
+                                        total_size,
+                                    }).is_err() {
+                                        eprintln!("[aivm-agent] FileRead[{id}]: failed to send chunk at offset {offset}");
+                                        failed = true;
+                                        break;
+                                    }
+                                    offset += n as u64;
+                                }
+                                if !failed && offset != total_size {
+                                    // File was truncated during read.
+                                    let _ = send_guest_msg(control_fd, &GuestToHost::FileError {
+                                        id,
+                                        error: format!("file truncated: expected {total_size} bytes, read {offset}"),
+                                    });
+                                }
+                            }
+                            Err(e) => {
+                                let _ = send_guest_msg(control_fd, &GuestToHost::FileError {
+                                    id,
+                                    error: format!("open error: {e}"),
+                                });
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        let _ = send_guest_msg(control_fd, &GuestToHost::FileError {
+                            id,
+                            error: format!("file not found: {e}"),
+                        });
+                    }
+                }
+            }
+            Ok(HostToGuest::FileSave { id, path, data }) => {
+                eprintln!("[aivm-agent] FileSave[{id}]: {path} ({} bytes)", data.len());
+                if let Err(e) = aivm_proto::validate_file_path(&path) {
+                    let _ = send_guest_msg(control_fd, &GuestToHost::FileError {
+                        id,
+                        error: format!("invalid path: {e}"),
+                    });
+                    continue;
+                }
+                // Resolve relative paths against /root.
+                let path = if path.starts_with('/') { path } else { format!("/root/{path}") };
+                // Ensure parent directory exists.
+                if let Some(parent) = std::path::Path::new(&path).parent() {
+                    let _ = std::fs::create_dir_all(parent);
+                }
+                match std::fs::write(&path, &data) {
+                    Ok(()) => {
+                        let _ = send_guest_msg(control_fd, &GuestToHost::FileSaved { id });
+                    }
+                    Err(e) => {
+                        let _ = send_guest_msg(control_fd, &GuestToHost::FileError {
+                            id,
+                            error: format!("write error: {e}"),
+                        });
+                    }
                 }
             }
             Ok(HostToGuest::Exec { id, command }) => {

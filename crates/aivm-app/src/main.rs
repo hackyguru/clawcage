@@ -765,6 +765,69 @@ async fn vsock_control_handler(app_handle: tauri::AppHandle, control_fd: RawFd) 
                     "exit_code": exit_code,
                 }));
             }
+            GuestToHost::FileContent { id, path, data } => {
+                info!("vsock: file content received (id={id}, path={path}, {} bytes)", data.len());
+                let state = app_handle.state::<AppState>();
+                let tx = state.pending_downloads.lock().unwrap().remove(&id);
+                if let Some(tx) = tx {
+                    let _ = tx.send(Ok(data));
+                }
+            }
+            GuestToHost::FileError { id, error } => {
+                info!("vsock: file error (id={id}): {error}");
+                let state = app_handle.state::<AppState>();
+                // Clean up partial download if any.
+                state.partial_downloads.lock().unwrap().remove(&id);
+                let tx = state.pending_downloads.lock().unwrap().remove(&id);
+                if let Some(tx) = tx {
+                    let _ = tx.send(Err(error));
+                }
+            }
+            GuestToHost::FileSaved { id } => {
+                info!("vsock: file saved (id={id})");
+                let state = app_handle.state::<AppState>();
+                let tx = state.pending_downloads.lock().unwrap().remove(&id);
+                if let Some(tx) = tx {
+                    // Send empty vec to signal success.
+                    let _ = tx.send(Ok(vec![]));
+                }
+            }
+            GuestToHost::FileChunk { id, offset, data, total_size } => {
+                let state = app_handle.state::<AppState>();
+                let chunk_len = data.len() as u64;
+
+                // Accumulate chunk data.
+                {
+                    let mut partials = state.partial_downloads.lock().unwrap();
+                    let partial = partials.entry(id).or_insert_with(|| {
+                        crate::state::PartialDownload {
+                            total_size,
+                            data: Vec::with_capacity(total_size as usize),
+                        }
+                    });
+                    partial.data.extend_from_slice(&data);
+                }
+
+                // Emit progress event to frontend.
+                let received = offset + chunk_len;
+                let _ = app_handle.emit("file-download-progress", serde_json::json!({
+                    "id": id,
+                    "received": received,
+                    "total": total_size,
+                }));
+
+                // Check if transfer is complete.
+                if received >= total_size {
+                    let partial = state.partial_downloads.lock().unwrap().remove(&id);
+                    if let Some(partial) = partial {
+                        info!("vsock: chunked download complete (id={id}, {} bytes)", partial.data.len());
+                        let tx = state.pending_downloads.lock().unwrap().remove(&id);
+                        if let Some(tx) = tx {
+                            let _ = tx.send(Ok(partial.data));
+                        }
+                    }
+                }
+            }
             other => {
                 info!("vsock: unhandled control message: {other:?}");
             }
@@ -917,6 +980,7 @@ async fn setup_vsock(
                     upstream_tls: Arc::clone(&ns.upstream_tls),
                     pricing: aivm_core::gateway::pricing::PricingTable::load(),
                     trace_state: std::sync::Mutex::new(aivm_core::gateway::TraceState::new()),
+                    tunnel_non_ai: true,
                 })
             });
             let mcp = instance.mcp_state.clone();
@@ -1644,6 +1708,7 @@ fn run_cli(command: &str, cli_env: &[(String, String)], session_index: &SessionI
             upstream_tls: Arc::clone(&ns.upstream_tls),
             pricing: aivm_core::gateway::pricing::PricingTable::load(),
             trace_state: std::sync::Mutex::new(aivm_core::gateway::TraceState::new()),
+            tunnel_non_ai: true,
         })
     });
 
@@ -2490,6 +2555,36 @@ fn main() {
         .setup(|app| {
             info!("tauri setup hook running");
 
+            // Configure native macOS window for transparent frameless appearance.
+            // The `macos-private-api` Tauri feature enables wry's `transparent` path
+            // which disables WKWebView's drawsBackground. We still need to configure
+            // the NSWindow itself: clear background + non-opaque so the CSS
+            // border-radius on the app root creates clean rounded corners.
+            #[cfg(target_os = "macos")]
+            if let Some(win) = app.get_webview_window("main") {
+                win.with_webview(|webview| {
+                    unsafe {
+                        use objc2_app_kit::{NSColor, NSWindow};
+                        let ns_window: &NSWindow = &*webview.ns_window().cast();
+                        ns_window.setOpaque(false);
+                        ns_window.setBackgroundColor(Some(&NSColor::clearColor()));
+                        ns_window.setHasShadow(true);
+
+                        // Round the content view's layer so macOS clips all four
+                        // corners natively (CSS overflow-hidden alone doesn't clip
+                        // at the compositing level on the bottom corners).
+                        if let Some(content_view) = ns_window.contentView() {
+                            content_view.setWantsLayer(true);
+                            if let Some(layer) = content_view.layer() {
+                                let layer: &objc2::runtime::AnyObject = &*layer;
+                                let _: () = objc2::msg_send![layer, setCornerRadius: 10.0_f64];
+                                let _: () = objc2::msg_send![layer, setMasksToBounds: true];
+                            }
+                        }
+                    }
+                }).ok();
+            }
+
             // Check for updates.
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
@@ -2548,6 +2643,9 @@ fn main() {
             commands::get_ports,
             commands::forward_port,
             commands::stop_forward,
+            commands::download_file,
+            commands::read_file,
+            commands::save_file,
             commands::get_session_info,
             commands::query_db,
             venvs::list_venvs,

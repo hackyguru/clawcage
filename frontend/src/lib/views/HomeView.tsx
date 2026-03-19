@@ -181,7 +181,7 @@ function VenvCard({ venv, onDelete }: { venv: VenvInfo; onDelete: (v: VenvInfo) 
   return (
     <>
       <div
-        className="group bg-surface border border-edge rounded-xl p-4 shadow-xs hover:shadow-md hover:border-interactive/30 transition-all cursor-pointer"
+        className="group glass border border-edge rounded-xl p-4 shadow-xs hover:shadow-md hover:border-interactive/30 transition-all cursor-pointer"
         onClick={handleOpen}
       >
         <div className="flex items-start justify-between gap-3">
@@ -324,7 +324,7 @@ export default function HomeView() {
             <p className="text-sm text-content/50 mt-1">Create and manage isolated virtual environments</p>
           </div>
           <button
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-interactive text-white hover:opacity-90 transition font-medium"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-interactive text-on-interactive hover:opacity-90 transition font-medium"
             onClick={() => setCreating(true)}
             aria-label="Create new environment"
           >
@@ -373,7 +373,7 @@ export default function HomeView() {
                 Cancel
               </button>
               <button
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-interactive text-white hover:opacity-90 transition font-medium disabled:opacity-40"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-interactive text-on-interactive hover:opacity-90 transition font-medium disabled:opacity-40"
                 onClick={handleCreate}
                 disabled={!newName.trim() || submitting}
               >
@@ -413,7 +413,7 @@ export default function HomeView() {
               Create your first sandboxed virtual environment to get started.
             </p>
             <button
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-interactive text-white hover:opacity-90 transition font-medium"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-interactive text-on-interactive hover:opacity-90 transition font-medium"
               onClick={() => setCreating(true)}
             >
               <PlusIcon className="size-4" />

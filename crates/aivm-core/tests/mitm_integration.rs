@@ -58,6 +58,7 @@ fn make_proxy_config(
         upstream_tls: mitm_proxy::make_upstream_tls_config(),
         pricing: aivm_core::gateway::pricing::PricingTable::load(),
         trace_state: std::sync::Mutex::new(aivm_core::gateway::TraceState::new()),
+        tunnel_non_ai: false,
     });
     (config, db)
 }

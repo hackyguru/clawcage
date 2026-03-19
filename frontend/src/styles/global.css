@@ -17,12 +17,13 @@
   /* Text */
   --color-content: #e5e5e5;
 
-  /* Interactive (purple) */
-  --color-interactive: oklch(0.58 0.233 277);
+  /* Interactive (monochrome) */
+  --color-interactive: #ffffff;
+  --color-on-interactive: #09090b;
 
   /* Status */
   --color-allowed: oklch(0.74 0.16 233);
-  --color-denied: oklch(0.65 0.15 300);
+  --color-denied: oklch(0.65 0.22 27);
   --color-caution: oklch(0.82 0.189 84);
 
   /* Providers (brand identity) */
@@ -40,18 +41,18 @@
   /* File actions */
   --color-file-created: oklch(0.74 0.16 233);
   --color-file-modified: oklch(0.72 0.14 185);
-  --color-file-deleted: oklch(0.65 0.15 300);
+  --color-file-deleted: oklch(0.65 0.22 27);
 
   /* JSON syntax */
   --color-json-key: oklch(0.75 0.15 250);
   --color-json-string: oklch(0.72 0.14 145);
-  --color-json-bool: oklch(0.7 0.16 300);
+  --color-json-bool: oklch(0.7 0.15 340);
   --color-json-number: oklch(0.75 0.14 60);
 
   /* Span types (trace viewer) */
   --color-span-thinking: oklch(0.7 0.15 250);
   --color-span-tool: oklch(0.72 0.14 145);
-  --color-span-answer: oklch(0.65 0.15 300);
+  --color-span-answer: oklch(0.7 0.15 340);
 
   /* Chart infrastructure */
   --color-chart-grid: oklch(0.4 0.01 250 / 0.15);
@@ -62,10 +63,12 @@
 /* --- Light mode overrides --- */
 
 [data-theme="light"] {
-  --color-surface: #fafafa;
-  --color-surface-alt: #f0f0f0;
-  --color-edge: oklch(0 0 0 / 0.1);
-  --color-content: #171717;
+  --color-surface: #f4f4f5;
+  --color-surface-alt: #e4e4e7;
+  --color-edge: oklch(0 0 0 / 0.08);
+  --color-content: #18181b;
+  --color-interactive: #18181b;
+  --color-on-interactive: #ffffff;
 }
 
 
@@ -124,6 +127,7 @@
 
 .toggle-switch:checked::after {
   transform: translateX(16px);
+  background: var(--color-on-interactive);
 }
 
 .toggle-switch:disabled {
@@ -188,6 +192,45 @@
 }
 
 
+/* --- Glass effects --- */
+
+.glass {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.glass-elevated {
+  background: rgba(255, 255, 255, 0.07);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+[data-theme="light"] .glass {
+  background: rgba(255, 255, 255, 0.55);
+}
+
+[data-theme="light"] .glass-elevated {
+  background: rgba(255, 255, 255, 0.72);
+}
+
+
+/* --- Titlebar drag region --- */
+
+.titlebar {
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+
+.titlebar button,
+.titlebar input,
+.titlebar select,
+.titlebar a {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+
 /* --- Base styles --- */
 
 :root {
@@ -201,4 +244,5 @@ body {
   overflow: hidden;
   margin: 0;
   padding: 0;
+  background: transparent;
 }

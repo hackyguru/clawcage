@@ -51,7 +51,7 @@ _RST='\033[0m'
 printf '\033[2J\033[H'
 if [ -f /etc/aivm-banner.txt ]; then
     sed "s/%KERNEL%/$(uname -r)/g; s/%ARCH%/$(uname -m)/g" /etc/aivm-banner.txt | \
-        while IFS= read -r line; do echo -e "$line"; done
+        while IFS= read -r line; do echo -e "${_BLUE}${line}${_RST}"; done
 fi
 
 # Show AI tool status based on policy (AIVM_*_ALLOWED) and API key env vars.

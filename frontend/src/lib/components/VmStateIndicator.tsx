@@ -8,7 +8,7 @@ export default function VmStateIndicator({ collapsed = false }: { collapsed?: bo
     vmState === 'running' ? 'bg-allowed'
     : vmState === 'stopped' || vmState === 'error' ? 'bg-denied'
     : vmState === 'booting' ? 'bg-caution'
-  : 'bg-neutral-900';
+  : 'bg-content/10';
 
   const textClass =
     vmState === 'running' ? 'text-allowed'

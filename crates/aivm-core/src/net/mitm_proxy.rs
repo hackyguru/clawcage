@@ -53,6 +53,10 @@ pub struct MitmProxyConfig {
     pub pricing: crate::gateway::pricing::PricingTable,
     /// Trace state for linking multi-turn tool-use conversations.
     pub trace_state: std::sync::Mutex<crate::gateway::TraceState>,
+    /// When true, non-AI domains use a transparent TCP tunnel instead of
+    /// MITM.  Avoids HTTP body-streaming issues for protocols like git.
+    /// Defaults to true; tests set this to false.
+    pub tunnel_non_ai: bool,
 }
 
 /// Detect AI provider from domain name.
@@ -197,7 +201,58 @@ async fn handle_inner(
     // Snapshot the live policy for this connection (cheap Arc clone).
     let policy: Arc<NetworkPolicy> = config.policy.read().unwrap().clone();
 
+    // Early SNI extraction: parse domain from raw ClientHello bytes BEFORE
+    // the TLS handshake so we can decide whether to MITM or TCP-tunnel.
+    let sni_domain = extract_sni_from_client_hello(&initial_buf);
+
+    // For non-AI domains, use a transparent TCP tunnel instead of MITM.
+    // This avoids HTTP body streaming issues (hyper framing, gzip decompression)
+    // that break protocols like git smart HTTP.
+    if config.tunnel_non_ai {
+    if let Some(ref domain) = sni_domain {
+        if detect_ai_provider(domain).is_none() {
+            // Policy check before tunneling.
+            let eval = policy.evaluate(domain, "CONNECT");
+            if !eval.allowed {
+                // Emit denied telemetry.
+                let event = NetEvent {
+                    timestamp: SystemTime::now(),
+                    domain: domain.clone(),
+                    port: 443,
+                    decision: Decision::Denied,
+                    process_name,
+                    pid: None,
+                    bytes_sent: 0,
+                    bytes_received: 0,
+                    duration_ms: 0,
+                    method: None,
+                    path: None,
+                    query: None,
+                    status_code: None,
+                    matched_rule: Some(eval.matched_rule),
+                    request_headers: None,
+                    response_headers: None,
+                    request_body_preview: None,
+                    response_body_preview: None,
+                    conn_type: Some("https-tunnel-denied".to_string()),
+                };
+                config.db.write(WriteOp::NetEvent(event)).await;
+                return Err((domain.clone(), Decision::Denied, eval.reason));
+            }
+
+            return handle_tunnel(
+                domain.clone(),
+                initial_buf,
+                vsock_stream,
+                process_name,
+                &config.db,
+            ).await;
+        }
+    }
+    } // tunnel_non_ai
+
     // 2. TLS handshake -- MitmCertResolver captures the domain from SNI.
+    //    (AI provider traffic only -- we need to inspect HTTP for telemetry.)
     let resolver = Arc::new(MitmCertResolver::with_policy(
         Arc::clone(&config.ca),
         Arc::clone(&policy),
@@ -268,6 +323,14 @@ async fn handle_inner(
             warn!(domain, error = %e, "hyper serve error");
         }
     }
+
+    // Signal EOF to the guest.  The dup'd fd used for I/O is closed when
+    // the TLS stream drops above, but the original fd (ManuallyDrop) keeps
+    // the vsock socket alive.  Without an explicit shutdown the guest's
+    // copy_bidirectional never sees EOF and the TLS session hangs until the
+    // ObjC VsockConnection is released -- causing "non-properly terminated"
+    // errors for protocols like git that depend on clean connection close.
+    unsafe { libc::shutdown(vsock_fd, libc::SHUT_RDWR); }
 
     Ok(domain)
 }
@@ -485,14 +548,22 @@ async fn handle_request(
         .method(original_method)
         .uri(&full_path);
     for (name, value) in original_headers.iter() {
-        if name == "host" || name == "accept-encoding" {
+        if name == "host" {
+            continue;
+        }
+        // For AI provider requests, override accept-encoding to gzip only
+        // (we decompress for telemetry parsing; brotli/zstd not supported).
+        // For non-AI traffic (git, npm, etc.), pass through the client's
+        // original accept-encoding so the proxy doesn't decompress/re-encode.
+        if name == "accept-encoding" && ai_provider.is_some() {
             continue;
         }
         builder = builder.header(name.clone(), value.clone());
     }
     builder = builder.header("host", domain);
-    // Only accept gzip -- we can decompress it; brotli/zstd we cannot.
-    builder = builder.header("accept-encoding", "gzip");
+    if ai_provider.is_some() {
+        builder = builder.header("accept-encoding", "gzip");
+    }
 
     // Track request body (boxed for consistent sender type across requests).
     // Always capture AI provider request bodies for telemetry parsing
@@ -527,13 +598,15 @@ async fn handle_request(
     // Telemetry logs still record the original headers (useful for debugging).
     let resp_hdrs = format_headers(&resp_parts.headers);
 
-    // Decompress gzip responses -- all downstream consumers (SSE parser,
-    // body preview, telemetry) receive decompressed bytes. The guest also
-    // receives uncompressed data (vsock is local, compression unnecessary).
-    let is_gzip = resp_parts.headers.get("content-encoding")
-        .and_then(|v| v.to_str().ok())
-        .map(|v| v.eq_ignore_ascii_case("gzip"))
-        .unwrap_or(false);
+    // Decompress gzip responses for AI providers only -- SSE parser and
+    // telemetry need decompressed bytes.  Non-AI traffic (git, npm, etc.)
+    // is passed through as-is to avoid body corruption during large
+    // transfers like git pack streams.
+    let is_gzip = ai_provider.is_some()
+        && resp_parts.headers.get("content-encoding")
+            .and_then(|v| v.to_str().ok())
+            .map(|v| v.eq_ignore_ascii_case("gzip"))
+            .unwrap_or(false);
 
     let resp_body: ProxyBoxBody = if is_gzip {
         use http_body_util::BodyExt;
@@ -965,6 +1038,10 @@ impl hyper::body::Body for TelemetryBody {
                     });
                 }
                 Poll::Ready(None)
+            }
+            Poll::Ready(Some(Err(e))) => {
+                warn!("MITM proxy: body stream error: {e:#}");
+                Poll::Ready(Some(Err(e)))
             }
             other => other,
         }
@@ -1414,6 +1491,166 @@ impl<R: AsyncWrite + Unpin> AsyncWrite for ReplayReader<R> {
     }
 }
 
+// ── TCP tunnel for non-AI traffic ────────────────────────────────
+//
+// For non-AI domains (git, npm, pip, etc.), bypass MITM entirely: connect
+// to the real upstream server and pipe raw bytes between guest vsock and
+// upstream TCP.  The TLS handshake happens end-to-end (guest ↔ upstream),
+// so there are no framing, body-streaming, or decompression issues.
+
+/// Transparent TCP tunnel: forward raw bytes between guest vsock and upstream.
+///
+/// `initial_buf` contains the ClientHello bytes we already read (replayed
+/// to the upstream so the TLS handshake completes end-to-end).
+async fn handle_tunnel(
+    domain: String,
+    initial_buf: Vec<u8>,
+    mut vsock_stream: AsyncFdStream,
+    process_name: Option<String>,
+    db: &Arc<DbWriter>,
+) -> Result<String, (String, Decision, String)> {
+    let start = Instant::now();
+
+    // Connect to the real upstream server.
+    let mut upstream = tokio::net::TcpStream::connect(format!("{domain}:443"))
+        .await
+        .map_err(|e| (domain.clone(), Decision::Error, format!("tunnel connect: {e}")))?;
+    let _ = upstream.set_nodelay(true);
+
+    // Replay the ClientHello we already buffered.
+    tokio::io::AsyncWriteExt::write_all(&mut upstream, &initial_buf)
+        .await
+        .map_err(|e| (domain.clone(), Decision::Error, format!("tunnel replay: {e}")))?;
+
+    // Bidirectional byte copy (no TLS termination, no HTTP parsing).
+    let result = tokio::io::copy_bidirectional(&mut vsock_stream, &mut upstream).await;
+
+    let (bytes_sent, bytes_received) = match result {
+        Ok((from_guest, from_upstream)) => (from_guest, from_upstream),
+        Err(e) => {
+            // Connection reset / broken pipe is normal at end of transfer.
+            let is_normal = matches!(
+                e.kind(),
+                io::ErrorKind::ConnectionReset
+                    | io::ErrorKind::BrokenPipe
+                    | io::ErrorKind::UnexpectedEof
+            );
+            if !is_normal {
+                debug!(domain, error = %e, "tunnel copy error");
+            }
+            (0, 0)
+        }
+    };
+
+    let duration_ms = start.elapsed().as_millis() as u64;
+
+    // Emit a single connection-level telemetry event.
+    let event = NetEvent {
+        timestamp: SystemTime::now(),
+        domain: domain.clone(),
+        port: 443,
+        decision: Decision::Allowed,
+        process_name,
+        pid: None,
+        bytes_sent,
+        bytes_received,
+        duration_ms,
+        method: None,
+        path: None,
+        query: None,
+        status_code: None,
+        matched_rule: Some("tunnel".to_string()),
+        request_headers: None,
+        response_headers: None,
+        request_body_preview: None,
+        response_body_preview: None,
+        conn_type: Some("https-tunnel".to_string()),
+    };
+    db.write(WriteOp::NetEvent(event)).await;
+
+    info!(domain, bytes_sent, bytes_received, duration_ms, "MITM proxy: tunnel closed");
+    Ok(domain)
+}
+
+/// Extract the SNI hostname from a raw TLS ClientHello message.
+///
+/// Parses just enough of the TLS record layer and handshake to find the
+/// server_name extension (type 0x0000).  Returns None if the SNI cannot
+/// be found (malformed, missing extension, or not a ClientHello).
+fn extract_sni_from_client_hello(buf: &[u8]) -> Option<String> {
+    // TLS record: ContentType(1) + Version(2) + Length(2) + body
+    if buf.len() < 5 || buf[0] != 0x16 {
+        return None; // Not a TLS handshake record
+    }
+    let record_len = u16::from_be_bytes([buf[3], buf[4]]) as usize;
+    let record_body = buf.get(5..5 + record_len)?;
+
+    // Handshake: HandshakeType(1) + Length(3) + body
+    if record_body.is_empty() || record_body[0] != 0x01 {
+        return None; // Not ClientHello
+    }
+    let hello_len =
+        ((record_body[1] as usize) << 16) | ((record_body[2] as usize) << 8) | (record_body[3] as usize);
+    let hello = record_body.get(4..4 + hello_len)?;
+
+    // ClientHello: Version(2) + Random(32) + SessionID(var) + CipherSuites(var) + Compression(var) + Extensions
+    let mut pos = 2 + 32; // skip version + random
+    if pos >= hello.len() {
+        return None;
+    }
+
+    // Session ID
+    let sid_len = hello[pos] as usize;
+    pos += 1 + sid_len;
+
+    // Cipher suites
+    if pos + 2 > hello.len() {
+        return None;
+    }
+    let cs_len = u16::from_be_bytes([hello[pos], hello[pos + 1]]) as usize;
+    pos += 2 + cs_len;
+
+    // Compression methods
+    if pos >= hello.len() {
+        return None;
+    }
+    let comp_len = hello[pos] as usize;
+    pos += 1 + comp_len;
+
+    // Extensions length
+    if pos + 2 > hello.len() {
+        return None;
+    }
+    let ext_total = u16::from_be_bytes([hello[pos], hello[pos + 1]]) as usize;
+    pos += 2;
+
+    let ext_end = pos + ext_total;
+    while pos + 4 <= ext_end && pos + 4 <= hello.len() {
+        let ext_type = u16::from_be_bytes([hello[pos], hello[pos + 1]]);
+        let ext_len = u16::from_be_bytes([hello[pos + 2], hello[pos + 3]]) as usize;
+        pos += 4;
+
+        if ext_type == 0x0000 {
+            // SNI extension: ServerNameList length(2) + entries
+            if ext_len < 5 || pos + ext_len > hello.len() {
+                return None;
+            }
+            // Skip list length (2), read first entry: type(1) + name_len(2) + name
+            let name_type = hello[pos + 2];
+            if name_type != 0x00 {
+                return None; // Not a hostname
+            }
+            let name_len = u16::from_be_bytes([hello[pos + 3], hello[pos + 4]]) as usize;
+            let name_bytes = hello.get(pos + 5..pos + 5 + name_len)?;
+            return std::str::from_utf8(name_bytes).ok().map(|s| s.to_string());
+        }
+
+        pos += ext_len;
+    }
+
+    None
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -1445,6 +1682,7 @@ mod tests {
             upstream_tls: make_upstream_tls_config(),
             pricing: crate::gateway::pricing::PricingTable::load(),
             trace_state: std::sync::Mutex::new(crate::gateway::TraceState::new()),
+            tunnel_non_ai: false, // tests use UnixStream pairs, not real TCP
         })
     }
 
@@ -1613,6 +1851,38 @@ mod tests {
         let events = reader.recent_net_events(10).unwrap();
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].decision, Decision::Error);
+    }
+
+    // ---------------------------------------------------------------
+    // SNI parser tests
+    // ---------------------------------------------------------------
+
+    #[test]
+    fn extract_sni_from_valid_client_hello() {
+        let hello = make_client_hello("github.com");
+        assert_eq!(
+            extract_sni_from_client_hello(&hello),
+            Some("github.com".to_string())
+        );
+    }
+
+    #[test]
+    fn extract_sni_various_domains() {
+        for domain in &["api.anthropic.com", "example.org", "a.b.c.d.example.co.uk"] {
+            let hello = make_client_hello(domain);
+            assert_eq!(
+                extract_sni_from_client_hello(&hello).as_deref(),
+                Some(*domain),
+                "failed for {domain}"
+            );
+        }
+    }
+
+    #[test]
+    fn extract_sni_returns_none_for_non_tls() {
+        assert_eq!(extract_sni_from_client_hello(b"GET / HTTP/1.1\r\n"), None);
+        assert_eq!(extract_sni_from_client_hello(b""), None);
+        assert_eq!(extract_sni_from_client_hello(b"\x16\x03\x01"), None); // truncated
     }
 
     #[test]

@@ -3,7 +3,7 @@
 
 export const colors = {
   allowed: 'oklch(0.74 0.16 233)',
-  denied: 'oklch(0.65 0.15 300)',
+  denied: 'oklch(0.65 0.22 27)',
   caution: 'oklch(0.82 0.189 84)',
 
   providerAnthropic: 'oklch(0.75 0.14 60)',
@@ -17,7 +17,7 @@ export const colors = {
 
   fileCreated: 'oklch(0.74 0.16 233)',
   fileModified: 'oklch(0.72 0.14 185)',
-  fileDeleted: 'oklch(0.65 0.15 300)',
+  fileDeleted: 'oklch(0.65 0.22 27)',
 } as const;
 
 const PROVIDER_MAP: Record<string, string> = {
@@ -58,7 +58,7 @@ const PROVIDER_HUES: Record<string, number> = {
   openai: 145,    // green
   mistral: 25,    // red-orange
 };
-const FALLBACK_HUE = 280; // purple
+const FALLBACK_HUE = 245; // blue
 
 const LIGHTNESS_STEPS = [0.70, 0.60, 0.80, 0.55, 0.75];
 const CHROMA_STEPS = [0.15, 0.18, 0.12, 0.20, 0.14];

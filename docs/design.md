@@ -15,12 +15,13 @@ DaisyUI provides **structure** (`badge`, `menu`, `collapse`, `tabs`, `card`, `ta
 
 All tokens are defined in `frontend/src/styles/global.css` under `@theme`. Tailwind v4 auto-generates `text-*`, `bg-*`, `bg-*/15`, `border-*` utilities from these.
 
-### Interactive (purple H=277)
-- `--color-interactive` -- active nav, buttons, toggles, focused inputs, hover highlights
+### Interactive (monochrome)
+- `--color-interactive` -- white (dark) / near-black (light); active nav, buttons, toggles, focused inputs, hover highlights
+- `--color-on-interactive` -- text color on interactive backgrounds; near-black (dark) / white (light)
 
 ### Status
 - `--color-allowed` -- blue (H=233), positive decisions, running state
-- `--color-denied` -- purple (H=300), negative decisions, errors
+- `--color-denied` -- red (H=27), negative decisions, errors
 - `--color-caution` -- orange (H=84), booting state, warnings
 
 ### Providers (brand identity)
@@ -38,12 +39,12 @@ All tokens are defined in `frontend/src/styles/global.css` under `@theme`. Tailw
 ### File actions
 - `--color-file-created` -- H=233 blue (positive)
 - `--color-file-modified` -- H=210 sky
-- `--color-file-deleted` -- H=300 purple (negative)
+- `--color-file-deleted` -- H=27 red (negative)
 
 ### JSON syntax
 - `--color-json-key` -- H=250 blue
 - `--color-json-string` -- H=145 green
-- `--color-json-bool` -- H=300 purple
+- `--color-json-bool` -- H=340 rose
 - `--color-json-number` -- H=60 orange
 
 ### Chart infrastructure
@@ -88,7 +89,7 @@ All tokens are defined in `frontend/src/styles/global.css` under `@theme`. Tailw
 
 ### Button
 ```html
-<button class="btn bg-interactive text-white btn-sm">Primary action</button>
+<button class="btn bg-interactive text-on-interactive btn-sm">Primary action</button>
 <button class="btn btn-ghost btn-sm">Secondary action</button>
 ```
 
@@ -100,8 +101,30 @@ All tokens are defined in `frontend/src/styles/global.css` under `@theme`. Tailw
 
 ### Pagination
 ```html
-<button class="btn btn-xs {active ? 'bg-interactive text-white' : 'btn-ghost'}">1</button>
+<button class="btn btn-xs {active ? 'bg-interactive text-on-interactive' : 'btn-ghost'}">1</button>
 ```
+
+## Glass Effects
+
+The UI uses a glassmorphic design language with monochrome palette (black, white, grays).
+
+### Utility Classes
+- `.glass` -- subtle frosted glass for sidebars, cards, panels (`rgba(255,255,255,0.03)` dark / `rgba(255,255,255,0.55)` light + `backdrop-blur(12px)`)
+- `.glass-elevated` -- stronger glass for dialogs and overlays (`rgba(255,255,255,0.07)` dark / `rgba(255,255,255,0.72)` light + `backdrop-blur(20px)`)
+
+### Usage
+```html
+<!-- Card -->
+<div class="glass border border-edge rounded-lg p-3 shadow-xs">...</div>
+<!-- Dialog panel -->
+<div class="glass-elevated border border-edge rounded-xl shadow-2xl">...</div>
+<!-- Sidebar -->
+<aside class="glass border-r border-edge">...</aside>
+```
+
+### Do not
+- Combine `bg-surface` with `glass` (glass provides its own background)
+- Use `bg-white` or `bg-black` for panel backgrounds (use glass classes instead)
 
 ## Rules
 

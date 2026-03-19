@@ -38,10 +38,10 @@ export default function SettingsView() {
       <div className="flex-1 min-w-0 overflow-hidden flex flex-col">
         {/* Scope selector: global vs per-venv */}
         {venvs.length > 0 && (
-          <div className="flex items-center gap-2 px-4 py-2 border-b border-edge bg-surface-alt/50 shrink-0">
-            <span className="text-xs text-content/60">Scope:</span>
+          <div className="flex items-center gap-2 px-4 h-9 border-b border-edge bg-base-200/30 shrink-0">
+            <span className="text-xs text-base-content/50">Scope:</span>
             <select
-              className="text-xs px-2 py-1 rounded border border-edge bg-surface focus:outline-none focus:ring-1 focus:ring-interactive/40"
+              className="select select-xs border-edge bg-base-100 text-xs focus:outline-none focus:ring-1 focus:ring-interactive/40"
               value={venvId ?? '__global__'}
               onChange={(e) => setScope(e.target.value === '__global__' ? null : e.target.value)}
             >
@@ -63,12 +63,12 @@ export default function SettingsView() {
         <div className="flex-1 min-w-0 overflow-hidden">
           {loading ? (
             <div className="flex items-center justify-center h-full">
-              <span className="spinner w-4 h-4 text-content/30" />
+              <span className="loading loading-spinner loading-sm text-base-content/20" />
             </div>
           ) : activeSection ? (
             <SettingsSection sectionName={activeSection} />
           ) : (
-            <div className="flex items-center justify-center h-full text-content/30 text-sm">
+            <div className="flex items-center justify-center h-full text-base-content/30 text-sm">
               Select a settings section
             </div>
           )}

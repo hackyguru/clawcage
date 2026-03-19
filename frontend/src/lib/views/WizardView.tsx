@@ -75,7 +75,7 @@ export default function WizardView() {
           </p>
           <div className="flex items-center justify-center gap-3 pt-2">
             <button
-              className="px-6 py-2.5 rounded-lg bg-interactive text-white hover:opacity-90 transition font-medium inline-flex items-center gap-2"
+              className="px-6 py-2.5 rounded-lg bg-interactive text-on-interactive hover:opacity-90 transition font-medium inline-flex items-center gap-2"
               onClick={() => setStep(1)}
             >
               Get Started
@@ -138,7 +138,7 @@ export default function WizardView() {
                 Skip
               </button>
               <button
-                className="inline-flex items-center gap-2 px-5 py-2 rounded-lg bg-interactive text-white hover:opacity-90 transition font-medium disabled:opacity-40"
+                className="inline-flex items-center gap-2 px-5 py-2 rounded-lg bg-interactive text-on-interactive hover:opacity-90 transition font-medium disabled:opacity-40"
                 onClick={handleSave}
                 disabled={!hasAnyKey || saving}
               >
@@ -166,7 +166,7 @@ export default function WizardView() {
           Your API keys have been saved. Create your first environment to start running AI agents in a sandboxed VM.
         </p>
         <button
-          className="px-8 py-2.5 rounded-lg bg-interactive text-white hover:opacity-90 transition font-medium"
+          className="px-8 py-2.5 rounded-lg bg-interactive text-on-interactive hover:opacity-90 transition font-medium"
           onClick={handleFinish}
         >
           Create Environment

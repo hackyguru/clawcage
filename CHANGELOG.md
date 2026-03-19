@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Inline file editor: click any file in the Files view to view and edit its contents directly in the app; changes are saved back to the VM via Cmd+S or the Save button; supports text files up to 1 MB
+- File read/save protocol: new `FileSave`/`FileSaved` protocol messages for runtime file writes, complementing the existing `FileRead`/`FileContent` flow
 - Multi-shell terminals: create multiple shell sessions within the same VM with a tab bar UI, each backed by its own PTY over multiplexed vsock framing
 - Ports view: new sidebar page (Cmd+2) showing all TCP listening ports detected inside the VM with process name, PID, and forwarding status
 - Reusable `Dialog` and `ConfirmDialog` components for modal overlays with backdrop dismiss, Escape key, and entrance animation

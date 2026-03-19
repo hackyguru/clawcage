@@ -18,8 +18,8 @@ export default function DownloadProgress() {
   return (
   <div className="flex items-center justify-center h-full bg-surface">
       <div className="flex flex-col items-center gap-6 max-w-md w-full px-8">
-  <h2 className="text-xl font-semibold text-neutral-900">Downloading VM image</h2>
-  <p className="text-sm text-neutral-600 text-center">
+  <h2 className="text-xl font-semibold text-content">Downloading VM image</h2>
+  <p className="text-sm text-content/60 text-center">
           The sandbox rootfs is downloaded once and cached locally.
           {progress?.phase === 'verifying' && ' Verifying integrity...'}
           {progress?.phase === 'connecting' && ' Connecting...'}
@@ -29,7 +29,7 @@ export default function DownloadProgress() {
             <div className="h-full rounded-full bg-allowed transition-all" style={{ width: `${pct}%` }} />
           </div>
         </div>
-  <div className="flex justify-between w-full text-xs text-neutral-500">
+  <div className="flex justify-between w-full text-xs text-content/50">
           <span>{downloaded} / {total}</span>
           <span>{pct}%</span>
         </div>
