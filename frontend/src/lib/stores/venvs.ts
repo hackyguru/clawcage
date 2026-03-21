@@ -7,13 +7,15 @@ import type { VenvInfo } from '../types';
 let venvs: VenvInfo[] = [];
 let activeVenvId: string | null = null;
 let loading = false;
+/** True once the first loadVenvs() completes (prevents wizard flash). */
+let initialized = false;
 const listeners = new Set<() => void>();
 
 let snapshot = buildSnapshot();
 
 function buildSnapshot() {
   const active = activeVenvId ? venvs.find((v) => v.id === activeVenvId) ?? null : null;
-  return { venvs, activeVenvId, activeVenv: active, loading };
+  return { venvs, activeVenvId, activeVenv: active, loading, initialized };
 }
 
 function emit() {
@@ -36,6 +38,7 @@ export async function loadVenvs() {
     showToast('Failed to load environments: ' + String(e), 'error');
   }
   loading = false;
+  initialized = true;
   emit();
 }
 

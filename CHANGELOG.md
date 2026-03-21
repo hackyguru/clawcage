@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- MITM proxy hardening: per-domain token-bucket rate limiting, max response body size enforcement (100 MB default), connection idle timeout (60s default), upstream connect timeout (10s default), and max concurrent connection cap (100 default) via tokio semaphore — prevents runaway AI agents from exhausting host resources
+- MITM proxy enable/disable toggle: new `network.proxy_enabled` setting lets users disable TLS inspection per environment; when disabled, traffic tunnels transparently (no HTTP inspection) but domain-level allow/deny still applies via SNI extraction
+- Credential isolation: API keys never enter the guest VM — the MITM proxy injects real credentials into upstream requests on the host side; guest environments receive `aivm-proxy-managed` placeholder env vars so AI CLIs start without errors; supports header injection (Anthropic `x-api-key`, OpenAI `Authorization: Bearer`) and query parameter injection (Google `?key=`); controlled by `network.credential_isolation` setting (enabled by default)
+- Per-venv API keys: collapsible "API Keys" section in the New Environment dialog lets each environment have its own Anthropic/OpenAI/Google credentials (saved as per-venv setting overrides); keys stay on the host via credential isolation
+- Onboarding wizard: first-run experience with 2-step flow (welcome, app overview explaining sandbox/network policy/credential isolation) shown when no environments exist; directs user to create their first environment where they set per-venv API keys
+- Per-venv VPN: full WireGuard VPN integration using userspace boringtun crypto + smoltcp TCP/IP stack; each environment can independently route traffic through its own WireGuard tunnel without affecting the host or other venvs; MITM proxy upstream connections are transparently routed through the tunnel when enabled
+- VPN view: new sidebar page (Cmd+6) with connection status, WireGuard config editor, custom DNS, kill switch toggle; connect/disconnect controls backed by real backend tunnel management
+- Auto-update: app checks for newer versions on launch and prompts the user to download and install via native dialog; updater artifacts are now generated in CI releases
+- Version display: app version shown in the status bar footer
 - Inline file editor: click any file in the Files view to view and edit its contents directly in the app; changes are saved back to the VM via Cmd+S or the Save button; supports text files up to 1 MB
 - File read/save protocol: new `FileSave`/`FileSaved` protocol messages for runtime file writes, complementing the existing `FileRead`/`FileContent` flow
 - Multi-shell terminals: create multiple shell sessions within the same VM with a tab bar UI, each backed by its own PTY over multiplexed vsock framing

@@ -126,6 +126,67 @@ function HwSlider({ label, unit, value, min, max, defaultVal, onChange }: {
   );
 }
 
+interface ProviderEntry {
+  id: string;
+  name: string;
+  settingKey: string;
+  allowKey: string;
+  envVar: string;
+  placeholder: string;
+}
+
+const PROVIDERS: ProviderEntry[] = [
+  { id: 'anthropic', name: 'Anthropic', settingKey: 'ai.anthropic.api_key', allowKey: 'ai.anthropic.allow', envVar: 'ANTHROPIC_API_KEY', placeholder: 'sk-ant-...' },
+  { id: 'openai', name: 'OpenAI', settingKey: 'ai.openai.api_key', allowKey: 'ai.openai.allow', envVar: 'OPENAI_API_KEY', placeholder: 'sk-...' },
+  { id: 'google', name: 'Google AI', settingKey: 'ai.google.api_key', allowKey: 'ai.google.allow', envVar: 'GEMINI_API_KEY', placeholder: 'AIza...' },
+];
+
+/** Collapsible API keys section for per-venv credentials. */
+function ApiKeysSection({ keys, onKey }: {
+  keys: Record<string, string>;
+  onKey: (id: string, value: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const filled = PROVIDERS.filter((p) => keys[p.id]?.trim()).length;
+
+  return (
+    <div className="border border-edge rounded-lg overflow-hidden">
+      <button
+        type="button"
+        className="flex items-center gap-2 w-full px-3 py-2 text-left hover:bg-surface-alt transition-colors"
+        onClick={() => setOpen(!open)}
+      >
+        {open ? <ChevronDown className="size-3 text-content/40" /> : <ChevronRight className="size-3 text-content/40" />}
+        <span className="text-xs font-medium text-content/60">API Keys</span>
+        {!open && (
+          <span className="text-[10px] text-content/30 ml-auto">
+            {filled > 0 ? `${filled} key${filled > 1 ? 's' : ''} set` : 'none set'}
+          </span>
+        )}
+      </button>
+      {open && (
+        <div className="flex flex-col gap-2.5 px-3 pb-3 pt-1">
+          <p className="text-[11px] text-content/40 leading-snug">
+            Set API keys for this environment. Keys stay on the host and are injected by the proxy.
+          </p>
+          {PROVIDERS.map((p) => (
+            <div key={p.id} className="flex items-center gap-2">
+              <span className="text-xs text-content/50 w-16 shrink-0">{p.name}</span>
+              <input
+                type="password"
+                className="flex-1 font-mono text-xs px-2 py-1 border border-edge rounded-md bg-surface focus:outline-none focus:ring-2 focus:ring-interactive/40 transition"
+                placeholder={p.placeholder}
+                value={keys[p.id] ?? ''}
+                onChange={(e) => onKey(p.id, e.target.value)}
+              />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** Collapsible hardware settings section. */
 function HardwareSection({ cpu, ram, disk, onCpu, onRam, onDisk }: {
   cpu: number; ram: number; disk: number;
@@ -262,6 +323,7 @@ export default function HomeView() {
   const [hwCpu, setHwCpu] = useState(HW_DEFAULTS.cpu);
   const [hwRam, setHwRam] = useState(HW_DEFAULTS.ram);
   const [hwDisk, setHwDisk] = useState(HW_DEFAULTS.disk);
+  const [apiKeys, setApiKeys] = useState<Record<string, string>>({});
   const [deleteTarget, setDeleteTarget] = useState<VenvInfo | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -274,6 +336,10 @@ export default function HomeView() {
     setNewEphemeral(t.defaultEphemeral);
   }, []);
 
+  const setApiKey = useCallback((id: string, value: string) => {
+    setApiKeys((prev) => ({ ...prev, [id]: value }));
+  }, []);
+
   const resetForm = useCallback(() => {
     setNewName('');
     setSelectedTemplate(TEMPLATES[0]);
@@ -281,6 +347,7 @@ export default function HomeView() {
     setHwCpu(HW_DEFAULTS.cpu);
     setHwRam(HW_DEFAULTS.ram);
     setHwDisk(HW_DEFAULTS.disk);
+    setApiKeys({});
   }, []);
 
   const handleCreate = useCallback(async () => {
@@ -294,13 +361,21 @@ export default function HomeView() {
         if (hwCpu !== HW_DEFAULTS.cpu) updateSetting('vm.cpu_count', hwCpu, venv.id);
         if (hwRam !== HW_DEFAULTS.ram) updateSetting('vm.ram_gb', hwRam, venv.id);
         if (hwDisk !== HW_DEFAULTS.disk) updateSetting('vm.scratch_disk_size_gb', hwDisk, venv.id);
+        // Save per-venv API keys and auto-enable the provider.
+        for (const provider of PROVIDERS) {
+          const key = apiKeys[provider.id]?.trim();
+          if (key) {
+            await updateSetting(provider.settingKey, key, venv.id);
+            await updateSetting(provider.allowKey, true, venv.id);
+          }
+        }
       }
       resetForm();
       setCreating(false);
     } finally {
       setSubmitting(false);
     }
-  }, [newName, newEphemeral, selectedTemplate, hwCpu, hwRam, hwDisk, resetForm, submitting]);
+  }, [newName, newEphemeral, selectedTemplate, hwCpu, hwRam, hwDisk, apiKeys, resetForm, submitting]);
 
   const handleCloseCreate = useCallback(() => {
     setCreating(false);
@@ -365,6 +440,7 @@ export default function HomeView() {
               cpu={hwCpu} ram={hwRam} disk={hwDisk}
               onCpu={setHwCpu} onRam={setHwRam} onDisk={setHwDisk}
             />
+            <ApiKeysSection keys={apiKeys} onKey={setApiKey} />
             <div className="flex items-center justify-end gap-2 pt-1">
               <button
                 className="px-3 py-1.5 text-sm rounded-lg hover:bg-surface-alt transition-colors"

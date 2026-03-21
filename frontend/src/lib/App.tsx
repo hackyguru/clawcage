@@ -1,13 +1,14 @@
 // App -- main shell component
-import { useEffect, lazy, Suspense, Component, useCallback, type ReactNode, type ErrorInfo } from 'react';
+import { useEffect, useState, lazy, Suspense, Component, useCallback, type ReactNode, type ErrorInfo } from 'react';
 import { useSidebar } from './stores/sidebar';
 import { useVm, initVm } from './stores/vm';
-import { useVenvs } from './stores/venvs';
+import { useVenvs, loadVenvs } from './stores/venvs';
 import { loadSettings } from './stores/settings';
 import { initTheme } from './stores/theme';
 import ToastContainer from './components/ToastContainer';
 import { showToast } from './stores/toast';
 import type { ViewName } from './types';
+import WizardView from './views/WizardView';
 
 import Sidebar from './components/Sidebar';
 import TitleBar from './components/TitleBar';
@@ -22,6 +23,7 @@ const PortsView = lazy(() => import('./views/PortsView'));
 const FilesView = lazy(() => import('./views/FilesView'));
 const LogsView = lazy(() => import('./views/LogsView'));
 const StatsView = lazy(() => import('./views/StatsView'));
+const VpnView = lazy(() => import('./views/VpnView'));
 const SettingsView = lazy(() => import('./views/SettingsView'));
 
 // Error boundary to catch rendering crashes
@@ -53,10 +55,14 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
 function AppInner() {
   const { activeView, setView } = useSidebar();
   const { isDownloading, downloadProgress } = useVm();
-  const { activeVenvId } = useVenvs();
+  const { activeVenvId, venvs, initialized: venvsInitialized } = useVenvs();
+  const [onboardingDismissed, setOnboardingDismissed] = useState(false);
+
+  // Show onboarding only after venvs have loaded to prevent flash for returning users
+  const showOnboarding = venvsInitialized && venvs.length === 0 && !onboardingDismissed;
 
   // Keyboard shortcuts: Cmd+1 = Console, Cmd+2 = Ports, Cmd+3 = Files, Cmd+4 = Stats, Cmd+5 = Settings
-  const viewKeys: Record<string, ViewName> = { '1': 'terminal', '2': 'ports', '3': 'files', '4': 'logs', '5': 'stats', '6': 'settings' };
+  const viewKeys: Record<string, ViewName> = { '1': 'terminal', '2': 'ports', '3': 'files', '4': 'logs', '5': 'stats', '6': 'vpn', '7': 'settings' };
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if ((e.metaKey || e.ctrlKey) && viewKeys[e.key]) {
       e.preventDefault();
@@ -74,9 +80,21 @@ function AppInner() {
     initTheme();
     initVm().catch((e) => showToast('Failed to initialize VM: ' + String(e), 'error'));
     loadSettings().catch((e) => showToast('Failed to load settings: ' + String(e), 'error'));
+    loadVenvs().catch((e) => showToast('Failed to load environments: ' + String(e), 'error'));
   }, []);
 
   const currentView = activeView;
+
+  // Show onboarding wizard if no environments exist yet
+  if (showOnboarding) {
+    return (
+      <div className="flex flex-col h-screen w-screen overflow-hidden bg-surface text-content rounded-[10px] border border-edge">
+        <TitleBar />
+        <ToastContainer />
+        <WizardView onComplete={() => setOnboardingDismissed(true)} />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-surface text-content rounded-[10px] border border-edge">
@@ -111,6 +129,7 @@ function AppInner() {
               {currentView === 'files' && <FilesView />}
               {currentView === 'logs' && <LogsView />}
               {currentView === 'stats' && <StatsView />}
+              {currentView === 'vpn' && <VpnView />}
               {currentView === 'settings' && <SettingsView />}
             </Suspense>
           </div>

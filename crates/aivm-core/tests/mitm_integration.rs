@@ -51,6 +51,9 @@ fn make_proxy_config(
     let db = Arc::new(DbWriter::open(&dir.path().join("test.db"), 256).unwrap());
     // Leak the tempdir so it lives for the test
     std::mem::forget(dir);
+    let limits = mitm_proxy::ProxyLimits::default();
+    let semaphore = Arc::new(tokio::sync::Semaphore::new(limits.max_concurrent_connections));
+    let rate_limiter = Arc::new(mitm_proxy::RateLimiterMap::new(limits.per_domain_rate_limit));
     let config = Arc::new(MitmProxyConfig {
         ca,
         policy,
@@ -59,6 +62,12 @@ fn make_proxy_config(
         pricing: aivm_core::gateway::pricing::PricingTable::load(),
         trace_state: std::sync::Mutex::new(aivm_core::gateway::TraceState::new()),
         tunnel_non_ai: false,
+        vpn: None,
+        limits,
+        connection_semaphore: semaphore,
+        rate_limiter,
+        enabled: true,
+        credentials: Arc::new(std::collections::HashMap::new()),
     });
     (config, db)
 }

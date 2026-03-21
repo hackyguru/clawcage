@@ -233,6 +233,38 @@ let mockSettings: ResolvedSetting[] = [
     description: 'Comma-separated domain patterns to block. Takes priority over custom allow list.',
     default_value: '', effective_value: '',
   }),
+  // -- VPN --
+  ms({
+    id: 'vpn.enabled', category: 'VPN', name: 'Enable VPN', setting_type: 'bool',
+    description: 'Route this venv\'s traffic through a VPN tunnel.',
+    default_value: false, effective_value: false,
+  }),
+  ms({
+    id: 'vpn.provider', category: 'VPN', name: 'VPN Provider', setting_type: 'text',
+    description: 'VPN protocol to use.',
+    default_value: 'wireguard', effective_value: 'wireguard',
+    enabled_by: 'vpn.enabled', enabled: false,
+    metadata: { domains: [], choices: ['wireguard'], min: null, max: null, rules: {} },
+  }),
+  ms({
+    id: 'vpn.config', category: 'VPN', name: 'WireGuard Configuration', setting_type: 'file',
+    description: 'WireGuard configuration file (wg0.conf).',
+    default_value: { path: '/etc/wireguard/wg0.conf', content: '' },
+    effective_value: { path: '/etc/wireguard/wg0.conf', content: '' },
+    enabled_by: 'vpn.enabled', enabled: false,
+  }),
+  ms({
+    id: 'vpn.dns', category: 'VPN', name: 'DNS Servers', setting_type: 'text',
+    description: 'Comma-separated DNS servers to use when VPN is active.',
+    default_value: '', effective_value: '',
+    enabled_by: 'vpn.enabled', enabled: false,
+  }),
+  ms({
+    id: 'vpn.kill_switch', category: 'VPN', name: 'Kill Switch', setting_type: 'bool',
+    description: 'Block all traffic if the VPN tunnel drops.',
+    default_value: true, effective_value: true,
+    enabled_by: 'vpn.enabled', enabled: false,
+  }),
   // -- Session (in VM category) --
   ms({
     id: 'vm.retention_days', category: 'VM', name: 'Session retention', setting_type: 'number',
@@ -425,6 +457,16 @@ function buildMockTree(): SettingsNode[] {
       leaf(mockSettings.find(s => s.id === 'network.default_action')!),
       leaf(mockSettings.find(s => s.id === 'network.custom_allow')!),
       leaf(mockSettings.find(s => s.id === 'network.custom_block')!),
+    ],
+  },
+  {
+    kind: 'group', key: 'vpn', name: 'VPN', description: 'Per-venv VPN configuration',
+    collapsed: false, children: [
+      leaf(mockSettings.find(s => s.id === 'vpn.enabled')!),
+      leaf(mockSettings.find(s => s.id === 'vpn.provider')!),
+      leaf(mockSettings.find(s => s.id === 'vpn.config')!),
+      leaf(mockSettings.find(s => s.id === 'vpn.dns')!),
+      leaf(mockSettings.find(s => s.id === 'vpn.kill_switch')!),
     ],
   },
   {
@@ -650,7 +692,18 @@ export const mockApi = {
     const v = mockVenvs.find((v) => v.id === id);
     if (v) v.status = 'stopped';
   },
+
+  // VPN
+  vpnConnect: async (_config: string) => {
+    mockVpnState = { status: 'connected', error: null, endpoint: '203.0.113.1:51820', tunnel_ip: '10.200.100.8' };
+  },
+  vpnDisconnect: async () => {
+    mockVpnState = { status: 'disconnected', error: null, endpoint: null, tunnel_ip: null };
+  },
+  vpnStatus: async () => ({ ...mockVpnState }) as { status: 'disconnected' | 'connecting' | 'connected' | 'error'; error: string | null; endpoint: string | null; tunnel_ip: string | null },
 };
+
+let mockVpnState: { status: string; error: string | null; endpoint: string | null; tunnel_ip: string | null } = { status: 'disconnected', error: null, endpoint: null, tunnel_ip: null };
 
 // ---------------------------------------------------------------------------
 // sql.js-backed fixture queries for mock mode

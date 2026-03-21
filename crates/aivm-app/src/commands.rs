@@ -973,6 +973,55 @@ pub async fn save_file(
 }
 
 
+// ---------------------------------------------------------------------------
+// VPN commands
+// ---------------------------------------------------------------------------
+
+/// Connect the active venv's VPN using the given WireGuard configuration.
+#[tauri::command]
+pub async fn vpn_connect(
+    config: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let vm_id = active_vm_id(&state)?;
+    let vpn = {
+        let vms = state.vms.lock().unwrap();
+        let instance = vms.get(&vm_id).ok_or("no VM running")?;
+        instance.vpn_state.clone().ok_or("VPN manager not initialized")?
+    };
+    vpn.connect(&config).await
+}
+
+/// Disconnect the active venv's VPN.
+#[tauri::command]
+pub async fn vpn_disconnect(state: State<'_, AppState>) -> Result<(), String> {
+    let vm_id = active_vm_id(&state)?;
+    let vpn = {
+        let vms = state.vms.lock().unwrap();
+        let instance = vms.get(&vm_id).ok_or("no VM running")?;
+        instance.vpn_state.clone()
+    };
+    if let Some(vpn) = vpn {
+        vpn.disconnect().await;
+    }
+    Ok(())
+}
+
+/// Get the VPN status for the active venv.
+#[tauri::command]
+pub async fn vpn_status(state: State<'_, AppState>) -> Result<aivm_core::net::vpn::VpnState, String> {
+    let vm_id = active_vm_id(&state)?;
+    let vpn = {
+        let vms = state.vms.lock().unwrap();
+        let instance = vms.get(&vm_id).ok_or("no VM running")?;
+        instance.vpn_state.clone()
+    };
+    match vpn {
+        Some(vpn) => Ok(vpn.get_state().await),
+        None => Ok(aivm_core::net::vpn::VpnState::default()),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

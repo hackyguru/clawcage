@@ -11,13 +11,14 @@
 /// 6. Upstream TLS to real server
 /// 7. Forward request, stream response back
 /// 8. Emit per-request telemetry (one NetEvent per HTTP request, not per connection)
+use std::collections::HashMap;
 use std::io;
 use std::mem::ManuallyDrop;
 use std::os::unix::io::{AsRawFd, FromRawFd, RawFd};
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll};
-use std::time::{Instant, SystemTime};
+use std::time::{Duration, Instant, SystemTime};
 
 use bytes::BytesMut;
 use aivm_logger::{DbWriter, Decision, ModelCall, NetEvent, ToolCallEntry, ToolResponseEntry, WriteOp};
@@ -40,6 +41,82 @@ pub type UpstreamTlsConfig = rustls::ClientConfig;
 /// Maximum bytes to buffer when peeking at the TLS ClientHello.
 const MAX_HELLO_SIZE: usize = 16384;
 
+/// Resource limits for the MITM proxy.
+#[derive(Debug, Clone)]
+pub struct ProxyLimits {
+    /// Maximum concurrent connections (default: 100).
+    pub max_concurrent_connections: usize,
+    /// Per-domain requests per second (default: 50).
+    pub per_domain_rate_limit: f64,
+    /// Maximum response body size in bytes (default: 100 MB).
+    pub max_response_body_bytes: u64,
+    /// Idle connection timeout (default: 60s).
+    pub connection_idle_timeout: Duration,
+    /// Upstream TCP connect timeout (default: 10s).
+    pub connect_timeout: Duration,
+}
+
+impl Default for ProxyLimits {
+    fn default() -> Self {
+        Self {
+            max_concurrent_connections: 100,
+            per_domain_rate_limit: 50.0,
+            max_response_body_bytes: 100 * 1024 * 1024,
+            connection_idle_timeout: Duration::from_secs(60),
+            connect_timeout: Duration::from_secs(10),
+        }
+    }
+}
+
+/// Simple token-bucket rate limiter.
+struct TokenBucket {
+    tokens: f64,
+    last_refill: Instant,
+}
+
+/// Per-domain rate limiter state.
+pub struct RateLimiterMap {
+    buckets: Mutex<HashMap<String, TokenBucket>>,
+    rate: f64,
+}
+
+impl RateLimiterMap {
+    pub fn new(rate: f64) -> Self {
+        Self {
+            buckets: Mutex::new(HashMap::new()),
+            rate,
+        }
+    }
+
+    /// Check if a request to `domain` is allowed. Returns true if allowed.
+    pub fn check(&self, domain: &str) -> bool {
+        let mut map = self.buckets.lock().unwrap();
+        let bucket = map.entry(domain.to_string()).or_insert(TokenBucket {
+            tokens: self.rate,
+            last_refill: Instant::now(),
+        });
+        let elapsed = bucket.last_refill.elapsed().as_secs_f64();
+        // Refill: burst capacity = 2x rate
+        bucket.tokens = (bucket.tokens + elapsed * self.rate).min(self.rate * 2.0);
+        bucket.last_refill = Instant::now();
+        if bucket.tokens >= 1.0 {
+            bucket.tokens -= 1.0;
+            true
+        } else {
+            false
+        }
+    }
+}
+
+/// How to inject a credential into an upstream request.
+#[derive(Debug, Clone)]
+pub enum CredentialKind {
+    /// Inject as a header (e.g. `x-api-key: <key>` or `Authorization: Bearer <key>`).
+    Header { name: String, value: String },
+    /// Inject as a query parameter (e.g. `?key=<api_key>`).
+    QueryParam { key: String, value: String },
+}
+
 /// Configuration for the MITM proxy.
 pub struct MitmProxyConfig {
     pub ca: Arc<CertAuthority>,
@@ -57,6 +134,22 @@ pub struct MitmProxyConfig {
     /// MITM.  Avoids HTTP body-streaming issues for protocols like git.
     /// Defaults to true; tests set this to false.
     pub tunnel_non_ai: bool,
+    /// Optional per-venv VPN manager. When set, upstream TCP connections are
+    /// routed through the WireGuard tunnel instead of direct host networking.
+    pub vpn: Option<Arc<super::vpn::VpnManager>>,
+    /// Resource limits (rate limiting, body size caps, timeouts, connection cap).
+    pub limits: ProxyLimits,
+    /// Semaphore enforcing `limits.max_concurrent_connections`.
+    pub connection_semaphore: Arc<tokio::sync::Semaphore>,
+    /// Per-domain rate limiter.
+    pub rate_limiter: Arc<RateLimiterMap>,
+    /// Whether the MITM proxy is enabled. When false, all traffic is tunneled
+    /// transparently (no TLS termination, no HTTP inspection) but domain-level
+    /// allow/deny still applies via SNI check.
+    pub enabled: bool,
+    /// Host-side credentials keyed by domain pattern. The proxy injects these
+    /// into upstream requests so API keys never enter the guest.
+    pub credentials: Arc<HashMap<String, CredentialKind>>,
 }
 
 /// Detect AI provider from domain name.
@@ -82,14 +175,108 @@ pub fn make_upstream_tls_config() -> Arc<rustls::ClientConfig> {
     Arc::new(config)
 }
 
+// Upstream stream: either a direct TCP connection or a VPN-routed one.
+pin_project_lite::pin_project! {
+    #[project = UpstreamProj]
+    enum UpstreamStream {
+        Direct { #[pin] tcp: tokio::net::TcpStream },
+        Vpn { #[pin] vpn: super::vpn::VpnTcpStream },
+    }
+}
+
+impl tokio::io::AsyncRead for UpstreamStream {
+    fn poll_read(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut ReadBuf<'_>) -> Poll<io::Result<()>> {
+        match self.project() {
+            UpstreamProj::Direct { tcp } => tcp.poll_read(cx, buf),
+            UpstreamProj::Vpn { vpn } => vpn.poll_read(cx, buf),
+        }
+    }
+}
+
+impl tokio::io::AsyncWrite for UpstreamStream {
+    fn poll_write(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<io::Result<usize>> {
+        match self.project() {
+            UpstreamProj::Direct { tcp } => tcp.poll_write(cx, buf),
+            UpstreamProj::Vpn { vpn } => vpn.poll_write(cx, buf),
+        }
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        match self.project() {
+            UpstreamProj::Direct { tcp } => tcp.poll_flush(cx),
+            UpstreamProj::Vpn { vpn } => vpn.poll_flush(cx),
+        }
+    }
+
+    fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        match self.project() {
+            UpstreamProj::Direct { tcp } => tcp.poll_shutdown(cx),
+            UpstreamProj::Vpn { vpn } => vpn.poll_shutdown(cx),
+        }
+    }
+}
+
+/// Connect upstream to `domain:443`, routing through VPN if configured.
+/// Applies `connect_timeout` from proxy limits.
+async fn connect_upstream(
+    domain: &str,
+    vpn: &Option<Arc<super::vpn::VpnManager>>,
+    connect_timeout: Duration,
+) -> io::Result<UpstreamStream> {
+    let connect_fut = async {
+        if let Some(ref vpn_mgr) = vpn {
+            // Resolve domain to IP address for the VPN tunnel.
+            let addrs: Vec<std::net::SocketAddr> = tokio::net::lookup_host(format!("{domain}:443")).await?.collect();
+            if let Some(addr) = addrs.first() {
+                if let std::net::IpAddr::V4(ipv4) = addr.ip() {
+                    match vpn_mgr.connect_tcp(ipv4, 443).await {
+                        Ok(stream) => return Ok(UpstreamStream::Vpn { vpn: stream }),
+                        Err(e) => {
+                            warn!("VPN connect to {domain} failed, falling back to direct: {e}");
+                        }
+                    }
+                }
+            }
+        }
+        // Direct connection (no VPN or VPN fallback).
+        let tcp = tokio::net::TcpStream::connect(format!("{domain}:443")).await?;
+        let _ = tcp.set_nodelay(true);
+        Ok(UpstreamStream::Direct { tcp })
+    };
+
+    tokio::time::timeout(connect_timeout, connect_fut)
+        .await
+        .map_err(|_| io::Error::new(io::ErrorKind::TimedOut, format!("connect to {domain}:443 timed out")))?
+}
+
 /// Handle a single MITM proxy connection from the guest.
 ///
 /// This is the async entry point for each vsock:5002 connection.
-/// Per-request telemetry is emitted by TelemetryBody when each HTTP response
-/// body completes. This function only emits connection-level error events
-/// (TLS failures, no SNI, etc.).
+/// Enforces concurrent connection cap (semaphore), idle timeout, and
+/// per-domain rate limiting.
 pub async fn handle_connection(vsock_fd: RawFd, config: Arc<MitmProxyConfig>) {
-    let result = handle_inner(vsock_fd, &config).await;
+    // Acquire a connection permit (blocks if at max_concurrent_connections).
+    let _permit = match config.connection_semaphore.try_acquire() {
+        Ok(permit) => permit,
+        Err(_) => {
+            warn!("MITM proxy: max concurrent connections reached, rejecting");
+            unsafe { libc::close(vsock_fd); }
+            return;
+        }
+    };
+
+    // Wrap the entire connection in an idle timeout.
+    let timeout_dur = config.limits.connection_idle_timeout;
+    let result = tokio::time::timeout(timeout_dur, handle_inner(vsock_fd, &config)).await;
+
+    let result = match result {
+        Ok(inner) => inner,
+        Err(_) => {
+            debug!("MITM proxy: connection idle timeout ({timeout_dur:?})");
+            unsafe { libc::shutdown(vsock_fd, libc::SHUT_RDWR); }
+            return;
+        }
+    };
 
     match result {
         Ok(domain) => {
@@ -205,6 +392,34 @@ async fn handle_inner(
     // the TLS handshake so we can decide whether to MITM or TCP-tunnel.
     let sni_domain = extract_sni_from_client_hello(&initial_buf);
 
+    // Per-domain rate limiting (checked early, before TLS handshake).
+    if let Some(ref domain) = sni_domain {
+        if !config.rate_limiter.check(domain) {
+            return Err((domain.clone(), Decision::Denied, "rate limit exceeded".into()));
+        }
+    }
+
+    // When MITM is disabled, tunnel ALL traffic (no TLS termination, no HTTP
+    // inspection). Domain-level allow/deny still applies via SNI check.
+    if !config.enabled {
+        if let Some(ref domain) = sni_domain {
+            let eval = policy.evaluate(domain, "CONNECT");
+            if !eval.allowed {
+                return Err((domain.clone(), Decision::Denied, eval.reason));
+            }
+            return handle_tunnel(
+                domain.clone(),
+                initial_buf,
+                vsock_stream,
+                process_name,
+                &config.db,
+                &config.vpn,
+            ).await;
+        }
+        // No SNI — can't even do domain policy. Tunnel anyway.
+        return Err((String::new(), Decision::Error, "MITM disabled and no SNI".into()));
+    }
+
     // For non-AI domains, use a transparent TCP tunnel instead of MITM.
     // This avoids HTTP body streaming issues (hyper framing, gzip decompression)
     // that break protocols like git smart HTTP.
@@ -246,6 +461,7 @@ async fn handle_inner(
                 vsock_stream,
                 process_name,
                 &config.db,
+                &config.vpn,
             ).await;
         }
     }
@@ -505,11 +721,8 @@ async fn handle_request(
         s
     } else {
         let connector = tokio_rustls::TlsConnector::from(Arc::clone(upstream_tls));
-        let upstream_tcp = match tokio::net::TcpStream::connect(format!("{domain}:443")).await {
-            Ok(tcp) => {
-                let _ = tcp.set_nodelay(true);
-                tcp
-            },
+        let upstream_tcp = match connect_upstream(domain, &config.vpn, config.limits.connect_timeout).await {
+            Ok(tcp) => tcp,
             Err(e) => {
                 return Ok(make_502(&e, &method, &path, &query, &req_hdrs, start_time));
             }
@@ -545,8 +758,7 @@ async fn handle_request(
         None => path.clone(),
     };
     let mut builder = hyper::Request::builder()
-        .method(original_method)
-        .uri(&full_path);
+        .method(original_method);
     for (name, value) in original_headers.iter() {
         if name == "host" {
             continue;
@@ -558,12 +770,23 @@ async fn handle_request(
         if name == "accept-encoding" && ai_provider.is_some() {
             continue;
         }
+        // Strip placeholder auth headers -- real credentials are injected below.
+        if !config.credentials.is_empty() {
+            if name == "authorization" || name == "x-api-key" {
+                continue;
+            }
+        }
         builder = builder.header(name.clone(), value.clone());
     }
     builder = builder.header("host", domain);
     if ai_provider.is_some() {
         builder = builder.header("accept-encoding", "gzip");
     }
+
+    // Credential injection: replace guest placeholder credentials with real
+    // host-side API keys. The guest never sees the real key.
+    let full_path = inject_credentials(domain, &config.credentials, &mut builder, full_path);
+    builder = builder.uri(&full_path);
 
     // Track request body (boxed for consistent sender type across requests).
     // Always capture AI provider request bodies for telemetry parsing
@@ -577,7 +800,8 @@ async fn handle_request(
         preview: Vec::new(),
         max_preview: req_max_preview,
     }));
-    let tracked_req_body = TrackedBody::new(req_body, Arc::clone(&req_stats), 100 * 1024 * 1024);
+    let max_body_size = config.limits.max_response_body_bytes;
+    let tracked_req_body = TrackedBody::new(req_body, Arc::clone(&req_stats), max_body_size);
     let upstream_req = builder.body(tracked_req_body.boxed())?;
 
     let resp = match sender.send_request(upstream_req).await {
@@ -634,7 +858,7 @@ async fn handle_request(
         let resp_max_preview = if ai_provider.is_some() {
             AI_BODY_PREVIEW.max(if log_bodies { max_body } else { 0 })
         } else if log_bodies { max_body } else { 0 };
-        let ai_body = AiResponseBody::new(resp_body, provider_parser, resp_max_preview, 100 * 1024 * 1024);
+        let ai_body = AiResponseBody::new(resp_body, provider_parser, resp_max_preview, max_body_size);
         let ai_state = ai_body.ai_state();
         let ai_stats = ai_body.stats();
 
@@ -646,7 +870,7 @@ async fn handle_request(
             preview: Vec::new(),
             max_preview: if log_bodies { max_body } else { 0 },
         }));
-        let tracked_resp_body = TrackedBody::new(resp_body, Arc::clone(&resp_stats), 100 * 1024 * 1024);
+        let tracked_resp_body = TrackedBody::new(resp_body, Arc::clone(&resp_stats), max_body_size);
         let kind = RespStatsKind::Plain(resp_stats);
         (tracked_resp_body.boxed(), kind)
     };
@@ -1283,6 +1507,44 @@ fn is_llm_api_path(provider: ProviderKind, path: &str) -> bool {
     }
 }
 
+/// Inject host-side credentials into the upstream request.
+///
+/// For Header-type credentials, replaces or adds the auth header.
+/// For QueryParam-type credentials, appends to the URL query string.
+/// Returns the (possibly modified) full_path for the upstream request.
+fn inject_credentials(
+    domain: &str,
+    credentials: &HashMap<String, CredentialKind>,
+    builder: &mut hyper::http::request::Builder,
+    mut full_path: String,
+) -> String {
+    // Check exact domain first, then wildcard patterns.
+    let cred = credentials.get(domain).or_else(|| {
+        credentials.iter().find_map(|(pattern, cred)| {
+            if pattern.starts_with("*.") {
+                let suffix = &pattern[2..];
+                if domain.ends_with(suffix) && domain.len() > suffix.len() {
+                    return Some(cred);
+                }
+            }
+            None
+        })
+    });
+
+    if let Some(cred) = cred {
+        match cred {
+            CredentialKind::Header { name, value } => {
+                *builder = std::mem::take(builder).header(name.as_str(), value.as_str());
+            }
+            CredentialKind::QueryParam { key, value } => {
+                let sep = if full_path.contains('?') { "&" } else { "?" };
+                full_path = format!("{full_path}{sep}{key}={value}");
+            }
+        }
+    }
+    full_path
+}
+
 /// Split a URI into path and query components.
 fn split_path_query(uri: &hyper::Uri) -> (String, Option<String>) {
     let path = uri.path().to_string();
@@ -1508,14 +1770,14 @@ async fn handle_tunnel(
     mut vsock_stream: AsyncFdStream,
     process_name: Option<String>,
     db: &Arc<DbWriter>,
+    vpn: &Option<Arc<super::vpn::VpnManager>>,
 ) -> Result<String, (String, Decision, String)> {
     let start = Instant::now();
 
-    // Connect to the real upstream server.
-    let mut upstream = tokio::net::TcpStream::connect(format!("{domain}:443"))
+    // Connect to the real upstream server (VPN-aware).
+    let mut upstream = connect_upstream(&domain, vpn, Duration::from_secs(10))
         .await
         .map_err(|e| (domain.clone(), Decision::Error, format!("tunnel connect: {e}")))?;
-    let _ = upstream.set_nodelay(true);
 
     // Replay the ClientHello we already buffered.
     tokio::io::AsyncWriteExt::write_all(&mut upstream, &initial_buf)
@@ -1675,6 +1937,9 @@ mod tests {
         let db = Arc::new(DbWriter::open(&dir.path().join("test.db"), 256).unwrap());
         // Leak the tempdir so it lives for the test
         std::mem::forget(dir);
+        let limits = ProxyLimits::default();
+        let semaphore = Arc::new(tokio::sync::Semaphore::new(limits.max_concurrent_connections));
+        let rate_limiter = Arc::new(RateLimiterMap::new(limits.per_domain_rate_limit));
         Arc::new(MitmProxyConfig {
             ca,
             policy: Arc::new(std::sync::RwLock::new(Arc::new(policy))),
@@ -1683,6 +1948,12 @@ mod tests {
             pricing: crate::gateway::pricing::PricingTable::load(),
             trace_state: std::sync::Mutex::new(crate::gateway::TraceState::new()),
             tunnel_non_ai: false, // tests use UnixStream pairs, not real TCP
+            vpn: None,
+            limits,
+            connection_semaphore: semaphore,
+            rate_limiter,
+            enabled: true,
+            credentials: Arc::new(HashMap::new()),
         })
     }
 
@@ -2874,5 +3145,249 @@ mod tests {
         // /v1/messages_extra should match -- starts_with is fine since the real
         // path is /v1/messages with optional query params after it.
         assert!(is_llm_api_path(ProviderKind::Anthropic, "/v1/messages_extra"));
+    }
+
+    // ---------------------------------------------------------------
+    // Rate limiter tests
+    // ---------------------------------------------------------------
+
+    #[test]
+    fn rate_limiter_allows_within_capacity() {
+        let rl = RateLimiterMap::new(10.0);
+        // First 10 requests should be allowed (initial bucket = rate)
+        for i in 0..10 {
+            assert!(rl.check("example.com"), "request {i} should be allowed");
+        }
+    }
+
+    #[test]
+    fn rate_limiter_denies_when_exhausted() {
+        let rl = RateLimiterMap::new(5.0);
+        // Exhaust the bucket (initial = 5.0 tokens, burst = 10.0)
+        for _ in 0..5 {
+            assert!(rl.check("example.com"));
+        }
+        // Next request should be denied (not enough time to refill)
+        assert!(!rl.check("example.com"), "should be rate-limited after exhausting bucket");
+    }
+
+    #[test]
+    fn rate_limiter_domains_are_independent() {
+        let rl = RateLimiterMap::new(2.0);
+        // Exhaust domain A
+        assert!(rl.check("a.com"));
+        assert!(rl.check("a.com"));
+        assert!(!rl.check("a.com"));
+        // Domain B should still have tokens
+        assert!(rl.check("b.com"));
+        assert!(rl.check("b.com"));
+    }
+
+    #[test]
+    fn rate_limiter_refills_over_time() {
+        let rl = RateLimiterMap::new(100.0);
+        // Exhaust
+        for _ in 0..100 {
+            rl.check("x.com");
+        }
+        assert!(!rl.check("x.com"));
+        // Sleep briefly to allow refill (100 tokens/sec * 0.05s = 5 tokens)
+        std::thread::sleep(Duration::from_millis(50));
+        assert!(rl.check("x.com"), "should have refilled after sleep");
+    }
+
+    // ---------------------------------------------------------------
+    // Credential injection tests
+    // ---------------------------------------------------------------
+
+    #[test]
+    fn inject_credentials_header_exact_domain() {
+        let mut creds = HashMap::new();
+        creds.insert("api.anthropic.com".to_string(), CredentialKind::Header {
+            name: "x-api-key".to_string(),
+            value: "sk-ant-test123".to_string(),
+        });
+        let mut builder = hyper::Request::builder().method("POST");
+        let path = inject_credentials("api.anthropic.com", &creds, &mut builder, "/v1/messages".to_string());
+        assert_eq!(path, "/v1/messages");
+        let req = builder.uri(&path).body(()).unwrap();
+        assert_eq!(req.headers().get("x-api-key").unwrap(), "sk-ant-test123");
+    }
+
+    #[test]
+    fn inject_credentials_query_param() {
+        let mut creds = HashMap::new();
+        creds.insert("generativelanguage.googleapis.com".to_string(), CredentialKind::QueryParam {
+            key: "key".to_string(),
+            value: "AIzaTest".to_string(),
+        });
+        let mut builder = hyper::Request::builder().method("POST");
+        let path = inject_credentials(
+            "generativelanguage.googleapis.com",
+            &creds,
+            &mut builder,
+            "/v1beta/models/gemini:generateContent".to_string(),
+        );
+        assert_eq!(path, "/v1beta/models/gemini:generateContent?key=AIzaTest");
+    }
+
+    #[test]
+    fn inject_credentials_query_param_appends_to_existing() {
+        let mut creds = HashMap::new();
+        creds.insert("api.example.com".to_string(), CredentialKind::QueryParam {
+            key: "token".to_string(),
+            value: "abc".to_string(),
+        });
+        let mut builder = hyper::Request::builder().method("GET");
+        let path = inject_credentials(
+            "api.example.com",
+            &creds,
+            &mut builder,
+            "/data?page=1".to_string(),
+        );
+        assert_eq!(path, "/data?page=1&token=abc");
+    }
+
+    #[test]
+    fn inject_credentials_wildcard_domain() {
+        let mut creds = HashMap::new();
+        creds.insert("*.openai.com".to_string(), CredentialKind::Header {
+            name: "authorization".to_string(),
+            value: "Bearer sk-test".to_string(),
+        });
+        let mut builder = hyper::Request::builder().method("POST");
+        let path = inject_credentials("api.openai.com", &creds, &mut builder, "/v1/chat/completions".to_string());
+        assert_eq!(path, "/v1/chat/completions");
+        let req = builder.uri(&path).body(()).unwrap();
+        assert_eq!(req.headers().get("authorization").unwrap(), "Bearer sk-test");
+    }
+
+    #[test]
+    fn inject_credentials_no_match_leaves_request_unchanged() {
+        let mut creds = HashMap::new();
+        creds.insert("api.anthropic.com".to_string(), CredentialKind::Header {
+            name: "x-api-key".to_string(),
+            value: "secret".to_string(),
+        });
+        let mut builder = hyper::Request::builder().method("GET");
+        let path = inject_credentials("example.com", &creds, &mut builder, "/index.html".to_string());
+        assert_eq!(path, "/index.html");
+        let req = builder.uri(&path).body(()).unwrap();
+        assert!(req.headers().get("x-api-key").is_none());
+    }
+
+    #[test]
+    fn inject_credentials_exact_takes_precedence_over_wildcard() {
+        let mut creds = HashMap::new();
+        creds.insert("api.example.com".to_string(), CredentialKind::Header {
+            name: "x-api-key".to_string(),
+            value: "exact-key".to_string(),
+        });
+        creds.insert("*.example.com".to_string(), CredentialKind::Header {
+            name: "x-api-key".to_string(),
+            value: "wildcard-key".to_string(),
+        });
+        let mut builder = hyper::Request::builder().method("GET");
+        let path = inject_credentials("api.example.com", &creds, &mut builder, "/".to_string());
+        let req = builder.uri(&path).body(()).unwrap();
+        assert_eq!(req.headers().get("x-api-key").unwrap(), "exact-key");
+    }
+
+    // ---------------------------------------------------------------
+    // Adversarial credential injection tests
+    // ---------------------------------------------------------------
+
+    #[test]
+    fn inject_credentials_wildcard_does_not_match_bare_domain() {
+        // *.example.com should NOT match "example.com" itself
+        let mut creds = HashMap::new();
+        creds.insert("*.example.com".to_string(), CredentialKind::Header {
+            name: "x-api-key".to_string(),
+            value: "secret".to_string(),
+        });
+        let mut builder = hyper::Request::builder().method("GET");
+        let _path = inject_credentials("example.com", &creds, &mut builder, "/".to_string());
+        let req = builder.uri("/").body(()).unwrap();
+        assert!(req.headers().get("x-api-key").is_none(), "wildcard should not match bare domain");
+    }
+
+    #[test]
+    fn inject_credentials_empty_map_is_noop() {
+        let creds = HashMap::new();
+        let mut builder = hyper::Request::builder().method("GET");
+        let path = inject_credentials("anything.com", &creds, &mut builder, "/foo".to_string());
+        assert_eq!(path, "/foo");
+    }
+
+    // ---------------------------------------------------------------
+    // ProxyLimits default tests
+    // ---------------------------------------------------------------
+
+    #[test]
+    fn proxy_limits_default_values() {
+        let limits = ProxyLimits::default();
+        assert_eq!(limits.max_concurrent_connections, 100);
+        assert!((limits.per_domain_rate_limit - 50.0).abs() < f64::EPSILON);
+        assert_eq!(limits.max_response_body_bytes, 100 * 1024 * 1024);
+        assert_eq!(limits.connection_idle_timeout, Duration::from_secs(60));
+        assert_eq!(limits.connect_timeout, Duration::from_secs(10));
+    }
+
+    // ---------------------------------------------------------------
+    // Proxy disabled mode tests
+    // ---------------------------------------------------------------
+
+    fn make_config_disabled_deny_all() -> Arc<MitmProxyConfig> {
+        let ca = Arc::new(CertAuthority::load(CA_KEY, CA_CERT).unwrap());
+        let dir = tempfile::tempdir().unwrap();
+        let db = Arc::new(DbWriter::open(&dir.path().join("test.db"), 256).unwrap());
+        std::mem::forget(dir);
+        let limits = ProxyLimits::default();
+        let semaphore = Arc::new(tokio::sync::Semaphore::new(limits.max_concurrent_connections));
+        let rate_limiter = Arc::new(RateLimiterMap::new(limits.per_domain_rate_limit));
+        Arc::new(MitmProxyConfig {
+            ca,
+            policy: Arc::new(std::sync::RwLock::new(Arc::new(
+                NetworkPolicy::new(vec![], false, false),
+            ))),
+            db,
+            upstream_tls: make_upstream_tls_config(),
+            pricing: crate::gateway::pricing::PricingTable::load(),
+            trace_state: std::sync::Mutex::new(crate::gateway::TraceState::new()),
+            tunnel_non_ai: false,
+            vpn: None,
+            limits,
+            connection_semaphore: semaphore,
+            rate_limiter,
+            enabled: false,
+            credentials: Arc::new(HashMap::new()),
+        })
+    }
+
+    #[tokio::test]
+    async fn disabled_proxy_denied_domain_records_error() {
+        // When proxy is disabled, denied domains should still produce an event
+        let config = make_config_disabled_deny_all();
+
+        let (s1, s2) = UnixStream::pair().unwrap();
+        let proxy_fd = s2.into_raw_fd();
+        let proxy_config = Arc::clone(&config);
+        let proxy_task = tokio::spawn(async move {
+            handle_connection(proxy_fd, proxy_config).await;
+        });
+
+        // Send a TLS ClientHello so SNI can be extracted
+        let hello = make_client_hello("blocked.example.com");
+        let mut writer = s1;
+        std::io::Write::write_all(&mut writer, &hello).unwrap();
+        drop(writer);
+
+        let _ = proxy_task.await;
+        tokio::time::sleep(std::time::Duration::from_millis(DB_FLUSH_MS)).await;
+
+        let reader = config.db.reader().unwrap();
+        let events = reader.recent_net_events(10).unwrap();
+        assert!(!events.is_empty(), "disabled proxy should still emit events for denied domains");
+        assert_eq!(events[0].decision, Decision::Denied);
     }
 }

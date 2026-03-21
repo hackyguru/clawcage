@@ -61,7 +61,7 @@ function NumberControl({ leaf, onChange }: { leaf: SettingsLeaf; onChange: (v: n
 function ChoiceControl({ leaf, onChange }: { leaf: SettingsLeaf; onChange: (v: string) => void }) {
   return (
     <select
-      className="select select-xs border-edge bg-base-100 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-interactive/40 disabled:opacity-40"
+      className="rounded-md border border-edge bg-surface-alt px-2 py-1 text-xs font-mono text-content/80 focus:outline-none focus:ring-1 focus:ring-interactive/40 disabled:opacity-40"
       value={String(leaf.effective_value ?? '')}
       disabled={leaf.corp_locked || !leaf.enabled}
       onChange={(e) => onChange(e.target.value)}

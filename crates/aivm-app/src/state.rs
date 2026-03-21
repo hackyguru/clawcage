@@ -80,6 +80,9 @@ pub struct VmInstance {
     pub state_machine: HostStateMachine,
     pub _scratch_disk_path: Option<PathBuf>,
     pub port_state: Arc<PortState>,
+    /// Per-venv VPN manager. Routes upstream MITM connections through a
+    /// WireGuard tunnel when enabled.
+    pub vpn_state: Option<Arc<aivm_core::net::vpn::VpnManager>>,
 }
 
 /// Max queued output chunks before dropping to prevent OOM when the frontend

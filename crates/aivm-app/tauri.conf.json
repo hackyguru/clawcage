@@ -29,7 +29,7 @@
   "bundle": {
     "active": true,
     "targets": ["app", "dmg"],
-    "createUpdaterArtifacts": false,
+    "createUpdaterArtifacts": true,
     "resources": {
       "../../assets/vmlinuz": "vmlinuz",
       "../../assets/initrd.img": "initrd.img",

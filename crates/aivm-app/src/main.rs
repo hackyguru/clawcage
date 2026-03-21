@@ -23,7 +23,7 @@ use aivm_core::mcp::gateway::{self, McpGatewayConfig};
 use aivm_core::mcp::policy::McpPolicy;
 use aivm_core::mcp::server_manager::McpServerManager;
 use aivm_core::net::cert_authority::CertAuthority;
-use aivm_core::net::mitm_proxy::{self, MitmProxyConfig};
+use aivm_core::net::mitm_proxy::{self, MitmProxyConfig, ProxyLimits, RateLimiterMap, CredentialKind};
 use aivm_core::net::policy_config;
 use aivm_logger::DbWriter;
 use aivm_core::session::{self, SessionIndex, SessionRecord};
@@ -972,16 +972,14 @@ async fn setup_vsock(
                 warn!("state machine: {e}");
             }
             write_perf_log(&instance.state_machine);
+            let vpn_manager = instance.vpn_state.clone();
             let mitm = instance.net_state.as_ref().map(|ns| {
-                Arc::new(MitmProxyConfig {
-                    ca: Arc::clone(&ns.ca),
-                    policy: Arc::clone(&ns.policy),
-                    db: Arc::clone(&ns.db),
-                    upstream_tls: Arc::clone(&ns.upstream_tls),
-                    pricing: aivm_core::gateway::pricing::PricingTable::load(),
-                    trace_state: std::sync::Mutex::new(aivm_core::gateway::TraceState::new()),
-                    tunnel_non_ai: true,
-                })
+                let active_venv = {
+                    let app_state = app_handle.state::<AppState>();
+                    let venv_id = app_state.active_venv_id.lock().unwrap().clone();
+                    venv_id
+                };
+                build_mitm_config(ns, vpn_manager, active_venv.as_deref())
             });
             let mcp = instance.mcp_state.clone();
             (mitm, mcp)
@@ -1414,6 +1412,120 @@ fn write_control_msg(file: &mut std::fs::File, msg: &HostToGuest) -> Result<()> 
     Ok(())
 }
 
+/// Build the credential map for the MITM proxy's host-side credential injection.
+///
+/// Reads API keys from the settings registry and maps AI provider domains to
+/// the appropriate credential type. Keys never enter the guest VM.
+fn build_credentials(venv_id: Option<&str>) -> std::collections::HashMap<String, CredentialKind> {
+    let settings = policy_config::load_merged_settings_for_venv(venv_id);
+    let get_val = |id: &str| -> String {
+        settings.iter()
+            .find(|s| s.id == id)
+            .and_then(|s| match &s.effective_value {
+                aivm_core::net::policy_config::SettingValue::Text(t) => Some(t.clone()),
+                _ => None,
+            })
+            .unwrap_or_default()
+    };
+
+    let mut creds = std::collections::HashMap::new();
+
+    // Anthropic: x-api-key header
+    let anthropic_key = get_val("ai.anthropic.api_key");
+    if !anthropic_key.is_empty() {
+        creds.insert("api.anthropic.com".to_string(), CredentialKind::Header {
+            name: "x-api-key".to_string(),
+            value: anthropic_key,
+        });
+    }
+
+    // OpenAI: Authorization: Bearer header
+    let openai_key = get_val("ai.openai.api_key");
+    if !openai_key.is_empty() {
+        creds.insert("api.openai.com".to_string(), CredentialKind::Header {
+            name: "authorization".to_string(),
+            value: format!("Bearer {openai_key}"),
+        });
+    }
+
+    // Google: query parameter ?key=
+    let google_key = get_val("ai.google.api_key");
+    if !google_key.is_empty() {
+        creds.insert("generativelanguage.googleapis.com".to_string(), CredentialKind::QueryParam {
+            key: "key".to_string(),
+            value: google_key,
+        });
+    }
+
+    creds
+}
+
+/// Build a `MitmProxyConfig` from network state + venv settings.
+fn build_mitm_config(
+    ns: &VmNetworkState,
+    vpn: Option<Arc<aivm_core::net::vpn::VpnManager>>,
+    venv_id: Option<&str>,
+) -> Arc<MitmProxyConfig> {
+    let settings = policy_config::load_merged_settings_for_venv(venv_id);
+    let get_bool = |id: &str, default: bool| -> bool {
+        settings.iter()
+            .find(|s| s.id == id)
+            .and_then(|s| match &s.effective_value {
+                aivm_core::net::policy_config::SettingValue::Bool(b) => Some(*b),
+                _ => None,
+            })
+            .unwrap_or(default)
+    };
+    let get_num = |id: &str, default: u64| -> u64 {
+        settings.iter()
+            .find(|s| s.id == id)
+            .and_then(|s| match &s.effective_value {
+                aivm_core::net::policy_config::SettingValue::Number(n) => Some(*n as u64),
+                _ => None,
+            })
+            .unwrap_or(default)
+    };
+
+    let enabled = get_bool("network.proxy_enabled", true);
+    let credential_isolation = get_bool("network.credential_isolation", true);
+    let max_connections = get_num("network.proxy_max_connections", 100) as usize;
+    let rate_limit = get_num("network.proxy_rate_limit", 50) as f64;
+    let max_body_mb = get_num("network.proxy_max_body_mb", 100);
+    let idle_timeout_secs = get_num("network.proxy_idle_timeout", 60);
+
+    let limits = ProxyLimits {
+        max_concurrent_connections: max_connections,
+        per_domain_rate_limit: rate_limit,
+        max_response_body_bytes: max_body_mb * 1024 * 1024,
+        connection_idle_timeout: std::time::Duration::from_secs(idle_timeout_secs),
+        connect_timeout: std::time::Duration::from_secs(10),
+    };
+    let semaphore = Arc::new(tokio::sync::Semaphore::new(limits.max_concurrent_connections));
+    let rate_limiter = Arc::new(RateLimiterMap::new(limits.per_domain_rate_limit));
+
+    let credentials = if credential_isolation {
+        build_credentials(venv_id)
+    } else {
+        std::collections::HashMap::new()
+    };
+
+    Arc::new(MitmProxyConfig {
+        ca: Arc::clone(&ns.ca),
+        policy: Arc::clone(&ns.policy),
+        db: Arc::clone(&ns.db),
+        upstream_tls: Arc::clone(&ns.upstream_tls),
+        pricing: aivm_core::gateway::pricing::PricingTable::load(),
+        trace_state: std::sync::Mutex::new(aivm_core::gateway::TraceState::new()),
+        tunnel_non_ai: true,
+        vpn,
+        limits,
+        connection_semaphore: semaphore,
+        rate_limiter,
+        enabled,
+        credentials: Arc::new(credentials),
+    })
+}
+
 /// Send the boot configuration as individual vsock messages.
 ///
 /// Sends BootConfig (clock), then SetEnv for each env var, FileWrite for each
@@ -1447,6 +1559,25 @@ fn send_boot_config_for_venv(file: &mut std::fs::File, cli_env: &[(String, Strin
     let guest_config = policy_config::load_merged_guest_config_for_venv(venv_id);
     let mut env_count: usize = 0;
 
+    // Check credential isolation setting -- when enabled, API keys are replaced
+    // with placeholders so the guest never sees real keys.
+    let settings = policy_config::load_merged_settings_for_venv(venv_id);
+    let credential_isolation = settings.iter()
+        .find(|s| s.id == "network.credential_isolation")
+        .and_then(|s| match &s.effective_value {
+            policy_config::SettingValue::Bool(b) => Some(*b),
+            _ => None,
+        })
+        .unwrap_or(true);
+
+    /// Env var names that contain API keys -- replaced with placeholders when
+    /// credential isolation is enabled.
+    const API_KEY_ENV_VARS: &[&str] = &[
+        "ANTHROPIC_API_KEY",
+        "OPENAI_API_KEY",
+        "GEMINI_API_KEY",
+    ];
+
     if let Some(env) = guest_config.env {
         for (key, value) in env {
             if env_count >= MAX_BOOT_ENV_VARS {
@@ -1457,6 +1588,14 @@ fn send_boot_config_for_venv(file: &mut std::fs::File, cli_env: &[(String, Strin
                 warn!("skipping invalid boot env var key: {e}");
                 continue;
             }
+            // Credential isolation: send a placeholder instead of the real key.
+            // The MITM proxy injects the real key into upstream requests.
+            let value = if credential_isolation && API_KEY_ENV_VARS.contains(&key.as_str()) && !value.is_empty() {
+                info!("credential isolation: replacing {key} with proxy-managed placeholder");
+                "aivm-proxy-managed".to_string()
+            } else {
+                value
+            };
             if let Err(e) = validate_env_value(&value) {
                 warn!("skipping boot env var {key}: {e}");
                 continue;
@@ -1701,15 +1840,7 @@ fn run_cli(command: &str, cli_env: &[(String, String)], session_index: &SessionI
     // Create per-VM network state for MITM proxy.
     let net_state = create_net_state(&cli_session_id).ok();
     let mitm_config: Option<Arc<MitmProxyConfig>> = net_state.as_ref().map(|ns| {
-        Arc::new(MitmProxyConfig {
-            ca: Arc::clone(&ns.ca),
-            policy: Arc::clone(&ns.policy),
-            db: Arc::clone(&ns.db),
-            upstream_tls: Arc::clone(&ns.upstream_tls),
-            pricing: aivm_core::gateway::pricing::PricingTable::load(),
-            trace_state: std::sync::Mutex::new(aivm_core::gateway::TraceState::new()),
-            tunnel_non_ai: true,
-        })
+        build_mitm_config(ns, None, None)
     });
 
     // Create MCP gateway config for vsock:5003.
@@ -2451,6 +2582,7 @@ fn gui_boot_vm(
                     state_machine: sm,
                     _scratch_disk_path: scratch_path,
                     port_state: std::sync::Arc::new(crate::state::PortState::new()),
+                    vpn_state: Some(std::sync::Arc::new(aivm_core::net::vpn::VpnManager::new())),
                 });
             }
 
@@ -2648,6 +2780,9 @@ fn main() {
             commands::save_file,
             commands::get_session_info,
             commands::query_db,
+            commands::vpn_connect,
+            commands::vpn_disconnect,
+            commands::vpn_status,
             venvs::list_venvs,
             venvs::create_venv,
             venvs::delete_venv,

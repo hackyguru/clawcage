@@ -271,6 +271,32 @@ export function saveFile(guestPath: string, content: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// VPN
+// ---------------------------------------------------------------------------
+
+export interface VpnState {
+  status: 'disconnected' | 'connecting' | 'connected' | 'error';
+  error: string | null;
+  endpoint: string | null;
+  tunnel_ip: string | null;
+}
+
+/** Connect the active venv's VPN with a WireGuard config. */
+export function vpnConnect(config: string): Promise<void> {
+  return ensureDeps().then(() => isMock ? mockApi.vpnConnect(config) : tauriInvoke('vpn_connect', { config }));
+}
+
+/** Disconnect the active venv's VPN. */
+export function vpnDisconnect(): Promise<void> {
+  return ensureDeps().then(() => isMock ? mockApi.vpnDisconnect() : tauriInvoke('vpn_disconnect'));
+}
+
+/** Get the VPN status for the active venv. */
+export function vpnStatus(): Promise<VpnState> {
+  return ensureDeps().then(() => isMock ? mockApi.vpnStatus() : tauriInvoke<VpnState>('vpn_status'));
+}
+
+// ---------------------------------------------------------------------------
 // Session DB queries
 // ---------------------------------------------------------------------------
 

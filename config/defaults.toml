@@ -405,6 +405,58 @@ default = "deny"
 [settings.network.default_action.meta]
 choices = ["allow", "deny"]
 
+[settings.network.proxy_enabled]
+name = "Enable MITM proxy"
+description = "When enabled, the proxy terminates TLS and inspects HTTP traffic for telemetry and policy enforcement. When disabled, traffic is tunneled transparently (domain-level allow/deny still applies via SNI)."
+type = "bool"
+default = true
+
+[settings.network.credential_isolation]
+name = "Credential isolation"
+description = "Keep API keys on the host. The proxy injects real credentials into upstream requests so keys never enter the guest VM."
+type = "bool"
+default = true
+
+[settings.network.proxy_max_connections]
+name = "Max concurrent connections"
+description = "Maximum number of simultaneous proxy connections. Prevents resource exhaustion from runaway agents."
+type = "number"
+default = 100
+
+[settings.network.proxy_max_connections.meta]
+min = 10
+max = 1000
+
+[settings.network.proxy_rate_limit]
+name = "Per-domain rate limit"
+description = "Maximum requests per second per domain. Prevents runaway AI agent loops."
+type = "number"
+default = 50
+
+[settings.network.proxy_rate_limit.meta]
+min = 1
+max = 1000
+
+[settings.network.proxy_max_body_mb]
+name = "Max response body (MB)"
+description = "Maximum response body size in megabytes. Prevents OOM from huge downloads."
+type = "number"
+default = 100
+
+[settings.network.proxy_max_body_mb.meta]
+min = 1
+max = 1024
+
+[settings.network.proxy_idle_timeout]
+name = "Connection idle timeout (sec)"
+description = "Seconds before idle proxy connections are terminated."
+type = "number"
+default = 60
+
+[settings.network.proxy_idle_timeout.meta]
+min = 10
+max = 600
+
 [settings.network.custom_allow]
 name = "Custom allowed domains"
 description = "Comma-separated domain patterns to allow. Wildcards supported (*.example.com)."
@@ -416,6 +468,53 @@ name = "Custom blocked domains"
 description = "Comma-separated domain patterns to block. Takes priority over custom allow list."
 type = "text"
 default = ""
+
+# -- VPN ---------------------------------------------------------------------
+
+[settings.vpn]
+name = "VPN"
+description = "Per-venv VPN configuration. Routes guest traffic through a VPN tunnel without affecting the host or other venvs."
+collapsed = false
+
+[settings.vpn.enabled]
+name = "Enable VPN"
+description = "Route this venv's traffic through a VPN tunnel. Requires a valid WireGuard configuration."
+type = "bool"
+default = false
+
+[settings.vpn.provider]
+name = "VPN Provider"
+description = "VPN protocol to use."
+type = "text"
+default = "wireguard"
+
+[settings.vpn.provider.meta]
+choices = ["wireguard"]
+
+[settings.vpn.config]
+name = "WireGuard Configuration"
+description = "WireGuard configuration file (wg0.conf). Paste your full WireGuard config here."
+type = "file"
+collapsed = true
+enabled_by = "vpn.enabled"
+
+[settings.vpn.config.default]
+path = "/etc/wireguard/wg0.conf"
+content = ""
+
+[settings.vpn.dns]
+name = "DNS Servers"
+description = "Comma-separated DNS servers to use when VPN is active. Leave empty to use VPN-provided DNS."
+type = "text"
+default = ""
+enabled_by = "vpn.enabled"
+
+[settings.vpn.kill_switch]
+name = "Kill Switch"
+description = "Block all traffic if the VPN tunnel drops. Prevents data leaks outside the tunnel."
+type = "bool"
+default = true
+enabled_by = "vpn.enabled"
 
 # -- VM ----------------------------------------------------------------------
 

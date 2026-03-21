@@ -1,7 +1,7 @@
 // Sidebar component
 import { useSidebar } from '../stores/sidebar';
 import { useVenvs, closeVenv } from '../stores/venvs';
-import { HomeIcon, TerminalIcon, PortsIcon, FolderIcon, LogsIcon, StatsIcon, SettingsIcon } from '../icons/Icons';
+import { HomeIcon, TerminalIcon, PortsIcon, FolderIcon, LogsIcon, StatsIcon, VpnIcon, SettingsIcon } from '../icons/Icons';
 import type { ViewName } from '../types';
 import type { FC } from 'react';
 
@@ -11,6 +11,7 @@ const vmItems: { view: ViewName; label: string; Icon: FC<{ className?: string }>
   { view: 'files', label: 'Files', Icon: FolderIcon },
   { view: 'logs', label: 'Logs', Icon: LogsIcon },
   { view: 'stats', label: 'Stats', Icon: StatsIcon },
+  { view: 'vpn', label: 'VPN', Icon: VpnIcon },
   { view: 'settings', label: 'Settings', Icon: SettingsIcon },
 ];
 
