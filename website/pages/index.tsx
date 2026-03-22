@@ -455,14 +455,16 @@ function Features() {
                 <div className="mt-6 flex items-center gap-3">
                   <div className="flex -space-x-2">
                     {[
-                      "bg-provider-anthropic",
-                      "bg-provider-google",
-                      "bg-provider-openai",
-                      "bg-provider-mistral",
-                    ].map((bg, i) => (
-                      <div
+                      { src: "/agents/claudecode.svg", alt: "Claude Code" },
+                      { src: "/agents/gemini.png", alt: "Gemini" },
+                      { src: "/agents/codex.png", alt: "Codex" },
+                      { src: "/agents/openclaw.png", alt: "OpenClaw" },
+                    ].map((agent, i) => (
+                      <img
                         key={i}
-                        className={`w-7 h-7 rounded-full ${bg} border-2 border-surface transition-transform duration-500 group-hover:translate-x-0`}
+                        src={agent.src}
+                        alt={agent.alt}
+                        className="w-7 h-7 rounded-full border-2 border-surface object-cover transition-transform duration-500 group-hover:translate-x-0"
                         style={{ transform: `translateX(${i * 4}px)`, transitionDelay: `${i * 75}ms` }}
                       />
                     ))}
