@@ -622,7 +622,7 @@ function Pricing() {
           {/* Pro tier */}
           <div className="glass border border-edge rounded-lg p-6 flex flex-col relative overflow-hidden">
             <div className="absolute top-4 right-4">
-              <span className="text-[9px] text-caution/70 border border-caution/20 rounded px-1.5 py-0.5 uppercase tracking-widest font-semibold">Coming soon</span>
+              <span className="text-[9px] text-allowed/70 border border-allowed/20 rounded px-1.5 py-0.5 uppercase tracking-widest font-semibold">Coming soon</span>
             </div>
             <div className="text-[10px] text-content/30 uppercase tracking-widest font-semibold mb-3">Pro</div>
             <div className="flex items-baseline gap-1 mb-1">
