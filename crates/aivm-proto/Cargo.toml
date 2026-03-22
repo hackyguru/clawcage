@@ -1,9 +1,0 @@
-[package]
-name = "aivm-proto"
-version.workspace = true
-edition = "2021"
-
-[dependencies]
-serde = { workspace = true }
-rmp-serde = { workspace = true }
-anyhow = { workspace = true }

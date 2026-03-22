@@ -1,14 +1,14 @@
-# Aivm Next-Gen Platform Architecture
+# Clawcage Next-Gen Platform Architecture
 
 Terminal, IDE, and Agent Integration
 
 ## Context
 
-Aivm is a macOS app that sandboxes AI agents in Linux VMs. Currently it operates as a Tauri GUI or a fire-and-forget exec CLI. The goal is to evolve Aivm into a **platform** with:
+Clawcage is a macOS app that sandboxes AI agents in Linux VMs. Currently it operates as a Tauri GUI or a fire-and-forget exec CLI. The goal is to evolve Clawcage into a **platform** with:
 
 - A **hypervisor abstraction** enabling future Linux/KVM support
 - A **multi-VM daemon** with HTTP management API
-- **Interactive terminal** access (`aivm shell`)
+- **Interactive terminal** access (`clawcage shell`)
 - **SSH gateway** for VS Code / Google Antigravity (VS Code fork) remote development
 - **MCP server** so AI agents can programmatically create and control sandboxes
 - The **Tauri GUI becoming a daemon client** (UI can close/reopen without killing VMs)
@@ -16,35 +16,35 @@ Aivm is a macOS app that sandboxes AI agents in Linux VMs. Currently it operates
 ## Command Structure
 
 ```
-aivm                          -> GUI (Tauri, client of daemon)
-aivm ui                       -> GUI (explicit alias)
-aivm shell [--env K=V]...     -> interactive PTY session
-aivm start [--env K=V]... [--name <id>]  -> start background VM
-aivm stop [<id>]              -> gracefully stop VM
-aivm status                   -> list running VMs (queries daemon HTTP API)
-aivm ssh-config [<id>]        -> print SSH config snippet
-aivm [--env K=V]... <command> -> exec mode (backward compat)
+clawcage                          -> GUI (Tauri, client of daemon)
+clawcage ui                       -> GUI (explicit alias)
+clawcage shell [--env K=V]...     -> interactive PTY session
+clawcage start [--env K=V]... [--name <id>]  -> start background VM
+clawcage stop [<id>]              -> gracefully stop VM
+clawcage status                   -> list running VMs (queries daemon HTTP API)
+clawcage ssh-config [<id>]        -> print SSH config snippet
+clawcage [--env K=V]... <command> -> exec mode (backward compat)
 ```
 
 ## Debugging & Testing Workflows This Enables
 
 ```sh
 # 1. Interactive investigation after failures
-aivm shell                          # drop into VM, poke around
-aivm-doctor -k sandbox -x           # run individual diagnostics
+clawcage shell                          # drop into VM, poke around
+clawcage-doctor -k sandbox -x           # run individual diagnostics
 
 # 2. Keep VM alive while iterating
-aivm start                          # boot once
-ssh aivm-default "curl https://github.com"  # test repeatedly
-aivm stop                           # done
+clawcage start                          # boot once
+ssh clawcage-default "curl https://github.com"  # test repeatedly
+clawcage stop                           # done
 
 # 3. Multi-terminal debugging
-aivm start                          # one VM
-aivm shell                          # terminal 1: interactive
-ssh aivm-default "tail -f /var/log/..."  # terminal 2: logs
+clawcage start                          # one VM
+clawcage shell                          # terminal 1: interactive
+ssh clawcage-default "tail -f /var/log/..."  # terminal 2: logs
 
 # 4. VS Code / Antigravity remote development
-aivm start && code --remote ssh-remote+aivm-default /workspace
+clawcage start && code --remote ssh-remote+clawcage-default /workspace
 
 # 5. AI agent control (MCP)
 # Claude Code calls provision_sandbox(), run_exec(), read_file() via MCP
@@ -73,7 +73,7 @@ VZ-specific code lives in 4 files (machine.rs, boot.rs, serial.rs, vsock.rs). Al
 
 ### Trait design
 
-New file: `crates/aivm-core/src/hypervisor/mod.rs`
+New file: `crates/clawcage-core/src/hypervisor/mod.rs`
 
 **Mandate**: No `objc2` or `Virtualization` symbols may appear outside of `src/hypervisor/apple_vz/`.
 
@@ -108,7 +108,7 @@ pub enum VmState { Created, Booting, Running, Stopped, Error }
 ### New file structure
 
 ```
-crates/aivm-core/src/
+crates/clawcage-core/src/
   hypervisor/
     mod.rs              -- Hypervisor, SerialConsole, VsockProvider traits
     apple_vz/
@@ -125,7 +125,7 @@ crates/aivm-core/src/
 ### Feature gate
 
 ```toml
-# aivm-core/Cargo.toml
+# clawcage-core/Cargo.toml
 [features]
 default = ["apple-vz"]
 apple-vz = ["objc2-virtualization", "objc2", "objc2-foundation", "block2", "dispatch2", "core-foundation-sys"]
@@ -136,36 +136,36 @@ apple-vz = ["objc2-virtualization", "objc2", "objc2-foundation", "block2", "disp
 `machine.rs:143-144` exposes the raw `ObjcVZVirtualMachine`. This must be removed -- all functionality it provides must be available through trait methods. Currently `socket_devices()` returns `NSArray<VZSocketDevice>` -- this leaks VZ types into the app layer and must be replaced with the `VsockProvider` trait.
 
 ### Files to modify
-- `crates/aivm-core/src/vm/machine.rs` -> move to `hypervisor/apple_vz/machine.rs`
-- `crates/aivm-core/src/vm/boot.rs` -> move to `hypervisor/apple_vz/boot.rs`
-- `crates/aivm-core/src/vm/serial.rs` -> move to `hypervisor/apple_vz/serial.rs`
-- `crates/aivm-core/src/vm/vsock.rs` -> split: VZ parts to `apple_vz/vsock.rs`, keep `CoalesceBuffer`/`VsockConnection` in `vm/vsock.rs`
-- `crates/aivm-core/src/lib.rs` -> export `hypervisor` module
-- `crates/aivm-app/src/state.rs` -> use `Box<dyn Hypervisor>` instead of `VirtualMachine`
-- `crates/aivm-app/src/main.rs` -> use trait methods, remove `inner_vz()` calls
+- `crates/clawcage-core/src/vm/machine.rs` -> move to `hypervisor/apple_vz/machine.rs`
+- `crates/clawcage-core/src/vm/boot.rs` -> move to `hypervisor/apple_vz/boot.rs`
+- `crates/clawcage-core/src/vm/serial.rs` -> move to `hypervisor/apple_vz/serial.rs`
+- `crates/clawcage-core/src/vm/vsock.rs` -> split: VZ parts to `apple_vz/vsock.rs`, keep `CoalesceBuffer`/`VsockConnection` in `vm/vsock.rs`
+- `crates/clawcage-core/src/lib.rs` -> export `hypervisor` module
+- `crates/clawcage-app/src/state.rs` -> use `Box<dyn Hypervisor>` instead of `VirtualMachine`
+- `crates/clawcage-app/src/main.rs` -> use trait methods, remove `inner_vz()` calls
 
 ### Verification
 - `cargo test --workspace` passes (all existing tests)
 - `just check` passes
-- `just repack "echo aivm-ok"` boots and runs (no behavioral changes)
+- `just repack "echo clawcage-ok"` boots and runs (no behavioral changes)
 - `cfg(not(feature = "apple-vz"))` compiles (no VZ symbols in trait definitions)
 
 ---
 
-## Phase 2: Daemon Core + MCP (`aivm-daemon` crate)
+## Phase 2: Daemon Core + MCP (`clawcage-daemon` crate)
 
-**Goal**: A new `aivm-daemon` crate manages VMs as an orchestrator with an axum HTTP API **and an MCP server from day one**. MCP comes early so Claude Code can directly interact with VMs during development -- enabling faster debugging of all subsequent phases.
+**Goal**: A new `clawcage-daemon` crate manages VMs as an orchestrator with an axum HTTP API **and an MCP server from day one**. MCP comes early so Claude Code can directly interact with VMs during development -- enabling faster debugging of all subsequent phases.
 
 ### Architecture
 
 ```
-aivm start --name dev
+clawcage start --name dev
   |
   fork() + setsid()
   |
   Parent: prints "VM started (id=dev, pid=12345)", exits
   |
-  Child (aivm-daemon):
+  Child (clawcage-daemon):
     +-- Orchestrator: state machine for multiple VmInstances
     +-- Hypervisor (AppleVz): owns VM, vsock, serial
     +-- MITM proxy: handles HTTPS inspection
@@ -173,14 +173,14 @@ aivm start --name dev
     |     GET /health, /status, /list, /logs/{vm_id}
     |     POST /stop/{vm_id}
     +-- MCP server: provision_sandbox, run_exec, list_sandboxes, shutdown
-    +-- Unix socket: ~/.aivm/sessions/dev/ssh.sock (Phase 4)
+    +-- Unix socket: ~/.clawcage/sessions/dev/ssh.sock (Phase 4)
     +-- CFRunLoop pumping (VZ requirement on macOS)
 ```
 
-### New crate: `crates/aivm-daemon/`
+### New crate: `crates/clawcage-daemon/`
 
 ```
-crates/aivm-daemon/src/
+crates/clawcage-daemon/src/
     main.rs          -- process forking, PID management, signal handling
     orchestrator.rs  -- state machine for multiple VmInstances
     api/
@@ -218,11 +218,11 @@ The MCP server is **not deferred** -- it ships as part of Phase 2. This is criti
 ### Multi-VM management
 
 The orchestrator manages a pool of VMs identified by `vm_id`:
-- Each VM gets its own session dir: `~/.aivm/sessions/<vm_id>/`
+- Each VM gets its own session dir: `~/.clawcage/sessions/<vm_id>/`
 - Session tracking: `session.json` with pid, status, memory_limit_mb, created_at
-- PID file: `~/.aivm/sessions/<vm_id>/pid`
+- PID file: `~/.clawcage/sessions/<vm_id>/pid`
 - Each VM runs as a dedicated actor/task within the daemon for isolation
-- The daemon process itself is per-VM (one fork per `aivm start`)
+- The daemon process itself is per-VM (one fork per `clawcage start`)
 
 ### HTTP management API (axum)
 
@@ -234,7 +234,7 @@ GET  /logs/{vm_id}     -> SSE stream of serial/kernel logs
 POST /stop/{vm_id}     -> trigger graceful shutdown
 ```
 
-Each daemon binds its own Unix socket (`~/.aivm/sessions/<vm_id>/api.sock`) or a TCP port. `aivm status` discovers running daemons by scanning session dirs.
+Each daemon binds its own Unix socket (`~/.clawcage/sessions/<vm_id>/api.sock`) or a TCP port. `clawcage status` discovers running daemons by scanning session dirs.
 
 ### SIGTERM handler
 
@@ -249,7 +249,7 @@ Must trigger the full guest shutdown handshake:
 
 ### PID verification
 
-`aivm stop` must verify the PID hasn't been recycled:
+`clawcage stop` must verify the PID hasn't been recycled:
 - macOS: use `proc_pidinfo(pid, PROC_PIDTBSDINFO)` to check process name
 - Only then send SIGTERM, poll for exit (10s timeout, then SIGKILL)
 
@@ -273,30 +273,30 @@ impl BootedVm {
 ```
 
 ### Files to create
-- `crates/aivm-daemon/Cargo.toml` -- new crate, depends on aivm-core + axum + tokio
-- `crates/aivm-daemon/src/main.rs` -- daemon entry point, fork/setsid, signal handling
-- `crates/aivm-daemon/src/orchestrator.rs` -- multi-VM state machine
-- `crates/aivm-daemon/src/api/mod.rs` -- axum router
-- `crates/aivm-daemon/src/api/handlers.rs` -- HTTP endpoint implementations
-- `crates/aivm-daemon/src/api/mcp.rs` -- MCP tool definitions and server
-- `crates/aivm-daemon/src/network/ssh_proxy.rs` -- placeholder for Phase 4
-- `crates/aivm-daemon/src/network/mitm.rs` -- SNI proxy integration
-- `Cargo.toml` (workspace) -- add `aivm-daemon` member
+- `crates/clawcage-daemon/Cargo.toml` -- new crate, depends on clawcage-core + axum + tokio
+- `crates/clawcage-daemon/src/main.rs` -- daemon entry point, fork/setsid, signal handling
+- `crates/clawcage-daemon/src/orchestrator.rs` -- multi-VM state machine
+- `crates/clawcage-daemon/src/api/mod.rs` -- axum router
+- `crates/clawcage-daemon/src/api/handlers.rs` -- HTTP endpoint implementations
+- `crates/clawcage-daemon/src/api/mcp.rs` -- MCP tool definitions and server
+- `crates/clawcage-daemon/src/network/ssh_proxy.rs` -- placeholder for Phase 4
+- `crates/clawcage-daemon/src/network/mitm.rs` -- SNI proxy integration
+- `Cargo.toml` (workspace) -- add `clawcage-daemon` member
 
 ### Files to modify
-- `crates/aivm-app/src/main.rs` -- `aivm start` invokes daemon, `aivm stop`/`aivm status` query it
+- `crates/clawcage-app/src/main.rs` -- `clawcage start` invokes daemon, `clawcage stop`/`clawcage status` query it
 
 ### Verification
-- `aivm start` returns immediately, daemon running in background
-- `curl --unix-socket ~/.aivm/sessions/default/api.sock http://localhost/health` returns ok
+- `clawcage start` returns immediately, daemon running in background
+- `curl --unix-socket ~/.clawcage/sessions/default/api.sock http://localhost/health` returns ok
 - MCP `run_exec` executes a command in the VM and returns stdout/exit_code
-- `aivm status` shows running VM
-- `aivm stop` terminates cleanly (guest filesystem clean)
+- `clawcage status` shows running VM
+- `clawcage stop` terminates cleanly (guest filesystem clean)
 - Daemon survives terminal close
 
 ---
 
-## Phase 3: Shell & Multi-VM (`aivm shell`)
+## Phase 3: Shell & Multi-VM (`clawcage shell`)
 
 **Goal**: Interactive PTY session targeting a daemon-managed VM. Also connects to existing background VMs.
 
@@ -324,21 +324,21 @@ Initial implementation is standalone mode:
 ### CLI dispatch update (main.rs:1184)
 
 ```
-aivm                                -> Tauri GUI
-aivm ui                             -> Tauri GUI
-aivm shell [--env K=V]... [--name <id>]  -> run_shell()
-aivm start [--env K=V]... [--name <id>]  -> run_daemon()
-aivm stop [<id>]                    -> run_stop()
-aivm status                         -> run_status()
-aivm ssh-config [<id>]              -> print SSH config
-aivm [--env K=V]... <command>       -> run_cli() (backward compat)
+clawcage                                -> Tauri GUI
+clawcage ui                             -> Tauri GUI
+clawcage shell [--env K=V]... [--name <id>]  -> run_shell()
+clawcage start [--env K=V]... [--name <id>]  -> run_daemon()
+clawcage stop [<id>]                    -> run_stop()
+clawcage status                         -> run_status()
+clawcage ssh-config [<id>]              -> print SSH config
+clawcage [--env K=V]... <command>       -> run_cli() (backward compat)
 ```
 
 ### Files to modify
-- `crates/aivm-app/src/main.rs` -- add `run_shell()`, update `main()` dispatch
+- `crates/clawcage-app/src/main.rs` -- add `run_shell()`, update `main()` dispatch
 
 ### Verification
-- `aivm shell` gives interactive bash prompt
+- `clawcage shell` gives interactive bash prompt
 - `vim`, `top`, `less` work correctly
 - Window resize propagates (`stty size`)
 - Ctrl-C sends SIGINT, `exit` returns to host shell
@@ -356,10 +356,10 @@ VS Code / Antigravity                              GUEST (Linux VM)
     |
     | ProxyCommand: socat - UNIX:ssh.sock           openssh-server (127.0.0.1:22)
     v                                                      ^
-Unix socket (~/.aivm/sessions/<id>/ssh.sock)             | TCP connect
+Unix socket (~/.clawcage/sessions/<id>/ssh.sock)             | TCP connect
     |                                                      |
-    v                                               aivm-ssh-bridge
-aivm daemon                                       (on SshBridge msg: connect
+    v                                               clawcage-ssh-bridge
+clawcage daemon                                       (on SshBridge msg: connect
   1. accept() unix socket                            vsock:5006 + tcp:22, bridge)
   2. send SshBridge{id} on ctrl ch (vsock:5000) ------>  |
   3. wait for vsock:5006 connection     <-----------  new vsock connection
@@ -386,39 +386,39 @@ RUN apt-get install -y --no-install-recommends openssh-server && \
 
 **Entropy**: Enable `VZVirtioEntropyDeviceConfiguration` (virtio-rng) in the `AppleVz` backend's machine creation. This seeds `/dev/random` directly from the host, eliminating the need for `haveged` in the guest and keeping the rootfs lean.
 
-**`images/aivm-init`** -- start sshd + bridge:
+**`images/clawcage-init`** -- start sshd + bridge:
 ```sh
-if [ -f /aivm-authorized-keys ]; then
+if [ -f /clawcage-authorized-keys ]; then
     mkdir -p /newroot/root/.ssh
-    cp /aivm-authorized-keys /newroot/root/.ssh/authorized_keys
+    cp /clawcage-authorized-keys /newroot/root/.ssh/authorized_keys
     chmod 700 /newroot/root/.ssh && chmod 600 /newroot/root/.ssh/authorized_keys
 fi
 chroot /newroot ssh-keygen -A
 chroot /newroot /usr/sbin/sshd
-aivm-ssh-bridge &
+clawcage-ssh-bridge &
 ```
 
-**New binary: `aivm-ssh-bridge`** (`crates/aivm-agent/src/ssh_bridge.rs`)
+**New binary: `clawcage-ssh-bridge`** (`crates/clawcage-agent/src/ssh_bridge.rs`)
 - Listens on control channel for `SshBridge { session_id }` messages
 - On each: connect to host vsock:5006 AND TCP 127.0.0.1:22, bridge bidirectionally
 - Must handle multiple concurrent bridges (thread-pool or `tokio::spawn` -- VS Code opens 3-5 simultaneously)
 
 ### Host-side changes
 
-- `crates/aivm-proto/src/lib.rs` -- add `HostToGuest::SshBridge { session_id: u64 }`
-- `crates/aivm-daemon/src/network/ssh_proxy.rs` -- Unix socket listener, per-connection bridge threads
-- SSH key management: generate `~/.aivm/ssh/id_ed25519` on first run, inject public key into initrd via `just repack`
+- `crates/clawcage-proto/src/lib.rs` -- add `HostToGuest::SshBridge { session_id: u64 }`
+- `crates/clawcage-daemon/src/network/ssh_proxy.rs` -- Unix socket listener, per-connection bridge threads
+- SSH key management: generate `~/.clawcage/ssh/id_ed25519` on first run, inject public key into initrd via `just repack`
 
 ### SSH config
 
-`aivm ssh-config dev` outputs:
+`clawcage ssh-config dev` outputs:
 ```
-Host aivm-dev
+Host clawcage-dev
     User root
-    IdentityFile ~/.aivm/ssh/id_ed25519
+    IdentityFile ~/.clawcage/ssh/id_ed25519
     StrictHostKeyChecking no
     UserKnownHostsFile /dev/null
-    ProxyCommand socat - UNIX-CONNECT:$HOME/.aivm/sessions/dev/ssh.sock
+    ProxyCommand socat - UNIX-CONNECT:$HOME/.clawcage/sessions/dev/ssh.sock
 ```
 
 ### VS Code / Antigravity extension
@@ -427,11 +427,11 @@ New directory: `vscode-extension/`
 
 | Command | Action |
 |---------|--------|
-| `Aivm: Start VM` | Run `aivm start` |
-| `Aivm: Stop VM` | Run `aivm stop <id>` |
-| `Aivm: Connect (Remote SSH)` | Ensure SSH config, trigger Remote SSH |
-| `Aivm: Open Terminal` | Integrated terminal with `aivm shell` |
-| `Aivm: Fix SSH Config` | Re-generate SSH config, update `~/.ssh/config` |
+| `Clawcage: Start VM` | Run `clawcage start` |
+| `Clawcage: Stop VM` | Run `clawcage stop <id>` |
+| `Clawcage: Connect (Remote SSH)` | Ensure SSH config, trigger Remote SSH |
+| `Clawcage: Open Terminal` | Integrated terminal with `clawcage shell` |
+| `Clawcage: Fix SSH Config` | Re-generate SSH config, update `~/.ssh/config` |
 
 Sidebar TreeView shows running VMs with status, connect/stop actions.
 Extension uses standard VS Code APIs only -- works in both VS Code and Antigravity.
@@ -442,10 +442,10 @@ Build as `.vsix` for sideloading. Declare `ms-vscode-remote.remote-ssh` as depen
 - New `test_ssh.py` for SSH bridge verification
 
 ### Verification
-- `ssh aivm-default whoami` returns `root`
+- `ssh clawcage-default whoami` returns `root`
 - VS Code Remote SSH opens a remote window
 - 3-5 concurrent SSH channels work (VS Code typical)
-- `aivm-doctor` tests pass
+- `clawcage-doctor` tests pass
 - `just smoke-test` passes
 
 ---
@@ -482,7 +482,7 @@ Benefits:
 - Consistent state between CLI, GUI, and IDE
 - Multiple GUIs can connect to the same daemon
 
-This is a migration of `crates/aivm-app/src/main.rs` (Tauri setup hook) and `commands.rs` to use HTTP/WebSocket instead of direct VM access. The frontend Svelte components (`api.ts`, stores) change their data source from Tauri IPC to the daemon API.
+This is a migration of `crates/clawcage-app/src/main.rs` (Tauri setup hook) and `commands.rs` to use HTTP/WebSocket instead of direct VM access. The frontend Svelte components (`api.ts`, stores) change their data source from Tauri IPC to the daemon API.
 
 ---
 
@@ -494,12 +494,12 @@ Phase 1: Hypervisor Abstraction
     |  ~450 LOC refactor, zero behavioral changes
     v
 Phase 2: Daemon Core + MCP
-    |  aivm-daemon crate: fork/setsid, axum HTTP, orchestrator
+    |  clawcage-daemon crate: fork/setsid, axum HTTP, orchestrator
     |  MCP server with run_exec, provision_sandbox, list_sandboxes, shutdown
     |  Claude Code can now execute commands in VMs directly!
     v
 Phase 3: Shell & Multi-VM
-    |  aivm shell (interactive PTY), CLI dispatch
+    |  clawcage shell (interactive PTY), CLI dispatch
     |  Reuses boot_and_handshake() from Phase 2
     v
 Phase 4: SSH & IDE
@@ -518,7 +518,7 @@ Guest-side work for Phase 4 (Dockerfile, init script, bridge binary) can proceed
 
 ### Vsock port registry
 
-Create `crates/aivm-proto/src/ports.rs` as single source of truth:
+Create `crates/clawcage-proto/src/ports.rs` as single source of truth:
 ```rust
 pub const CONTROL: u32 = 5000;
 pub const TERMINAL: u32 = 5001;
@@ -530,14 +530,14 @@ pub const SSH: u32 = 5006;
 ### Binary bloat
 openssh-server adds ~2-3MB to rootfs. Initrd is gzip-compressed. Monitor boot time stays <1s.
 
-### aivm-doctor daemon integration
-Update `aivm-doctor` to query the daemon's `/health` and `/status` endpoints (when available) rather than checking for local process PIDs. This validates the full platform stack in smoke tests.
+### clawcage-doctor daemon integration
+Update `clawcage-doctor` to query the daemon's `/health` and `/status` endpoints (when available) rather than checking for local process PIDs. This validates the full platform stack in smoke tests.
 
 ### SSH multiplexing
-`aivm-ssh-bridge` in the guest must use a thread-pool or `tokio::spawn` to handle multiple concurrent connections (VS Code opens 3-5 simultaneously for extensions, terminal, filesystem).
+`clawcage-ssh-bridge` in the guest must use a thread-pool or `tokio::spawn` to handle multiple concurrent connections (VS Code opens 3-5 simultaneously for extensions, terminal, filesystem).
 
 ### macOS persistence (future)
-`aivm autostart` to register `~/Library/LaunchAgents/com.aivm.vm.plist` for auto-start on login.
+`clawcage autostart` to register `~/Library/LaunchAgents/com.clawcage.vm.plist` for auto-start on login.
 
 ### Antigravity marketplace
 Build extension as `.vsix` for sideloading. Verify if Antigravity supports `ms-vscode-remote.remote-ssh` natively.
@@ -548,18 +548,18 @@ The project is considered "Platform Ready" when this sequence passes:
 
 ```bash
 # Phase 2: Daemon boots and responds to health checks
-aivm start --name research-env
-curl --unix-socket ~/.aivm/sessions/research-env/api.sock http://localhost/health
+clawcage start --name research-env
+curl --unix-socket ~/.clawcage/sessions/research-env/api.sock http://localhost/health
 
 # Phase 3: Interactive shell works
-aivm shell --name research-env
+clawcage shell --name research-env
 
 # Phase 4: IDE can connect
-code --remote ssh-remote+aivm-research-env /workspace
+code --remote ssh-remote+clawcage-research-env /workspace
 
 # Agent can control via MCP
-mcp-inspect --server aivm list_sandboxes
+mcp-inspect --server clawcage list_sandboxes
 
 # Cleanup
-aivm stop research-env
+clawcage stop research-env
 ```

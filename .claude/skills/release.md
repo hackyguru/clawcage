@@ -1,6 +1,6 @@
 # Release Skill
 
-Use this skill when preparing, debugging, or executing a Aivm release.
+Use this skill when preparing, debugging, or executing a Clawcage release.
 
 ## Pre-Release Checklist
 
@@ -10,7 +10,7 @@ Run locally before pushing a release tag:
 just doctor                    # Checks all tools are installed
 just build-assets              # Rebuild VM assets if needed (needs docker/podman)
 scripts/preflight.sh           # Validates Apple certs for CI
-just full-test                 # Unit tests + aivm-doctor + integration + bench
+just full-test                 # Unit tests + clawcage-doctor + integration + bench
 ```
 
 ## Cutting a Release
@@ -19,7 +19,7 @@ Releases are CI-only -- no local `just release`. Push a tag to trigger the pipel
 
 1. **Bump version** in both places:
    - `workspace.package.version` in root `Cargo.toml`
-   - `version` in `crates/aivm-app/tauri.conf.json`
+   - `version` in `crates/clawcage-app/tauri.conf.json`
 2. **Update CHANGELOG.md**: move `[Unreleased]` items into `[X.Y.Z] - YYYY-MM-DD`
 3. **Run preflight**: `scripts/preflight.sh` (validates Apple certs for CI)
 4. **Run tests**: `just full-test`
@@ -57,7 +57,7 @@ macOS Keychain only accepts legacy PKCS12 encryption (3DES/SHA1). OpenSSL 3.x cr
 ```bash
 scripts/fix_p12_legacy.sh
 # Then upload:
-gh secret set APPLE_CERTIFICATE < private/apple-certificate/aivm-b64.txt
+gh secret set APPLE_CERTIFICATE < private/apple-certificate/clawcage-b64.txt
 ```
 
 **Manual fix** (if script unavailable):
@@ -72,8 +72,8 @@ Do NOT use `-legacy` flag alone -- it uses RC2-CBC for certs which OpenSSL itsel
 ## Tauri Updater Signing
 
 - Private key: `TAURI_SIGNING_PRIVATE_KEY` secret (minisign format)
-- Public key: checked into `crates/aivm-app/tauri.conf.json` (not secret)
-- Generate new: `cargo tauri signer generate -w ~/.tauri/aivm.key`
+- Public key: checked into `crates/clawcage-app/tauri.conf.json` (not secret)
+- Generate new: `cargo tauri signer generate -w ~/.tauri/clawcage.key`
 
 ## CI Secrets Reference
 
@@ -116,7 +116,7 @@ To add a new check: add a `check_*` function to `scripts/preflight.sh`.
 - Check `.p8` key is valid and has "Developer" role
 - Check `APPLE_API_ISSUER` and `APPLE_API_KEY` match the key
 - Verify team membership is active ($99/year Apple Developer Program)
-- Verify credentials locally: `xcrun notarytool history --key private/apple-certificate/aivm.p8 --key-id KEY_ID --issuer ISSUER_ID`
+- Verify credentials locally: `xcrun notarytool history --key private/apple-certificate/clawcage.p8 --key-id KEY_ID --issuer ISSUER_ID`
 - Check notarization status after CI: `xcrun notarytool log <submission-id> --key ... --key-id ... --issuer ...`
 
 ### DMG not signed

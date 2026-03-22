@@ -105,9 +105,9 @@ function BentoSandbox() {
       <div className="flex-1 border border-edge rounded-md p-2.5 bg-surface-alt/50">
         <div className="text-[9px] text-content/20 uppercase tracking-widest mb-1.5">Guest VM</div>
         <div className="flex flex-col gap-1">
-          <div className="flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-allowed/50" /><span className="text-[10px] text-content/25 font-mono">aivm-pty-agent</span></div>
-          <div className="flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-allowed/50" /><span className="text-[10px] text-content/25 font-mono">aivm-net-proxy</span></div>
-          <div className="flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-caution/50" /><span className="text-[10px] text-content/25 font-mono">aivm-sys-watch</span></div>
+          <div className="flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-allowed/50" /><span className="text-[10px] text-content/25 font-mono">clawcage-pty-agent</span></div>
+          <div className="flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-allowed/50" /><span className="text-[10px] text-content/25 font-mono">clawcage-net-proxy</span></div>
+          <div className="flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-caution/50" /><span className="text-[10px] text-content/25 font-mono">clawcage-sys-watch</span></div>
         </div>
       </div>
       <div className="flex flex-col items-center gap-0.5 text-content/10">
@@ -202,7 +202,7 @@ function BentoTerminal() {
         <span className="px-2 py-0.5 rounded text-[9px] text-content/15">shell-2</span>
       </div>
       <div className="px-2.5 py-2 leading-5">
-        <div className="text-content/20">root@aivm:~/project$ <span className="text-content/35">python train.py</span></div>
+        <div className="text-content/20">root@clawcage:~/project$ <span className="text-content/35">python train.py</span></div>
         <div className="text-content/15">Epoch 1/10 ████████░░ 80% [loss: 0.342]</div>
       </div>
     </div>
@@ -299,10 +299,8 @@ function Navbar() {
     <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 border-b ${scrolled ? "bg-surface/70 backdrop-blur-xl border-edge" : "border-transparent"}`}>
       <div className="max-w-5xl mx-auto px-6 h-14 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-md bg-interactive flex items-center justify-center">
-            <ShieldIcon className="size-3.5 text-on-interactive" />
-          </div>
-          <span className="text-sm font-semibold tracking-tight">Aivm</span>
+          <img src="/logo.svg" alt="Clawcage" className="w-7 h-7 invert" />
+          <span className="text-sm font-semibold tracking-tight">Clawcage</span>
         </div>
         <div className="hidden sm:flex items-center gap-6 text-xs text-content/40">
           <a href="#features" className="hover:text-content transition-colors">Features</a>
@@ -347,7 +345,7 @@ function Hero() {
         </h1>
 
         <p className="text-sm sm:text-base text-content/40 max-w-xl mx-auto text-center mb-10 leading-relaxed">
-          Aivm runs every AI agent in an air-gapped Linux VM on your Mac.
+          Clawcage runs every AI agent in an air-gapped Linux VM on your Mac.
           Full network inspection, credential isolation, and kill-switch control.
         </p>
 
@@ -379,7 +377,7 @@ function Hero() {
         <div className="mt-14 max-w-3xl mx-auto relative">
           <img
             src="/mockup.png"
-            alt="Aivm desktop application"
+            alt="Clawcage desktop application"
             className="w-full rounded-xl border border-edge"
             style={{ maskImage: "linear-gradient(to bottom, black 50%, transparent 100%)", WebkitMaskImage: "linear-gradient(to bottom, black 50%, transparent 100%)" }}
           />
@@ -568,8 +566,7 @@ function Pricing() {
             </div>
             <div className="text-[10px] text-content/30 uppercase tracking-widest font-semibold mb-3">Pro</div>
             <div className="flex items-baseline gap-1 mb-1">
-              <span className="text-3xl font-semibold text-content/30">TBD</span>
-              <span className="text-xs text-content/20">/ month</span>
+              <span className="text-xl font-semibold text-content/30">Coming soon</span>
             </div>
             <p className="text-xs text-content/35 mb-5">Managed infrastructure so you don&apos;t have to bring your own.</p>
 
@@ -660,10 +657,8 @@ function Footer() {
     <footer className="border-t border-edge py-6">
       <div className="max-w-5xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-content/20">
         <div className="flex items-center gap-2">
-          <div className="w-5 h-5 rounded bg-interactive flex items-center justify-center">
-            <ShieldIcon className="size-2.5 text-on-interactive" />
-          </div>
-          <span>&copy; {new Date().getFullYear()} Aivm</span>
+          <img src="/logo.svg" alt="Clawcage" className="w-5 h-5 invert" />
+          <span>&copy; {new Date().getFullYear()} Clawcage</span>
         </div>
         <div className="flex items-center gap-5">
           <a href="https://github.com" target="_blank" rel="noopener noreferrer" className="hover:text-content/50 transition-colors">GitHub</a>
@@ -683,7 +678,7 @@ export default function Home() {
   return (
     <>
       <Head>
-        <title>Aivm — Sandbox your AI agents</title>
+        <title>Clawcage — Sandbox your AI agents</title>
         <meta name="description" content="Run AI agents in air-gapped Linux VMs on your Mac. Full network inspection, credential isolation, and kill-switch control." />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" href="/favicon.ico" />

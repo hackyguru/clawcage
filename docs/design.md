@@ -1,4 +1,4 @@
-# Aivm Design System
+# Clawcage Design System
 
 ## Semantic-First Color Architecture
 

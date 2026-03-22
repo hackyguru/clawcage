@@ -8,13 +8,13 @@ let listeners: (() => void)[] = [];
 
 function applyTheme(t: Theme) {
   document.documentElement.setAttribute('data-theme', t);
-  try { localStorage.setItem('aivm-theme', t); } catch { /* ignore */ }
+  try { localStorage.setItem('clawcage-theme', t); } catch { /* ignore */ }
 }
 
 export function initTheme() {
   let stored: Theme = 'light';
   try {
-    const s = localStorage.getItem('aivm-theme');
+    const s = localStorage.getItem('clawcage-theme');
     if (s === 'dark' || s === 'light') stored = s;
   } catch { /* ignore */ }
   theme = stored;

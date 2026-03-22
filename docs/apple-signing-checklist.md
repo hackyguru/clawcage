@@ -28,10 +28,10 @@ Required before the first CI release. All steps are manual (portal/Xcode).
 
 ## 4. Tauri Updater Signing Key
 
-- [ ] Generate: `cargo tauri signer generate -w ~/.tauri/aivm.key`
-- [ ] Set GitHub secret `TAURI_SIGNING_PRIVATE_KEY`: contents of `~/.tauri/aivm.key`
+- [ ] Generate: `cargo tauri signer generate -w ~/.tauri/clawcage.key`
+- [ ] Set GitHub secret `TAURI_SIGNING_PRIVATE_KEY`: contents of `~/.tauri/clawcage.key`
 - [ ] Set GitHub secret `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`: the password you chose
-- [ ] Verify: public key in `crates/aivm-app/tauri.conf.json` matches the generated public key
+- [ ] Verify: public key in `crates/clawcage-app/tauri.conf.json` matches the generated public key
 
 ## 5. Verify Notarization Credentials
 
@@ -40,7 +40,7 @@ Before your first release, verify notarization credentials work:
 ```bash
 # Quick check (no upload, just verifies API key works)
 xcrun notarytool history \
-  --key private/apple-certificate/aivm.p8 \
+  --key private/apple-certificate/clawcage.p8 \
   --key-id YOUR_KEY_ID \
   --issuer YOUR_ISSUER_ID
 ```
@@ -71,6 +71,6 @@ macOS `security import` only supports legacy PKCS12 encryption (3DES/SHA1, aka `
 
 **Diagnosis**: `openssl pkcs12 -in cert.p12 -info -nokeys -nocerts -passin pass:PWD 2>&1 | head -5` -- if you see `PBES2`, it needs conversion.
 
-**Fix**: Run `scripts/fix_p12_legacy.sh`, then upload with `gh secret set APPLE_CERTIFICATE < private/apple-certificate/aivm-b64.txt`.
+**Fix**: Run `scripts/fix_p12_legacy.sh`, then upload with `gh secret set APPLE_CERTIFICATE < private/apple-certificate/clawcage-b64.txt`.
 
 **Prevention**: Always verify with `scripts/preflight.sh` before uploading secrets.

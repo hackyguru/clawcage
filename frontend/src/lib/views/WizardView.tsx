@@ -22,13 +22,10 @@ export default function WizardView({ onComplete }: { onComplete: () => void }) {
     return (
       <div className="flex items-center justify-center h-full w-full bg-surface">
         <div className="text-center max-w-lg space-y-6 px-4">
-          <div className="w-16 h-16 rounded-2xl bg-interactive/10 flex items-center justify-center mx-auto">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="size-8 text-interactive">
-              <path d="M12 22v-6M12 8V2M4 12H2M10 12H8M16 12h-2M22 12h-2" />
-              <circle cx="12" cy="12" r="2" />
-            </svg>
+          <div className="flex items-center justify-center mx-auto">
+            <img src="/logo.svg" alt="Clawcage" className="size-16 opacity-80" style={{ filter: 'var(--logo-filter, invert(1))' }} />
           </div>
-          <h1 className="text-3xl font-bold text-content">Welcome to AI.VM</h1>
+          <h1 className="text-3xl font-bold text-content">Welcome to Clawcage</h1>
           <p className="text-content/60 leading-relaxed">
             Sandboxed Linux virtual environments for AI agents.
             Let's walk you through how it works before you create your first environment.
@@ -53,7 +50,7 @@ export default function WizardView({ onComplete }: { onComplete: () => void }) {
     );
   }
 
-  // Step 1: Overview -- explain what Aivm does, then direct to create environment
+  // Step 1: Overview -- explain what Clawcage does, then direct to create environment
   const features = [
     {
       icon: (
@@ -88,7 +85,7 @@ export default function WizardView({ onComplete }: { onComplete: () => void }) {
     <div className="flex items-center justify-center h-full w-full bg-surface">
       <div className="max-w-lg w-full space-y-6 px-4">
         <div className="text-center">
-          <h2 className="text-xl font-bold text-content">How AI.VM Works</h2>
+          <h2 className="text-xl font-bold text-content">How Clawcage Works</h2>
           <p className="text-sm text-content/60 mt-1">
             A secure runtime for AI agents in three layers.
           </p>

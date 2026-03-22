@@ -1,20 +1,20 @@
-# Aivm Performance
+# Clawcage Performance
 
-Benchmarks for the Aivm VM sandbox: disk I/O, rootfs reads, CLI startup, HTTP latency, and MITM proxy throughput.
+Benchmarks for the Clawcage VM sandbox: disk I/O, rootfs reads, CLI startup, HTTP latency, and MITM proxy throughput.
 
 ## Running benchmarks
 
 ```bash
 just bench                        # all benchmarks (boots VM once)
-just run "aivm-bench throughput" # proxy throughput only
-just run "aivm-bench disk"       # scratch disk I/O only
-just run "aivm-bench http"       # HTTP latency only
-just run "aivm-bench startup"    # CLI cold-start only
+just run "clawcage-bench throughput" # proxy throughput only
+just run "clawcage-bench disk"       # scratch disk I/O only
+just run "clawcage-bench http"       # HTTP latency only
+just run "clawcage-bench startup"    # CLI cold-start only
 ```
 
 The `just bench` recipe is part of `just full-test`.
 
-## Benchmark suite (`aivm-bench`)
+## Benchmark suite (`clawcage-bench`)
 
 | Mode | What it measures |
 |------|-----------------|
@@ -31,7 +31,7 @@ Output: rich table to stderr (human), JSON to stdout (machine).
 Tests the complete data path:
 
 ```
-guest curl -> iptables REDIRECT -> aivm-net-proxy (TCP 10443)
+guest curl -> iptables REDIRECT -> clawcage-net-proxy (TCP 10443)
   -> vsock (port 5002) -> host MITM proxy
   -> TLS termination + policy check + upstream TLS
   -> ash-speed.hetzner.com -> back
@@ -49,19 +49,19 @@ Host-side Rust test (`mitm_proxy_download_throughput`): **30.3 MB/s** — confir
 
 ### Running the proxy throughput test
 
-In-VM (aivm-bench):
+In-VM (clawcage-bench):
 ```bash
-just run "aivm-bench throughput"
+just run "clawcage-bench throughput"
 ```
 
 Host-side Rust (skipped by default, requires internet):
 ```bash
-cargo test -p aivm-core --test mitm_integration -- --ignored mitm_proxy_download_throughput --nocapture
+cargo test -p clawcage-core --test mitm_integration -- --ignored mitm_proxy_download_throughput --nocapture
 ```
 
-In-VM aivm-doctor (skips if domain not in allow list):
+In-VM clawcage-doctor (skips if domain not in allow list):
 ```bash
-just run "aivm-doctor -k throughput"
+just run "clawcage-doctor -k throughput"
 ```
 
 ### Domain allow list
@@ -70,7 +70,7 @@ just run "aivm-doctor -k throughput"
 - `config/defaults.toml` (`network.custom_allow`)
 - `config/integration-test-user.toml`
 
-For personal use, verify `~/.aivm/user.toml` includes it:
+For personal use, verify `~/.clawcage/user.toml` includes it:
 ```toml
 [settings."network.custom_allow"]
 value = "elie.net, *.elie.net, ash-speed.hetzner.com"

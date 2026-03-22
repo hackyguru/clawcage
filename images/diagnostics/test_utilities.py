@@ -17,7 +17,7 @@ import pytest
     # Network and shell
     "curl", "ip", "bash", "env",
     # Benchmarks
-    "aivm-bench",
+    "clawcage-bench",
 ])
 def test_utility_available(util):
     """Each required unix utility must be in PATH."""

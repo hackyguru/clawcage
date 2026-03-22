@@ -1,6 +1,6 @@
 # Security
 
-Aivm's primary purpose is to provide a secure sandbox for running AI agents. The core assumption is that the agent inside the VM is adversarial -- it may be compromised, hallucinating, or deliberately malicious. Every design decision flows from this.
+Clawcage's primary purpose is to provide a secure sandbox for running AI agents. The core assumption is that the agent inside the VM is adversarial -- it may be compromised, hallucinating, or deliberately malicious. Every design decision flows from this.
 
 ## Threat Model: Rogue AI Agent
 
@@ -8,7 +8,7 @@ The principal threat is an AI agent (Claude Code, Gemini CLI, or any future agen
 
 - Full root access inside the VM
 - Ability to write and execute arbitrary code (compiled binaries, scripts, kernel modules)
-- Knowledge of the sandbox architecture (Aivm is open source)
+- Knowledge of the sandbox architecture (Clawcage is open source)
 - Motivation to escape, persist, exfiltrate, or cause damage
 
 ### T1: VM Escape
@@ -32,10 +32,10 @@ The principal threat is an AI agent (Claude Code, Gemini CLI, or any future agen
 | Write to initrd/kernel | These are in the host .app bundle, outside the VM. The VM cannot access or modify them. BLAKE3 hashes verified at boot. | Implemented |
 | Write to persistent overlay disk | Overlay covers `/root`, `/tmp`, `/run`, `/var/log`, `/var/tmp` only. Currently all tmpfs (wiped on reboot). Future persistent overlay (M8) will be per-session and deletable. | Implemented (tmpfs) |
 | Modify kernel modules | Custom kernel compiled with `CONFIG_MODULES=n`. No module loading infrastructure exists. Even root cannot load `.ko` files. | Implemented |
-| Write backdoor to /usr/bin or /etc | Read-only rootfs today. Future SELinux (M12) `aivm_agent_t` policy denies writes to system dirs even if rootfs were writable. | Implemented + Planned (M12) |
+| Write backdoor to /usr/bin or /etc | Read-only rootfs today. Future SELinux (M12) `clawcage_agent_t` policy denies writes to system dirs even if rootfs were writable. | Implemented + Planned (M12) |
 | Install persistence via package manager | Future rootfs stripping (M12) removes `su`, `sudo`, `chroot`. SELinux policy prevents writing outside workspace/tmpfs. Agent can `pip install` in workspace but not modify system. | Planned (M12) |
-| Cronjob / systemd timer | No systemd in the VM. No cron daemon. PID 1 is aivm-init (our script), not a service manager. | Implemented |
-| Modify aivm-init | aivm-init is inside the initrd, which is on the host, BLAKE3-verified. Unreachable from inside the VM. | Implemented |
+| Cronjob / systemd timer | No systemd in the VM. No cron daemon. PID 1 is clawcage-init (our script), not a service manager. | Implemented |
+| Modify clawcage-init | clawcage-init is inside the initrd, which is on the host, BLAKE3-verified. Unreachable from inside the VM. | Implemented |
 
 ### T3: Data Exfiltration
 
@@ -49,7 +49,7 @@ The principal threat is an AI agent (Claude Code, Gemini CLI, or any future agen
 | HTTPS to unauthorized domain | Host-side SNI proxy enforces domain allow-list (user.toml + corp.toml). AI provider domains blocked at SNI level. Everything else is default-deny. All decisions logged to per-session web.db. | Implemented |
 | DNS tunneling | Fake DNS inside VM never contacts real DNS servers. Host does real resolution only for allowed domains. | Implemented |
 | Plain HTTP to bypass SNI | No SNI in plain HTTP = connection rejected by host proxy. HTTPS-only enforcement. Only port 443 is redirected to the vsock proxy. | Implemented |
-| File exfiltration via workspace | `aivm-fswatch` daemon monitors `/workspace` via fanotify, streaming real-time file events (create/edit/delete) to host over vsock:5005. Host has full visibility into what the agent writes. | Planned (M5) |
+| File exfiltration via workspace | `clawcage-fswatch` daemon monitors `/workspace` via fanotify, streaming real-time file events (create/edit/delete) to host over vsock:5005. Host has full visibility into what the agent writes. | Planned (M5) |
 | Future gateway (M6): data hidden in API prompts | `on_model_call` PII engine scrubs sensitive data from prompts before forwarding upstream. `on_tool_response` scans tool output for secrets. All traffic logged to per-session audit.db. | Planned (M6) |
 | Future VirtioFS (M4): read host files outside workspace | VirtioFS shares scoped to specific directories. No share = no access. Cache shares are read-only. | Planned (M4) |
 | Timing / power side channels | Out of scope. Mitigated by Apple Silicon hardware, not by us. | Out of scope |
@@ -73,7 +73,7 @@ The principal threat is an AI agent (Claude Code, Gemini CLI, or any future agen
 | Vector | Mitigation | Status |
 |--------|-----------|--------|
 | Read host ~/.ssh, ~/.aws, ~/.config | VM has no access to host filesystem. No VirtioFS share for these paths. | Implemented |
-| Read API keys from environment | Dummy API keys in VM env (`sk-aivm-gateway`). Real keys stored in macOS Keychain, injected by host gateway (M6) into upstream HTTPS requests after traffic leaves VM. Keys never enter VM. | Planned (M6) |
+| Read API keys from environment | Dummy API keys in VM env (`sk-clawcage-gateway`). Real keys stored in macOS Keychain, injected by host gateway (M6) into upstream HTTPS requests after traffic leaves VM. Keys never enter VM. | Planned (M6) |
 | Read API keys from gateway traffic | Gateway uses plain HTTP inside VM (no TLS to inspect). Keys injected on the host side after the request leaves the VM. Agent sees requests with dummy keys only. | Planned (M6) |
 | Exfiltrate keys via prompts to LLM | `on_model_call` PII engine (M6) scans outbound prompts for API key patterns and replaces with `[REDACTED-N]` tokens before forwarding upstream. `on_tool_response` scans tool output for secrets before returning to the LLM. | Planned (M6) |
 | Keylog or ptrace other processes | Only the agent's own processes run in the VM. No other user sessions, no other agents (per-VM isolation). | Implemented |
@@ -81,7 +81,7 @@ The principal threat is an AI agent (Claude Code, Gemini CLI, or any future agen
 
 ### T6: Tampering with Host Application
 
-**Threat**: Agent attempts to modify the Aivm application itself to weaken future security controls.
+**Threat**: Agent attempts to modify the Clawcage application itself to weaken future security controls.
 
 | Vector | Mitigation | Status |
 |--------|-----------|--------|
@@ -129,7 +129,7 @@ The principal threat is an AI agent (Claude Code, Gemini CLI, or any future agen
 | Malicious package loads kernel module | Custom kernel compiled with `CONFIG_MODULES=n`. No dynamic module loading possible. | Implemented |
 | Malicious package modifies system binaries | Rootfs is read-only. `/usr/bin`, `/usr/lib`, etc. are immutable. Future SELinux (M12) enforces this even if rootfs mount changes. | Implemented + Planned (M12) |
 | Malicious package installs setuid binary | Future rootfs stripping (M12) removes all setuid bits at build time. `nosuid` mount option on tmpfs overlays. | Planned (M12) |
-| Malicious package runs privilege escalation exploit | Future rootfs stripping (M12) removes `su`, `sudo`, `chroot`, `nsenter`, `unshare`. SELinux confines agent to `aivm_agent_t` regardless of UID. | Planned (M12) |
+| Malicious package runs privilege escalation exploit | Future rootfs stripping (M12) removes `su`, `sudo`, `chroot`, `nsenter`, `unshare`. SELinux confines agent to `clawcage_agent_t` regardless of UID. | Planned (M12) |
 
 ### T10: Rootfs Image Poisoning
 
@@ -176,13 +176,13 @@ The principal threat is an AI agent (Claude Code, Gemini CLI, or any future agen
 | Vector | Mitigation | Status |
 |--------|-----------|--------|
 | Direct HTTPS to api.anthropic.com (bypass gateway) | AI provider domains are **blocked at the SNI proxy**. The SNI proxy rejects connections to `api.anthropic.com`, `api.openai.com`, `generativelanguage.googleapis.com`. The only path to these providers will be through the audit gateway (vsock:5004). | Implemented (SNI block) / Planned (M6 gateway) |
-| Override `*_BASE_URL` env var to point elsewhere | Agent can change env vars, but iptables REDIRECT rules are set by aivm-init (PID 1, before agent starts). Port 443 traffic always redirects to vsock proxy regardless of env vars. Even if the agent changes the URL, the traffic still hits the SNI proxy. | Implemented |
+| Override `*_BASE_URL` env var to point elsewhere | Agent can change env vars, but iptables REDIRECT rules are set by clawcage-init (PID 1, before agent starts). Port 443 traffic always redirects to vsock proxy regardless of env vars. Even if the agent changes the URL, the traffic still hits the SNI proxy. | Implemented |
 | Use a different port to reach AI provider | Only port 443 is redirected to the vsock proxy. Connections on other ports have no route to the outside (dummy0 interface with no real gateway). | Implemented |
 | Compile custom HTTP client to avoid `*_BASE_URL` | Same enforcement: iptables + SNI proxy. The network path is enforced at the kernel level, not at the application level. No userspace workaround exists. | Implemented |
 | Use a non-AI proxy/relay to tunnel to AI provider | The relay domain would need to be on the SNI allow-list. Default-deny policy means only explicitly allowed domains are reachable. Relay domain would be blocked. | Implemented |
-| Modify iptables rules to remove REDIRECT | iptables rules set by aivm-init. Agent runs as root but can modify rules. Mitigation: future SELinux (M12) policy denies `CAP_NET_ADMIN`. Also, fswatch + audit trail would detect network config changes. | Accepted risk / Planned (M12) |
+| Modify iptables rules to remove REDIRECT | iptables rules set by clawcage-init. Agent runs as root but can modify rules. Mitigation: future SELinux (M12) policy denies `CAP_NET_ADMIN`. Also, fswatch + audit trail would detect network config changes. | Accepted risk / Planned (M12) |
 
-The enforcement chain is: **iptables REDIRECT (kernel) -> aivm-net-proxy (guest vsock bridge) -> SNI proxy (host) -> [future: audit gateway (host)]**. Three independent layers must be bypassed simultaneously.
+The enforcement chain is: **iptables REDIRECT (kernel) -> clawcage-net-proxy (guest vsock bridge) -> SNI proxy (host) -> [future: audit gateway (host)]**. Three independent layers must be bypassed simultaneously.
 
 ### T14: Data Exfiltration via WebView XSS
 
@@ -216,13 +216,13 @@ The VM has no real network interface (`CONFIG_NETDEVICES=n`). Instead, a synthet
 
 - **dummy0 interface** with IP `10.0.0.1/24` -- no real NIC, no real gateway.
 - **Fake DNS** (dnsmasq): all domain lookups resolve to `10.0.0.1`. No DNS leaves the VM.
-- **iptables REDIRECT**: port 443 traffic -> `aivm-net-proxy` on TCP `127.0.0.1:10443`.
-- **aivm-net-proxy**: bridges each TCP connection to host via vsock:5002.
+- **iptables REDIRECT**: port 443 traffic -> `clawcage-net-proxy` on TCP `127.0.0.1:10443`.
+- **clawcage-net-proxy**: bridges each TCP connection to host via vsock:5002.
 - **Host SNI proxy**: reads TLS ClientHello, extracts SNI hostname, evaluates against domain policy (allow/block lists from `user.toml` + `corp.toml`), bridges to real server if allowed, rejects otherwise.
 - **Default deny**: unlisted domains are rejected. Only explicitly allowed domains are reachable.
 - **AI provider blocking**: `api.anthropic.com`, `api.openai.com`, `generativelanguage.googleapis.com` blocked at SNI level.
-- **Per-session telemetry**: every connection attempt logged to `~/.aivm/sessions/<vm_id>/web.db` (SQLite) with timestamp, domain, decision, and reason.
-- **Corporate override**: `/etc/aivm/corp.toml` overrides user domain lists for enterprise lockdown.
+- **Per-session telemetry**: every connection attempt logged to `~/.clawcage/sessions/<vm_id>/web.db` (SQLite) with timestamp, domain, decision, and reason.
+- **Corporate override**: `/etc/clawcage/corp.toml` overrides user domain lists for enterprise lockdown.
 
 ### Vsock protocol security
 
@@ -236,7 +236,7 @@ The vsock control channel (port 5000) uses a disjoint type system to prevent mes
 
 ### Zero-trust guest binaries
 
-The guest agent (`aivm-pty-agent`, `aivm-net-proxy`, and any future guest binaries) is treated as untrusted code. All security enforcement, state tracking, and protocol validation live exclusively on the host side. The guest has no state machine, no message validation, and no policy enforcement of its own.
+The guest agent (`clawcage-pty-agent`, `clawcage-net-proxy`, and any future guest binaries) is treated as untrusted code. All security enforcement, state tracking, and protocol validation live exclusively on the host side. The guest has no state machine, no message validation, and no policy enforcement of its own.
 
 **Rationale**: The agent runs inside the VM where a compromised or rogue AI has full root access. Any validation logic in the guest can be bypassed by an attacker who replaces or patches the binary, modifies its memory at runtime, or intercepts its vsock communication. Guest-side checks would provide a false sense of security while adding complexity.
 
@@ -246,7 +246,7 @@ The guest agent (`aivm-pty-agent`, `aivm-net-proxy`, and any future guest binari
 - **No message validation on the guest**: The guest decodes and acts on whatever the host sends. The host is the trusted party; if the host sends a valid message, the guest should obey it. If a compromised guest sends an invalid message, the host drops it.
 - **All policy enforcement on the host**: Domain allow/block lists, HTTP rules, file monitoring, and future MCP/AI gateway policies are evaluated on the host. The guest sees only the effect (connection allowed/denied), never the policy itself.
 - **Guest binaries are deliberately simple**: Minimal logic, no configuration, no policy files. This reduces the attack surface inside the VM and makes the binaries easier to audit.
-- **State machine lives in `aivm-core`**: The `HostState` enum, `StateMachine`, and message validation functions are in `aivm-core` (host-only crate), not in `aivm-proto` (shared crate). This enforces the architectural boundary at the dependency level -- the guest agent physically cannot import host state machine code.
+- **State machine lives in `clawcage-core`**: The `HostState` enum, `StateMachine`, and message validation functions are in `clawcage-core` (host-only crate), not in `clawcage-proto` (shared crate). This enforces the architectural boundary at the dependency level -- the guest agent physically cannot import host state machine code.
 
 ### Boot handshake hardening
 
@@ -262,18 +262,18 @@ The boot handshake (vsock:5000) sends env vars and files to the guest. Multiple 
 
 AI agents inside the VM (Claude Code, Gemini CLI) run with their built-in safety prompts disabled. Claude Code gets `{"defaultMode":"bypassPermissions"}` in `~/.claude/settings.json`. Gemini CLI gets `"approvalMode":"yolo"` in `~/.gemini/settings.json`. Both configs are injected as boot files via the settings registry.
 
-**Why this is safe**: Aivm's entire purpose is to be the security boundary. The VM provides hardware-enforced isolation -- no real network interface, read-only rootfs, air-gapped HTTPS proxy with domain allow-lists, and per-session ephemeral storage. Every action the agent takes is contained within the sandbox. Adding a second layer of "are you sure?" prompts inside the VM would serve no purpose: the agent has full root access anyway, and the prompts would only slow down legitimate work without preventing anything that the VM sandbox doesn't already prevent.
+**Why this is safe**: Clawcage's entire purpose is to be the security boundary. The VM provides hardware-enforced isolation -- no real network interface, read-only rootfs, air-gapped HTTPS proxy with domain allow-lists, and per-session ephemeral storage. Every action the agent takes is contained within the sandbox. Adding a second layer of "are you sure?" prompts inside the VM would serve no purpose: the agent has full root access anyway, and the prompts would only slow down legitimate work without preventing anything that the VM sandbox doesn't already prevent.
 
-**Why double-prompting is actively harmful**: AI agents that stop to ask permission for every file write and shell command are unusable for autonomous work -- the whole reason Aivm exists. Users would either disable the prompts manually (defeating the purpose) or avoid using the sandbox entirely. By defaulting to yolo mode, Aivm delivers on its value proposition: run AI agents at full speed with real security, not security theater.
+**Why double-prompting is actively harmful**: AI agents that stop to ask permission for every file write and shell command are unusable for autonomous work -- the whole reason Clawcage exists. Users would either disable the prompts manually (defeating the purpose) or avoid using the sandbox entirely. By defaulting to yolo mode, Clawcage delivers on its value proposition: run AI agents at full speed with real security, not security theater.
 
-**Corporate override**: Organizations can override these defaults via `/etc/aivm/corp.toml` (MDM-distributed). Setting `ai.anthropic.claude.settings_json` or `ai.google.gemini.settings_json` to custom values replaces the yolo configs with stricter policies if needed.
+**Corporate override**: Organizations can override these defaults via `/etc/clawcage/corp.toml` (MDM-distributed). Setting `ai.anthropic.claude.settings_json` or `ai.google.gemini.settings_json` to custom values replaces the yolo configs with stricter policies if needed.
 
 ### Clock synchronization
 
 The guest VM boots with epoch-0 clock. Without correct time, TLS cert validation, git, and other tools break. The host sends the current time in `BootConfig { epoch_secs }` during the vsock boot handshake, and the guest agent sets the system clock via `clock_settime(CLOCK_REALTIME)` before forking bash.
 
 - Clock is set **before** any user-facing process starts.
-- Requires `CAP_SYS_TIME` (satisfied: agent runs as root, launched by aivm-init PID 1).
+- Requires `CAP_SYS_TIME` (satisfied: agent runs as root, launched by clawcage-init PID 1).
 - If `clock_settime` fails (EPERM), a warning is logged but boot continues with incorrect time.
 
 ### Immutable rootfs (squashfs + overlayfs)
@@ -294,7 +294,7 @@ When the application is compiled, `build.rs` reads `B3SUMS` and embeds the expec
 B3SUMS -> build.rs -> VMLINUZ_HASH, INITRD_HASH, ROOTFS_HASH
 ```
 
-At runtime, `aivm-core` computes the BLAKE3 hash of each file before loading it into the VM. If any hash does not match, the VM refuses to boot. BLAKE3 is used instead of SHA-256 for performance: hashing the ~400MB squashfs rootfs takes ~10ms with BLAKE3.
+At runtime, `clawcage-core` computes the BLAKE3 hash of each file before loading it into the VM. If any hash does not match, the VM refuses to boot. BLAKE3 is used instead of SHA-256 for performance: hashing the ~400MB squashfs rootfs takes ~10ms with BLAKE3.
 
 This ensures:
 - Tampered assets are detected before execution.
@@ -305,16 +305,16 @@ This ensures:
 
 All host-controlled binaries deployed inside the VM follow strict hardening rules:
 
-**Read-only permissions (chmod 555)**: Every guest binary (`aivm-pty-agent`, `aivm-net-proxy`, and future binaries like `aivm-fswatch`) is deployed with `r-xr-xr-x` permissions. No write bit. This applies to both deployment paths:
+**Read-only permissions (chmod 555)**: Every guest binary (`clawcage-pty-agent`, `clawcage-net-proxy`, and future binaries like `clawcage-fswatch`) is deployed with `r-xr-xr-x` permissions. No write bit. This applies to both deployment paths:
 
 - **Rootfs path** (`/usr/local/bin/`): Set to `chmod 555` in `Dockerfile.rootfs`. The rootfs itself is mounted read-only, providing a second layer of protection.
-- **Initrd override path** (`/run/`): When `just repack` bundles a binary into the initrd, `aivm-init` copies it to `/newroot/run/` (a tmpfs) at boot with `chmod 555`. The tmpfs is writable by root, but the 555 permissions prevent casual overwrites. Future SELinux policy (M12) will enforce this at the MAC level.
+- **Initrd override path** (`/run/`): When `just repack` bundles a binary into the initrd, `clawcage-init` copies it to `/newroot/run/` (a tmpfs) at boot with `chmod 555`. The tmpfs is writable by root, but the 555 permissions prevent casual overwrites. Future SELinux policy (M12) will enforce this at the MAC level.
 
 **Immutable rootfs backing**: The rootfs is a squashfs image -- structurally immutable by format, not just mount flags. With overlayfs, writes to `/usr/local/bin/` go to the ephemeral tmpfs upper layer; the squashfs lower layer cannot be modified. The combination of immutable format + read-only permissions provides defense in depth.
 
 **Integrity verification**: Boot asset hashes (BLAKE3) are compiled into the host binary. The initrd (which contains the agent when repacked) is hashed along with the kernel and rootfs. Tampering with any asset causes a hash mismatch and the VM refuses to boot.
 
-**Smoke test verification**: The in-VM `aivm-test` script (`images/test-vm.sh`) verifies at runtime that:
+**Smoke test verification**: The in-VM `clawcage-test` script (`images/test-vm.sh`) verifies at runtime that:
 - Guest binaries are not writable (`! test -w`)
 - The rootfs is read-only (writes to `/usr` fail)
 - Writable tmpfs areas are correctly scoped
@@ -323,22 +323,22 @@ All host-controlled binaries deployed inside the VM follow strict hardening rule
 
 1. Set `chmod 555` in `Dockerfile.rootfs` (rootfs path)
 2. Add the binary to `just repack` with cross-compile + copy + `chmod 555`
-3. Add initrd-override logic in `aivm-init` (check `/binary` before rootfs path, copy to `/newroot/run/` with `chmod 555`)
+3. Add initrd-override logic in `clawcage-init` (check `/binary` before rootfs path, copy to `/newroot/run/` with `chmod 555`)
 4. Add a `! test -w` check in `images/test-vm.sh` for the binary path
 5. Update the "Currently repacked binaries" list in `CLAUDE.md`
 6. Document the binary's purpose in this section
 
 ### Policy override security
 
-Aivm uses a two-tier settings system where corporate policy always overrides user preferences:
+Clawcage uses a two-tier settings system where corporate policy always overrides user preferences:
 
-- **User settings** (`~/.aivm/user.toml`): editable by the user. Only stores overrides from registry defaults.
-- **Corporate settings** (`/etc/aivm/corp.toml`): read-only, MDM-distributed. Any setting specified here cannot be changed by the user.
+- **User settings** (`~/.clawcage/user.toml`): editable by the user. Only stores overrides from registry defaults.
+- **Corporate settings** (`/etc/clawcage/corp.toml`): read-only, MDM-distributed. Any setting specified here cannot be changed by the user.
 
 **Enforcement rules:**
 
 1. **Per-key override**: Corp settings override user settings per setting ID, not per category. If corp sets `ai.anthropic.allow = false`, the user cannot enable it, but other AI providers are unaffected unless also locked.
-2. **Write isolation**: `can_write_corp_settings()` always returns false. The application never writes to `/etc/aivm/corp.toml`. Only user.toml is writable.
+2. **Write isolation**: `can_write_corp_settings()` always returns false. The application never writes to `/etc/clawcage/corp.toml`. Only user.toml is writable.
 3. **Corp-locked indicator**: Each resolved setting carries a `corp_locked` flag. The UI shows locked settings as read-only with a lock icon.
 4. **No expansion**: A user cannot expand permissions beyond what corp allows. If corp blocks a domain toggle, the user cannot enable it. If corp sets `network.default_action = "deny"`, the user cannot change it to `"allow"`.
 5. **Dynamic settings**: Corp can also lock dynamic settings like `guest.env.*` to enforce specific environment variable values.
@@ -359,7 +359,7 @@ This design:
 3. **Enables correlation**: The hash is deterministic -- the same API key always produces the same hash. This allows grouping requests by key identity without exposing the key itself.
 4. **Minimal allowlist approach**: The allowlist is deliberately small and contains only structural/metadata headers that carry no authentication material. New headers default to hashed, not verbatim. Adding a header to the allowlist requires a code change and review.
 
-Implementation: `format_headers()` in `crates/aivm-core/src/net/mitm_proxy.rs`. Tests verify that allowlisted headers pass through, sensitive headers are hashed, hashing is deterministic, and different values produce different hashes.
+Implementation: `format_headers()` in `crates/clawcage-core/src/net/mitm_proxy.rs`. Tests verify that allowlisted headers pass through, sensitive headers are hashed, hashing is deterministic, and different values produce different hashes.
 
 ### Frontend SQL gateway (`query_db`)
 
@@ -375,7 +375,7 @@ The layered approach means an attacker must bypass all three SQL enforcement mec
 
 ### No systemd, no services
 
-The VM runs aivm-init as PID 1. There is no systemd, no cron, no sshd, no service manager. The only processes are those explicitly started by aivm-init (bash, and whatever the user/agent runs). No background services, no listening ports, no scheduled tasks.
+The VM runs clawcage-init as PID 1. There is no systemd, no cron, no sshd, no service manager. The only processes are those explicitly started by clawcage-init (bash, and whatever the user/agent runs). No background services, no listening ports, no scheduled tasks.
 
 ### Sandbox fingerprinting
 
@@ -383,17 +383,17 @@ An AI agent inside the VM can detect it is sandboxed through several vectors:
 
 | Vector | Visibility | Notes |
 |--------|-----------|-------|
-| `IS_SANDBOX=1` env var | Intentional | Set by aivm-init; agents should know |
-| `aivm-*` binaries in `/proc` | Process list | `pgrep aivm` reveals pty-agent, net-proxy, etc. |
+| `IS_SANDBOX=1` env var | Intentional | Set by clawcage-init; agents should know |
+| `clawcage-*` binaries in `/proc` | Process list | `pgrep clawcage` reveals pty-agent, net-proxy, etc. |
 | `/proc/mounts` overlay topology | Mount table | Shows overlay on `/`, squashfs on `/dev/vda` |
 | dnsmasq `--address=/#/10.0.0.1` | DNS config | All domains resolve to a single local IP |
 | `dummy0` NIC | Network interfaces | No real ethernet adapter |
 | Kernel cmdline `console=hvc0` | `/proc/cmdline` | Virtio console, not a real serial port |
 | Custom kernel version string | `uname -r` | Custom LTS build, not stock Debian |
 
-**Mitigation approach**: Mount paths use generic names (`/mnt/a`, `/mnt/b`) instead of "aivm"-prefixed paths, keeping `/proc/mounts` clean. No "aivm" string appears in mount entries.
+**Mitigation approach**: Mount paths use generic names (`/mnt/a`, `/mnt/b`) instead of "clawcage"-prefixed paths, keeping `/proc/mounts` clean. No "clawcage" string appears in mount entries.
 
-**Non-goal**: Full stealth is not a security objective. Aivm is open source and the threat model (see T1) assumes the agent knows it is sandboxed. An agent that detects the sandbox and cooperates is the desired outcome. Fingerprinting reduction is defense-in-depth against agents that auto-detect sandboxes and silently change behavior (e.g., appearing compliant during evaluation but acting differently in production). Minimizing obvious markers raises the cost of detection without pretending it is impossible.
+**Non-goal**: Full stealth is not a security objective. Clawcage is open source and the threat model (see T1) assumes the agent knows it is sandboxed. An agent that detects the sandbox and cooperates is the desired outcome. Fingerprinting reduction is defense-in-depth against agents that auto-detect sandboxes and silently change behavior (e.g., appearing compliant during evaluation but acting differently in production). Minimizing obvious markers raises the cost of detection without pretending it is impossible.
 
 ### Hardened custom kernel
 
@@ -493,13 +493,13 @@ Updates are signed with minisign. The public key is embedded in the binary at co
 - Synthetic network: `dummy0` + fake DNS (dnsmasq `--address=/#/10.0.0.1`) + iptables REDIRECT.
 - Host-side SNI proxy extracts TLS SNI and enforces domain allow-list (default-deny).
 - AI provider domains blocked at SNI proxy.
-- Configurable domain policy via `~/.aivm/user.toml` and `/etc/aivm/corp.toml`.
+- Configurable domain policy via `~/.clawcage/user.toml` and `/etc/clawcage/corp.toml`.
 - Per-session `web.db` logging all HTTPS connection decisions.
 - Zero DNS leaks: fake DNS inside VM, real resolution on host only.
 - vsock port 5002 for SNI proxy connections.
 
 **Remaining:**
-- `aivm-fswatch` daemon for `/workspace` fanotify monitoring (vsock:5005).
+- `clawcage-fswatch` daemon for `/workspace` fanotify monitoring (vsock:5005).
 - vsock ports 5003 (MCP gateway), 5004 (AI gateway), 5005 (file telemetry).
 
 ### Milestone 6: Active AI audit gateway
@@ -525,7 +525,7 @@ Updates are signed with minisign. The public key is embedded in the binary at co
 
 ### Milestone 8: State, audit, and observability
 
-- Per-session SQLite databases (`~/.aivm/sessions/sess_<id>/audit.db`), not a monolithic DB.
+- Per-session SQLite databases (`~/.clawcage/sessions/sess_<id>/audit.db`), not a monolithic DB.
 - Raw telemetry and LLM payloads zstd-compressed before SQLite BLOB insertion.
 - Each session self-contained and independently deletable.
 - OverlayFS config write-back: agent config changes captured in tmpfs upperdir, presented in Tauri UI for selective save-back on session end.
@@ -533,7 +533,7 @@ Updates are signed with minisign. The public key is embedded in the binary at co
 - Graceful shutdown: sync + unmount + ACPI poweroff prevents corruption.
 - Prometheus metrics (`localhost:9090/metrics`): tool executions, model calls, policy denials, latency histograms.
 - OpenTelemetry (OTLP): sanitized + compressed session export to SIEM when mandated by corporate policy.
-- Corporate policy (`/etc/aivm/policy.toml`): distributable via MDM, controls domain lists, gateway enforcement, model restrictions, MCP tool policies, session limits, audit export.
+- Corporate policy (`/etc/clawcage/policy.toml`): distributable via MDM, controls domain lists, gateway enforcement, model restrictions, MCP tool policies, session limits, audit export.
 
 ### Milestone 12: SELinux, filesystem stripping
 
@@ -541,7 +541,7 @@ Custom kernel is implemented (see "Hardened custom kernel" above).
 
 SELinux mandatory access control:
 - SELinux in enforcing mode. Policy baked into read-only rootfs; agent cannot modify it.
-- Agent confined to `aivm_agent_t` domain: can read/write workspace and tmpfs, cannot write to system dirs, cannot access raw devices, cannot disable SELinux.
+- Agent confined to `clawcage_agent_t` domain: can read/write workspace and tmpfs, cannot write to system dirs, cannot access raw devices, cannot disable SELinux.
 - Even root inside the VM is constrained by MAC policy. Root != omnipotent.
 
 Rootfs binary stripping:
@@ -555,9 +555,9 @@ Rootfs binary stripping:
 
 ## Corporate Security Profile
 
-For enterprise deployments, Aivm supports a system-wide policy file distributable via MDM (Mobile Device Management). This enables IT/security teams to enforce organizational controls without modifying the application.
+For enterprise deployments, Clawcage supports a system-wide policy file distributable via MDM (Mobile Device Management). This enables IT/security teams to enforce organizational controls without modifying the application.
 
-**Policy file**: `/etc/aivm/policy.toml` (system-wide, read-only to non-root)
+**Policy file**: `/etc/clawcage/policy.toml` (system-wide, read-only to non-root)
 
 **Configurable controls**:
 
@@ -577,7 +577,7 @@ For enterprise deployments, Aivm supports a system-wide policy file distributabl
 | `audit.export_on_end` | Push session audit on `on_agent_end` | `true` |
 | `pii.custom_patterns` | Additional regex patterns for PII scrubbing | `["CORP-\\d{6}"]` |
 
-**Enforcement**: When `/etc/aivm/policy.toml` exists, its settings override user preferences. The gateway cannot be disabled, domain lists are merged (corporate additions cannot be removed by user), and audit export is mandatory. The policy file is read at application startup and cached; changes require app restart.
+**Enforcement**: When `/etc/clawcage/policy.toml` exists, its settings override user preferences. The gateway cannot be disabled, domain lists are merged (corporate additions cannot be removed by user), and audit export is mandatory. The policy file is read at application startup and cached; changes require app restart.
 
 **MDM distribution**: Deploy via any MDM that supports custom configuration profiles (Jamf, Kandji, Mosyle, etc.). The policy file is a standard TOML file placed at a fixed path.
 
@@ -589,16 +589,16 @@ For enterprise deployments, Aivm supports a system-wide policy file distributabl
 
 ```sh
 # Verify macOS code signature
-codesign --verify --deep --strict /Applications/Aivm.app
+codesign --verify --deep --strict /Applications/Clawcage.app
 
 # Verify Gatekeeper approval (notarized builds only)
-spctl --assess --type execute /Applications/Aivm.app
+spctl --assess --type execute /Applications/Clawcage.app
 
 # Verify GitHub build attestation
-gh attestation verify Aivm.dmg --repo google/aivm
+gh attestation verify Clawcage.dmg --repo google/clawcage
 
 # Scan for known vulnerabilities in dependencies
-cargo audit bin /Applications/Aivm.app/Contents/MacOS/aivm
+cargo audit bin /Applications/Clawcage.app/Contents/MacOS/clawcage
 ```
 
 ### For developers

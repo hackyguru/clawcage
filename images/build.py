@@ -16,11 +16,20 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parent
 ASSETS_DIR = REPO_ROOT / "assets"
 
-IMAGE_TAG = "aivm-kernel-builder"
-ROOTFS_IMAGE_TAG = "aivm-rootfs"
+IMAGE_TAG = "clawcage-kernel-builder"
+ROOTFS_IMAGE_TAG = "clawcage-rootfs"
 
-# Use podman, fall back to docker
-RUNTIME = "podman" if shutil.which("podman") else "docker"
+# Use podman if available and responsive, fall back to docker
+def _detect_runtime() -> str:
+    if shutil.which("podman"):
+        try:
+            subprocess.run(["podman", "info"], capture_output=True, timeout=5, check=True)
+            return "podman"
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
+            pass
+    return "docker"
+
+RUNTIME = _detect_runtime()
 
 # In GitHub Actions with docker, use buildx + GHA cache for faster rebuilds.
 CI = bool(os.environ.get("GITHUB_ACTIONS"))
@@ -95,7 +104,7 @@ def ensure_rust_target(target: str):
 
 
 def build_agent():
-    """Cross-compile aivm-pty-agent and aivm-net-proxy for aarch64-unknown-linux-musl."""
+    """Cross-compile clawcage-pty-agent and clawcage-net-proxy for aarch64-unknown-linux-musl."""
     target = "aarch64-unknown-linux-musl"
     print(f"Cross-compiling guest binaries for {target}...")
     ensure_rust_target(target)
@@ -103,12 +112,12 @@ def build_agent():
         "cargo", "build",
         "--release",
         "--target", target,
-        "-p", "aivm-agent",
+        "-p", "clawcage-agent",
     ], cwd=str(REPO_ROOT))
 
     # Copy binaries to images/ so Dockerfile.rootfs can COPY them.
     release_dir = REPO_ROOT / "target" / "aarch64-unknown-linux-musl" / "release"
-    for binary_name in ["aivm-pty-agent", "aivm-net-proxy"]:
+    for binary_name in ["clawcage-pty-agent", "clawcage-net-proxy"]:
         src = release_dir / binary_name
         dst = SCRIPT_DIR / binary_name
         shutil.copy2(str(src), str(dst))
@@ -120,10 +129,10 @@ def create_rootfs():
     print("Building rootfs container image...")
 
     # Copy CA cert into images/ so Dockerfile.rootfs can COPY it
-    ca_src = REPO_ROOT / "config" / "aivm-ca.crt"
-    ca_dst = SCRIPT_DIR / "aivm-ca.crt"
+    ca_src = REPO_ROOT / "config" / "clawcage-ca.crt"
+    ca_dst = SCRIPT_DIR / "clawcage-ca.crt"
     shutil.copy2(str(ca_src), str(ca_dst))
-    print(f"  aivm-ca.crt: {ca_dst}")
+    print(f"  clawcage-ca.crt: {ca_dst}")
 
     # 1. Build rootfs container (arm64 binaries)
     _docker_build(ROOTFS_IMAGE_TAG, str(SCRIPT_DIR / "Dockerfile.rootfs"), str(SCRIPT_DIR))

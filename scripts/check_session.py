@@ -10,7 +10,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-SESSIONS_DIR = Path.home() / ".aivm" / "sessions"
+SESSIONS_DIR = Path.home() / ".clawcage" / "sessions"
 MAIN_DB = SESSIONS_DIR / "main.db"
 
 # Tables expected in session.db with their key columns for preview
@@ -304,7 +304,7 @@ def check_session(db_path: Path, preview_rows: int = 5):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Check aivm session DB integrity and show event summary.",
+        description="Check clawcage session DB integrity and show event summary.",
     )
     parser.add_argument(
         "session_id",

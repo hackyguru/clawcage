@@ -1,4 +1,4 @@
-# npm packages pre-installed globally in the aivm VM.
+# npm packages pre-installed globally in the clawcage VM.
 # Installed to /opt/ai-clis (staging), copied to writable scratch disk at boot.
 @google/gemini-cli
 @openai/codex

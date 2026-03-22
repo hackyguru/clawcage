@@ -1,0 +1,28 @@
+[package]
+name = "clawcage"
+version.workspace = true
+edition = "2021"
+
+[dependencies]
+clawcage-core = { path = "../clawcage-core" }
+clawcage-logger = { path = "../clawcage-logger" }
+tauri = { version = "2", features = ["macos-private-api"] }
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
+tauri-plugin-dialog = "2"
+anyhow = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+rmp-serde = { workspace = true }
+core-foundation-sys = "0.8"
+objc2 = { workspace = true }
+objc2-virtualization = { workspace = true }
+objc2-foundation = { workspace = true }
+objc2-app-kit = { version = "0.3", features = ["NSWindow", "NSView", "NSColor"] }
+reqwest = { workspace = true }
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }

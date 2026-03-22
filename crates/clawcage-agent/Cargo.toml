@@ -1,0 +1,36 @@
+[package]
+name = "clawcage-agent"
+version.workspace = true
+edition = "2021"
+
+[[bin]]
+name = "clawcage-pty-agent"
+path = "src/main.rs"
+
+[[bin]]
+name = "clawcage-net-proxy"
+path = "src/net_proxy.rs"
+
+[[bin]]
+name = "clawcage-mcp-server"
+path = "src/mcp_server.rs"
+
+[[bin]]
+name = "clawcage-fs-watch"
+path = "src/fs_watch.rs"
+
+[[bin]]
+name = "clawcage-port-watch"
+path = "src/port_watch.rs"
+
+[[bin]]
+name = "clawcage-sys-watch"
+path = "src/sys_watch.rs"
+
+[dependencies]
+nix = { version = "0.29", features = ["fs", "ioctl", "inotify", "poll", "term", "signal", "process"] }
+rmp-serde = { workspace = true }
+serde = { workspace = true }
+clawcage-proto = { path = "../clawcage-proto" }
+tokio = { workspace = true, features = ["full"] }
+signal-hook = "0.4.3"

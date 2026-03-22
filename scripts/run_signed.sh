@@ -1,7 +1,7 @@
 #!/bin/bash
 # scripts/run_signed.sh
 #
-# Custom runner for Aivm development. 
+# Custom runner for Clawcage development. 
 # Handles signing the binary with Virtualization entitlements on macOS.
 
 # Find the workspace root based on the script's location
@@ -27,9 +27,9 @@ if [ -f "$1" ]; then
     
     shift
     # Set the assets directory and execute the binary with remaining args.
-    # AIVM_ASSETS_DIR allows the VM to find vmlinuz/initrd/rootfs.
+    # CLAWCAGE_ASSETS_DIR allows the VM to find vmlinuz/initrd/rootfs.
     echo "[runner] launching $binary"
-    AIVM_ASSETS_DIR="$ROOT_DIR/assets" exec "$binary" "$@"
+    CLAWCAGE_ASSETS_DIR="$ROOT_DIR/assets" exec "$binary" "$@"
 fi
 
 # Fallback: just execute it.

@@ -1,4 +1,4 @@
-# Aivm Protocol
+# Clawcage Protocol
 
 This document describes the vsock control protocol between the host application and the guest agent.
 
@@ -134,10 +134,10 @@ The host sends `Exec { id, command }` to inject a command into the guest PTY. Th
 
 1. Disables terminal echo (`ECHO` off)
 2. Writes the command + newline to the PTY master
-3. Appends a sentinel: `echo $'\\e_AIVM_EXIT:{id}:$?\\e\\\\'`
+3. Appends a sentinel: `echo $'\\e_CLAWCAGE_EXIT:{id}:$?\\e\\\\'`
 4. Re-enables echo (`ECHO` on)
 
-The agent scans PTY output for the sentinel `ESC _ AIVM_EXIT:{id}:{exit_code} ESC \`. When found, it sends `ExecDone { id, exit_code }` to the host and strips the sentinel from the terminal output.
+The agent scans PTY output for the sentinel `ESC _ CLAWCAGE_EXIT:{id}:{exit_code} ESC \`. When found, it sends `ExecDone { id, exit_code }` to the host and strips the sentinel from the terminal output.
 
 ## Security Invariants
 

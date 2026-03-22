@@ -128,8 +128,8 @@ let mockSettings: ResolvedSetting[] = [
   ms({
     id: 'ai.google.gemini.installation_id', category: 'AI Providers', name: 'Gemini installation_id', setting_type: 'file',
     description: 'Stable UUID avoids first-run prompts.',
-    default_value: { path: '/root/.gemini/installation_id', content: 'aivm-sandbox-00000000-0000-0000-0000-000000000000' },
-    effective_value: { path: '/root/.gemini/installation_id', content: 'aivm-sandbox-00000000-0000-0000-0000-000000000000' },
+    default_value: { path: '/root/.gemini/installation_id', content: 'clawcage-sandbox-00000000-0000-0000-0000-000000000000' },
+    effective_value: { path: '/root/.gemini/installation_id', content: 'clawcage-sandbox-00000000-0000-0000-0000-000000000000' },
     enabled_by: 'ai.google.allow',
   }),
   // -- Search --

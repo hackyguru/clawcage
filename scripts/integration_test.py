@@ -5,14 +5,14 @@ verify every event type is logged in the session DB.
 Exercises:
   1. fs_events   -- create, modify, and delete files inside the VM
   2. net_events   -- curl an allowed domain + a denied domain (policy enforcement)
-  3. mcp_calls    -- run aivm-doctor MCP tests (init, tools/list, fetch, grep)
+  3. mcp_calls    -- run clawcage-doctor MCP tests (init, tools/list, fetch, grep)
   4. model_calls  -- ask Gemini to write a poem (verifies cost estimation)
   5. tool_calls   -- Gemini tool use (write_file) with origin tracking
   6. main.db      -- rollup counters match session.db actuals
 
 Usage:
-    python3 scripts/integration_test.py              # uses target/debug/aivm
-    python3 scripts/integration_test.py --binary ./aivm --assets ./assets
+    python3 scripts/integration_test.py              # uses target/debug/clawcage
+    python3 scripts/integration_test.py --binary ./clawcage --assets ./assets
 """
 
 import argparse
@@ -31,7 +31,7 @@ YELLOW = "\033[33m"
 CYAN = "\033[36m"
 RESET = "\033[0m"
 
-SESSIONS_DIR = Path.home() / ".aivm" / "sessions"
+SESSIONS_DIR = Path.home() / ".clawcage" / "sessions"
 MAIN_DB = SESSIONS_DIR / "main.db"
 
 # The compound command executed inside the VM.  Semicolons ensure every step
@@ -57,8 +57,8 @@ VM_COMMAND = "; ".join([
         " https://ash-speed.hetzner.com/100MB.bin"
     ),
 
-    # -- mcp_calls: aivm-doctor MCP test subset --
-    "aivm-doctor -k mcp",
+    # -- mcp_calls: clawcage-doctor MCP test subset --
+    "clawcage-doctor -k mcp",
 
     # -- model_calls + tool_calls: ask Gemini to write a poem into a file --
     (
@@ -71,7 +71,7 @@ VM_COMMAND = "; ".join([
     "sleep 2",
 
     # -- sentinel so the host can confirm full execution --
-    "echo AIVM_INTEGRATION_DONE",
+    "echo CLAWCAGE_INTEGRATION_DONE",
 ])
 
 
@@ -80,10 +80,10 @@ def run_vm(binary: str, assets_dir: str) -> tuple[str, int]:
     # Isolate from host settings using dedicated test configs.
     env = {
         **os.environ,
-        "AIVM_ASSETS_DIR": assets_dir,
-        "RUST_LOG": "aivm=warn",
-        "AIVM_USER_CONFIG": "config/integration-test-user.toml",
-        "AIVM_CORP_CONFIG": "config/integration-test-corp.toml",
+        "CLAWCAGE_ASSETS_DIR": assets_dir,
+        "RUST_LOG": "clawcage=warn",
+        "CLAWCAGE_USER_CONFIG": "config/integration-test-user.toml",
+        "CLAWCAGE_CORP_CONFIG": "config/integration-test-corp.toml",
     }
 
     # Pass API keys from the host environment into the VM via --env flags.
@@ -98,16 +98,17 @@ def run_vm(binary: str, assets_dir: str) -> tuple[str, int]:
             extra_args.extend(["--env", f"{key}={val}"])
 
     print(f"{BOLD}Booting VM with test command ...{RESET}")
-    # CLI arguments for aivm must be: [binary] [--env K=V ...] [command]
+    # CLI arguments for clawcage must be: [binary] [--env K=V ...] [command]
     proc = subprocess.run(
         [binary] + extra_args + [VM_COMMAND],
         env=env,
         capture_output=True,
         text=True,
+        errors="replace",
         timeout=300,
     )
     output = proc.stdout + "\n" + proc.stderr
-    match = re.search(r"\[aivm\] session: (\S+)", output)
+    match = re.search(r"\[clawcage\] session: (\S+)", output)
     if not match:
         print(f"{RED}FAIL: could not find session ID in output{RESET}")
         print(output[:2000])
@@ -250,18 +251,14 @@ def verify_session(session_id: str) -> bool:
         "no net_events recorded",
     )
 
-    # elie.net from the curl.
+    # elie.net from the curl (external server -- warn-only if unreachable).
     elie = conn.execute(
         "SELECT * FROM net_events WHERE domain = 'elie.net'"
     ).fetchone()
-    r.check(
-        elie is not None,
-        "elie.net request logged (curl)",
-        "elie.net NOT found in net_events (curl may have failed)",
-    )
-
-    # Allowed decision.
-    if elie:
+    if elie is None:
+        r.warn("elie.net NOT found in net_events (curl may have failed -- external server)")
+    else:
+        r.ok("elie.net request logged (curl)")
         r.check(
             elie["decision"] == "allowed",
             "elie.net decision = allowed",
@@ -278,16 +275,14 @@ def verify_session(session_id: str) -> bool:
         "no googleapis.com net_events (Gemini API call not captured)",
     )
 
-    # ash-speed.hetzner.com throughput download.
+    # ash-speed.hetzner.com throughput download (external server -- warn-only if unreachable).
     hetzner = conn.execute(
         "SELECT * FROM net_events WHERE domain = 'ash-speed.hetzner.com'"
     ).fetchone()
-    r.check(
-        hetzner is not None,
-        "ash-speed.hetzner.com request logged (100MB throughput test)",
-        "ash-speed.hetzner.com NOT found in net_events (throughput download may have failed)",
-    )
-    if hetzner:
+    if hetzner is None:
+        r.warn("ash-speed.hetzner.com NOT found in net_events (external server may be unreachable)")
+    else:
+        r.ok("ash-speed.hetzner.com request logged (100MB throughput test)")
         r.check(
             hetzner["decision"] == "allowed",
             "ash-speed.hetzner.com decision = allowed",
@@ -391,7 +386,7 @@ def verify_session(session_id: str) -> bool:
     r.check(
         blocked_in_preview >= 1,
         f"{blocked_in_preview} MCP calls with blocked-domain responses",
-        "no MCP responses mention blocking (aivm-doctor blocked tests may have failed)",
+        "no MCP responses mention blocking (clawcage-doctor blocked tests may have failed)",
     )
 
     # ── model_calls ──────────────────────────────────────────────────
@@ -551,13 +546,13 @@ def verify_session(session_id: str) -> bool:
 
 
 PERSISTENCE_WRITE_CMD = (
-    "echo aivm-persistence-sentinel > /root/.aivm_persistence_test "
-    "&& echo AIVM_PERSISTENCE_WRITTEN"
+    "echo clawcage-persistence-sentinel > /root/.clawcage_persistence_test "
+    "&& echo CLAWCAGE_PERSISTENCE_WRITTEN"
 )
 PERSISTENCE_CHECK_CMD = (
-    "test ! -f /root/.aivm_persistence_test "
-    "&& echo AIVM_EPHEMERAL_OK "
-    "|| { echo AIVM_EPHEMERAL_FAIL; exit 1; }"
+    "test ! -f /root/.clawcage_persistence_test "
+    "&& echo CLAWCAGE_EPHEMERAL_OK "
+    "|| { echo CLAWCAGE_EPHEMERAL_FAIL; exit 1; }"
 )
 
 
@@ -566,19 +561,19 @@ def check_persistence(binary: str, assets_dir: str) -> bool:
     print(f"\n{BOLD}=== Ephemeral model check ==={RESET}")
     env = {
         **os.environ,
-        "AIVM_ASSETS_DIR": assets_dir,
-        "RUST_LOG": "aivm=warn",
-        "AIVM_USER_CONFIG": "config/integration-test-user.toml",
-        "AIVM_CORP_CONFIG": "config/integration-test-corp.toml",
+        "CLAWCAGE_ASSETS_DIR": assets_dir,
+        "RUST_LOG": "clawcage=warn",
+        "CLAWCAGE_USER_CONFIG": "config/integration-test-user.toml",
+        "CLAWCAGE_CORP_CONFIG": "config/integration-test-corp.toml",
     }
 
     print("  Invocation 1: writing sentinel file...")
     proc1 = subprocess.run(
         [binary, PERSISTENCE_WRITE_CMD],
-        env=env, capture_output=True, text=True, timeout=120,
+        env=env, capture_output=True, text=True, errors="replace", timeout=120,
     )
     output1 = proc1.stdout + "\n" + proc1.stderr
-    if "AIVM_PERSISTENCE_WRITTEN" not in output1:
+    if "CLAWCAGE_PERSISTENCE_WRITTEN" not in output1:
         print(f"  {RED}FAIL{RESET}  sentinel write failed (invocation 1 did not confirm)")
         print(output1[:1000])
         return False
@@ -587,16 +582,16 @@ def check_persistence(binary: str, assets_dir: str) -> bool:
     print("  Invocation 2: checking sentinel is absent...")
     proc2 = subprocess.run(
         [binary, PERSISTENCE_CHECK_CMD],
-        env=env, capture_output=True, text=True, timeout=120,
+        env=env, capture_output=True, text=True, errors="replace", timeout=120,
     )
     output2 = proc2.stdout + "\n" + proc2.stderr
     # Use exit code as the definitive indicator -- the command string itself contains
-    # "AIVM_EPHEMERAL_FAIL" so searching for it in output would always match (PTY echo).
+    # "CLAWCAGE_EPHEMERAL_FAIL" so searching for it in output would always match (PTY echo).
     if proc2.returncode != 0:
         print(f"  {RED}FAIL{RESET}  sentinel persisted across VM invocations -- SECURITY BREACH")
         return False
-    if "AIVM_EPHEMERAL_OK" not in output2:
-        print(f"  {RED}FAIL{RESET}  ephemeral check did not confirm (no AIVM_EPHEMERAL_OK)")
+    if "CLAWCAGE_EPHEMERAL_OK" not in output2:
+        print(f"  {RED}FAIL{RESET}  ephemeral check did not confirm (no CLAWCAGE_EPHEMERAL_OK)")
         return False
     print(f"  {GREEN}PASS{RESET}  sentinel absent in invocation 2 (VM is fully ephemeral)")
     return True
@@ -604,12 +599,12 @@ def check_persistence(binary: str, assets_dir: str) -> bool:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="End-to-end integration test for aivm telemetry pipelines.",
+        description="End-to-end integration test for clawcage telemetry pipelines.",
     )
     parser.add_argument(
         "--binary",
-        default="target/debug/aivm",
-        help="Path to the aivm binary (default: target/debug/aivm)",
+        default="target/debug/clawcage",
+        help="Path to the clawcage binary (default: target/debug/clawcage)",
     )
     parser.add_argument(
         "--assets",

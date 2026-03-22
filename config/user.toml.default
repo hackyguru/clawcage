@@ -1,11 +1,11 @@
-# Aivm user configuration
-# Copy to ~/.aivm/user.toml to customize.
+# Clawcage user configuration
+# Copy to ~/.clawcage/user.toml to customize.
 #
-# Corporate overrides: /etc/aivm/corp.toml (MDM-distributed)
+# Corporate overrides: /etc/clawcage/corp.toml (MDM-distributed)
 # If corp.toml specifies a setting, it overrides user.toml for that key.
 #
 # Only overrides need to be listed here. Settings not listed use defaults.
-# Full setting registry: see `aivm --settings` or the Settings UI tab.
+# Full setting registry: see `clawcage --settings` or the Settings UI tab.
 
 [settings]
 # -- AI Providers (Google enabled by default) --

@@ -30,14 +30,14 @@ jobs:
           cache-dependency-path: frontend/pnpm-lock.yaml
       - run: cd frontend && pnpm install --frozen-lockfile
 
-      # aivm-app requires VM assets to compile (Tauri resource bundling),
+      # clawcage-app requires VM assets to compile (Tauri resource bundling),
       # so we test the library crates only. Full workspace test runs in release.
       - name: Unit tests (library crates)
-        run: cargo test -p aivm-core -p aivm-agent -p aivm-logger -p aivm-proto
+        run: cargo test -p clawcage-core -p clawcage-agent -p clawcage-logger -p clawcage-proto
 
       # Check-only (no link) -- actual cross-compile runs on Linux in release workflow
       - name: Cross-compile check (guest binaries)
-        run: cargo check --release --target aarch64-unknown-linux-musl -p aivm-agent
+        run: cargo check --release --target aarch64-unknown-linux-musl -p clawcage-agent
 
       - name: Frontend type-check and build
         run: cd frontend && pnpm run check && pnpm run build

@@ -1,5 +1,5 @@
 # Compile a hardened, minimal ARM64 kernel for Apple Virtualization.framework.
-# Produces vmlinuz (~5MB) and initrd.img (<1MB) with busybox + aivm-init.
+# Produces vmlinuz (~5MB) and initrd.img (<1MB) with busybox + clawcage-init.
 #
 # The kernel is compiled from source with a custom defconfig that:
 # - Enables only VirtIO drivers (the only hardware in Apple VZ)
@@ -30,7 +30,7 @@ RUN MAJOR=$(echo ${KERNEL_VERSION} | cut -d. -f1) && \
 
 WORKDIR /usr/src/linux
 
-# Apply aivm hardened defconfig (allnoconfig base + our overrides)
+# Apply clawcage hardened defconfig (allnoconfig base + our overrides)
 COPY defconfig .config
 RUN make olddefconfig
 
@@ -38,12 +38,12 @@ RUN make olddefconfig
 RUN make -j$(nproc) Image && \
     ls -lh arch/arm64/boot/Image
 
-# ---- Build minimal initrd with busybox + aivm-init ----
-COPY aivm-init /tmp/aivm-init
+# ---- Build minimal initrd with busybox + clawcage-init ----
+COPY clawcage-init /tmp/clawcage-init
 RUN mkdir -p /tmp/initrd/bin /tmp/initrd/sbin /tmp/initrd/dev /tmp/initrd/proc \
              /tmp/initrd/sys /tmp/initrd/newroot /tmp/initrd/tmp /tmp/initrd/conf \
              /tmp/initrd/dev/pts /tmp/initrd/var/log /tmp/initrd/var/tmp && \
-    # Busybox-static provides all userspace tools aivm-init needs
+    # Busybox-static provides all userspace tools clawcage-init needs
     cp /usr/bin/busybox /tmp/initrd/bin/busybox && \
     for cmd in sh mount umount mkdir rmdir sleep ls echo cat chmod cp ln \
                chroot mknod mv rm find grep sed awk; do \
@@ -52,7 +52,7 @@ RUN mkdir -p /tmp/initrd/bin /tmp/initrd/sbin /tmp/initrd/dev /tmp/initrd/proc \
     for cmd in modprobe; do \
         ln -s ../bin/busybox /tmp/initrd/sbin/$cmd; \
     done && \
-    cp /tmp/aivm-init /tmp/initrd/init && \
+    cp /tmp/clawcage-init /tmp/initrd/init && \
     chmod 755 /tmp/initrd/init && \
     cd /tmp/initrd && \
     find . | cpio -o -H newc 2>/dev/null | gzip > /tmp/initrd.img && \

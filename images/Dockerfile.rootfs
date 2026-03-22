@@ -1,4 +1,4 @@
-# Build a populated rootfs for the aivm VM.
+# Build a populated rootfs for the clawcage VM.
 # Contains developer tools, runtimes, and AI coding CLIs.
 # Mounted read-only at boot; only /root is writable (tmpfs).
 
@@ -38,7 +38,7 @@ RUN GCS_BUCKET=$(curl -fsSL https://claude.ai/install.sh | grep 'GCS_BUCKET=' | 
     chmod 755 /usr/local/bin/claude
 
 # Other AI coding CLIs -- installed to /opt/ai-clis (staging area).
-# Copied to writable scratch disk at boot by aivm-init so that
+# Copied to writable scratch disk at boot by clawcage-init so that
 # auto-update works (CLIs self-update and need writable node_modules).
 COPY npm-globals.txt /tmp/npm-globals.txt
 RUN grep -v '^\s*#' /tmp/npm-globals.txt | grep -v '^\s*$' | \
@@ -48,29 +48,29 @@ RUN grep -v '^\s*#' /tmp/npm-globals.txt | grep -v '^\s*$' | \
 
 # Install MITM CA certificate into system trust store
 # (copied into images/ by build.py before docker build)
-COPY aivm-ca.crt /usr/local/share/ca-certificates/aivm-ca.crt
+COPY clawcage-ca.crt /usr/local/share/ca-certificates/clawcage-ca.crt
 RUN update-ca-certificates
 
 # Patch certifi's CA bundle (Python requests/openai SDK use certifi, not system store)
 RUN uv pip install --system --break-system-packages certifi && \
     CERTIFI_BUNDLE=$(python3 -c "import certifi; print(certifi.where())") && \
-    cat /usr/local/share/ca-certificates/aivm-ca.crt >> "$CERTIFI_BUNDLE"
+    cat /usr/local/share/ca-certificates/clawcage-ca.crt >> "$CERTIFI_BUNDLE"
 
 # PTY agent binary (built externally, cross-compiled for aarch64-linux-musl)
 # Bridges PTY I/O over vsock for high-performance terminal communication.
 # Read-only + execute (555): prevent guest processes from modifying the agent.
-COPY aivm-pty-agent /usr/local/bin/aivm-pty-agent
-RUN chmod 555 /usr/local/bin/aivm-pty-agent
+COPY clawcage-pty-agent /usr/local/bin/clawcage-pty-agent
+RUN chmod 555 /usr/local/bin/clawcage-pty-agent
 
 # Net proxy binary (cross-compiled for aarch64-linux-musl)
 # Bridges TCP connections from the guest to the host SNI proxy via vsock.
-COPY aivm-net-proxy /usr/local/bin/aivm-net-proxy
-RUN chmod 555 /usr/local/bin/aivm-net-proxy
+COPY clawcage-net-proxy /usr/local/bin/clawcage-net-proxy
+RUN chmod 555 /usr/local/bin/clawcage-net-proxy
 
-# Shell config (sourced by aivm-init via --rcfile)
-COPY aivm-bashrc /etc/aivm-bashrc
-COPY banner.txt /etc/aivm-banner.txt
-COPY tips.txt /etc/aivm-tips.txt
+# Shell config (sourced by clawcage-init via --rcfile)
+COPY clawcage-bashrc /etc/clawcage-bashrc
+COPY banner.txt /etc/clawcage-banner.txt
+COPY tips.txt /etc/clawcage-tips.txt
 
 # Common Python packages (pre-installed so they're available immediately).
 # The boot-time venv uses --system-site-packages to inherit these.
@@ -80,17 +80,17 @@ RUN uv pip install --system --break-system-packages -r /tmp/requirements.txt && 
     rm /tmp/requirements.txt
 
 # Diagnostic test suite
-COPY diagnostics/ /usr/local/lib/aivm-tests/
+COPY diagnostics/ /usr/local/lib/clawcage-tests/
 
 # Doctor script (entry point)
-COPY aivm-doctor /usr/local/bin/aivm-doctor
-RUN chmod 755 /usr/local/bin/aivm-doctor
-# Backward compat: aivm-test -> aivm-doctor
-RUN ln -sf aivm-doctor /usr/local/bin/aivm-test
+COPY clawcage-doctor /usr/local/bin/clawcage-doctor
+RUN chmod 755 /usr/local/bin/clawcage-doctor
+# Backward compat: clawcage-test -> clawcage-doctor
+RUN ln -sf clawcage-doctor /usr/local/bin/clawcage-test
 
 # Bench script (disk I/O + HTTP performance benchmarks)
-COPY aivm-bench /usr/local/bin/aivm-bench
-RUN chmod 755 /usr/local/bin/aivm-bench
+COPY clawcage-bench /usr/local/bin/clawcage-bench
+RUN chmod 755 /usr/local/bin/clawcage-bench
 
 # Remove PEP 668 EXTERNALLY-MANAGED marker.
 # This is an ephemeral sandboxed VM -- the protection is unnecessary and blocks

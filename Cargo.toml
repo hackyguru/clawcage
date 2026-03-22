@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/aivm-proto", "crates/aivm-core", "crates/aivm-app", "crates/aivm-agent", "crates/aivm-logger"]
+members = ["crates/clawcage-proto", "crates/clawcage-core", "crates/clawcage-app", "crates/clawcage-agent", "crates/clawcage-logger"]
 
 [workspace.package]
 version = "0.8.8"

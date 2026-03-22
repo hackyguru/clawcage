@@ -62,7 +62,7 @@ def test_iptables_redirect_443_to_10443():
 
 
 def test_net_proxy_listening():
-    """aivm-net-proxy must accept TCP on 127.0.0.1:10443."""
+    """clawcage-net-proxy must accept TCP on 127.0.0.1:10443."""
     result = run(
         "python3 -c \""
         "import socket; s=socket.socket(); s.settimeout(3); "
@@ -139,8 +139,8 @@ def test_tls_handshake_completes():
         f"TLS handshake failed:\n{result.stdout}"
 
 
-def test_tls_cert_from_aivm_ca():
-    """MITM proxy must present a cert signed by the Aivm CA."""
+def test_tls_cert_from_clawcage_ca():
+    """MITM proxy must present a cert signed by the Clawcage CA."""
     result = run(
         "python3 -c \""
         "import socket, ssl; "
@@ -161,8 +161,8 @@ def test_tls_cert_from_aivm_ca():
     )
     assert "issuer_cn=" in result.stdout, \
         f"could not get cert info:\n{result.stdout}"
-    # Check issuer is Aivm CA (might be empty if cert_none hides it)
-    if "Aivm" not in result.stdout:
+    # Check issuer is Clawcage CA (might be empty if cert_none hides it)
+    if "Clawcage" not in result.stdout:
         # cert_none doesn't populate getpeercert() fully -- just check TLS worked
         assert result.returncode == 0, \
             f"TLS failed:\n{result.stdout}"
@@ -210,21 +210,21 @@ def test_curl_verbose_diagnostics():
 
 
 def test_mitm_ca_cert_file_exists():
-    """Aivm CA cert file must exist."""
-    assert os.path.isfile("/usr/local/share/ca-certificates/aivm-ca.crt"), \
-        "aivm-ca.crt not found"
+    """Clawcage CA cert file must exist."""
+    assert os.path.isfile("/usr/local/share/ca-certificates/clawcage-ca.crt"), \
+        "clawcage-ca.crt not found"
 
 
 def test_mitm_ca_in_system_bundle():
-    """Aivm MITM CA must be in the system CA bundle."""
+    """Clawcage MITM CA must be in the system CA bundle."""
     # Grep for a unique base64 fragment from the cert (CN is DER-encoded, not plain text)
     result = run("grep -c 'OMYp0kksjRwy' /etc/ssl/certs/ca-certificates.crt")
     assert result.returncode == 0 and int(result.stdout.strip()) > 0, \
-        "Aivm CA not found in system CA bundle"
+        "Clawcage CA not found in system CA bundle"
 
 
-def test_certifi_includes_aivm_ca():
-    """Python certifi bundle must include the Aivm CA."""
+def test_certifi_includes_clawcage_ca():
+    """Python certifi bundle must include the Clawcage CA."""
     result = run(
         'python3 -c "'
         "import certifi; "
@@ -234,11 +234,11 @@ def test_certifi_includes_aivm_ca():
     )
     assert result.returncode == 0
     assert "found" in result.stdout, \
-        "Aivm CA not found in certifi bundle"
+        "Clawcage CA not found in certifi bundle"
 
 
 def test_curl_allowed_domain_ca_trusted():
-    """curl without -k must succeed (system trusts Aivm CA)."""
+    """curl without -k must succeed (system trusts Clawcage CA)."""
     result = run(
         "curl -sI --connect-timeout 10 https://elie.net 2>&1",
         timeout=20,
@@ -300,8 +300,8 @@ def test_post_to_random_domain_denied():
 
 
 @pytest.mark.parametrize("domain,env_var", [
-    ("api.anthropic.com", "AIVM_ANTHROPIC_ALLOWED"),
-    ("api.openai.com", "AIVM_OPENAI_ALLOWED"),
+    ("api.anthropic.com", "CLAWCAGE_ANTHROPIC_ALLOWED"),
+    ("api.openai.com", "CLAWCAGE_OPENAI_ALLOWED"),
 ])
 def test_ai_provider_domain_blocked(domain, env_var):
     """AI provider domains must be blocked unless explicitly allowed by policy."""

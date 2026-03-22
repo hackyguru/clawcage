@@ -47,6 +47,10 @@ export default function Sidebar() {
 
   return (
     <aside className="flex flex-col shrink-0 border-r border-edge glass w-12 overflow-hidden" role="complementary" aria-label="Sidebar navigation">
+      {/* Logo -- vertically centered with the content header row */}
+      <div className="flex items-center justify-center pt-5 pb-3 shrink-0">
+        <img src="/logo.svg" alt="Clawcage" className="size-7 opacity-60" style={{ filter: 'var(--logo-filter, invert(1))' }} />
+      </div>
       <nav className="flex-1 py-3" aria-label="Main navigation">
         <ul className="flex flex-col gap-1 px-1.5">
           {/* Home always visible */}

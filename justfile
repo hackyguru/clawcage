@@ -1,4 +1,4 @@
-# Aivm Justfile
+# Clawcage Justfile
 #
 # Dependency chains:
 #
@@ -21,8 +21,8 @@
 # Before install:     just install (doctor + full-test + /Applications)
 # Releases:           CI only -- push a vX.Y.Z tag to trigger .github/workflows/release.yaml
 
-binary := "target/debug/aivm"
-release_app := "target/release/bundle/macos/Aivm.app"
+binary := "target/debug/clawcage"
+release_app := "target/release/bundle/macos/Clawcage.app"
 assets_dir := "assets"
 entitlements := "entitlements.plist"
 
@@ -30,7 +30,7 @@ entitlements := "entitlements.plist"
 setup:
     #!/bin/bash
     set -euo pipefail
-    echo "=== Aivm First-Time Setup ==="
+    echo "=== Clawcage First-Time Setup ==="
     echo ""
 
     # 1. Brew dependencies
@@ -114,8 +114,8 @@ dev: _check-assets _pack-initrd
     #!/bin/bash
     set -euo pipefail
     echo "Stopping running instances..."
-    pkill -x aivm 2>/dev/null || true
-    pkill -x Aivm 2>/dev/null || true
+    pkill -x clawcage 2>/dev/null || true
+    pkill -x Clawcage 2>/dev/null || true
     # Free port 5173 so Vite can bind to it (Tauri devUrl expects it)
     lsof -ti:5173 | xargs kill -9 2>/dev/null || true
     sleep 0.5
@@ -127,9 +127,9 @@ dev: _check-assets _pack-initrd
     echo "Waiting for frontend dev server..."
     until curl -s http://localhost:5173 >/dev/null 2>&1; do sleep 0.3; done
     # Build, sign, and run
-    cargo build -p aivm
+    cargo build -p clawcage
     codesign --sign - --entitlements {{entitlements}} --force {{binary}}
-    AIVM_ASSETS_DIR={{assets_dir}} {{binary}}
+    CLAWCAGE_ASSETS_DIR={{assets_dir}} {{binary}}
     
 
 # Frontend-only dev server with mock data (no Tauri/VM needed)
@@ -140,8 +140,8 @@ ui:
 run *CMD: _check-assets _pack-initrd _sign
     #!/bin/bash
     set -euo pipefail
-    pkill -x aivm 2>/dev/null || true
-    AIVM_ASSETS_DIR={{assets_dir}} {{binary}} {{CMD}}
+    pkill -x clawcage 2>/dev/null || true
+    CLAWCAGE_ASSETS_DIR={{assets_dir}} {{binary}} {{CMD}}
 
 # Full VM asset rebuild (kernel, initrd, rootfs) via Docker/Podman
 build-assets: doctor _install-tools
@@ -150,37 +150,37 @@ build-assets: doctor _install-tools
 # Unit tests + cross-compile check + frontend type-check (no VM)
 test: _install-tools
     cargo llvm-cov --workspace --no-cfg-coverage
-    cargo build --release --target aarch64-unknown-linux-musl -p aivm-agent 2>&1 | tail -3
+    cargo build --release --target aarch64-unknown-linux-musl -p clawcage-agent 2>&1 | tail -3
     cd frontend && pnpm run check && pnpm run build
 
-# Full validation: test + aivm-doctor + integration test + bench (boots VM)
+# Full validation: test + clawcage-doctor + integration test + bench (boots VM)
 full-test: test _check-assets _pack-initrd _sign
     @echo ""
-    @echo "=== aivm-doctor ==="
-    AIVM_ASSETS_DIR={{assets_dir}} {{binary}} "aivm-doctor"
+    @echo "=== clawcage-doctor ==="
+    CLAWCAGE_ASSETS_DIR={{assets_dir}} {{binary}} "clawcage-doctor"
     @echo ""
     @echo "=== Integration test ==="
     python3 scripts/integration_test.py --binary {{binary}} --assets {{assets_dir}}
     @echo ""
     @echo "=== Benchmarks ==="
-    AIVM_ASSETS_DIR={{assets_dir}} {{binary}} "aivm-bench"
+    CLAWCAGE_ASSETS_DIR={{assets_dir}} {{binary}} "clawcage-bench"
 
 # Run in-VM benchmarks (disk I/O, rootfs read, CLI startup, HTTP latency)
 bench: _check-assets _sign
-    AIVM_ASSETS_DIR={{assets_dir}} {{binary}} "aivm-bench"
+    CLAWCAGE_ASSETS_DIR={{assets_dir}} {{binary}} "clawcage-bench"
 
 # Build release .app + install to /Applications + launch
 install: doctor full-test _frontend
-    cd crates/aivm-app && cargo tauri build
+    cd crates/clawcage-app && cargo tauri build
     codesign --sign - --entitlements {{entitlements}} --force --deep "{{release_app}}"
-    @echo "Stopping running Aivm..."
-    -@pkill -x Aivm 2>/dev/null || true
-    -@pkill -x aivm 2>/dev/null || true
+    @echo "Stopping running Clawcage..."
+    -@pkill -x Clawcage 2>/dev/null || true
+    -@pkill -x clawcage 2>/dev/null || true
     @echo "Installing to /Applications..."
-    rm -rf "/Applications/Aivm.app"
+    rm -rf "/Applications/Clawcage.app"
     cp -R "{{release_app}}" "/Applications/"
-    @echo "Launching Aivm..."
-    open "/Applications/Aivm.app"
+    @echo "Launching Clawcage..."
+    open "/Applications/Clawcage.app"
 
 # Check that all required dev tools and dependencies are installed
 doctor:
@@ -190,7 +190,7 @@ doctor:
     pass() { echo "  [PASS] $1"; PASS=$((PASS + 1)); }
     fail() { echo "  [FAIL] $1"; FAIL=$((FAIL + 1)); }
 
-    echo "Aivm Doctor"
+    echo "Clawcage Doctor"
     echo "============="
 
     echo ""
@@ -273,7 +273,7 @@ doctor:
 clean:
     cargo clean
     cd frontend && rm -rf dist node_modules
-    rm -rf target/release/bundle/macos/Aivm.app target/release/Aivm.dmg
+    rm -rf target/release/bundle/macos/Clawcage.app target/release/Clawcage.dmg
 
 # Inspect session DB integrity and event summary (latest by default)
 inspect-session *args='':
@@ -376,7 +376,7 @@ _frontend:
     cd frontend && pnpm build
 
 _compile: _frontend
-    cargo build -p aivm
+    cargo build -p clawcage
 
 _sign: _compile
     codesign --sign - --entitlements {{entitlements}} --force {{binary}}
@@ -391,34 +391,34 @@ _pack-initrd:
         exit 1
     fi
     echo "=== Cross-compile agent ==="
-    cargo build --release --target aarch64-unknown-linux-musl -p aivm-agent 2>&1 | tail -3
+    cargo build --release --target aarch64-unknown-linux-musl -p clawcage-agent 2>&1 | tail -3
     echo ""
     echo "=== Repack initrd ==="
     WORKDIR=$(mktemp -d)
     cd "$WORKDIR"
     gzip -dc "$INITRD" | cpio -id 2>/dev/null
-    cp "$ROOT/images/aivm-init" init
+    cp "$ROOT/images/clawcage-init" init
     chmod 755 init
-    rm -f aivm-pty-agent aivm-net-proxy aivm-mcp-server aivm-fs-watch aivm-port-watch aivm-sys-watch
-    cp "$ROOT/target/aarch64-unknown-linux-musl/release/aivm-pty-agent" aivm-pty-agent
-    chmod 555 aivm-pty-agent
-    cp "$ROOT/target/aarch64-unknown-linux-musl/release/aivm-net-proxy" aivm-net-proxy
-    chmod 555 aivm-net-proxy
-    cp "$ROOT/target/aarch64-unknown-linux-musl/release/aivm-mcp-server" aivm-mcp-server
-    chmod 555 aivm-mcp-server
-    cp "$ROOT/target/aarch64-unknown-linux-musl/release/aivm-fs-watch" aivm-fs-watch
-    chmod 555 aivm-fs-watch
-    cp "$ROOT/target/aarch64-unknown-linux-musl/release/aivm-port-watch" aivm-port-watch
-    chmod 555 aivm-port-watch
-    cp "$ROOT/target/aarch64-unknown-linux-musl/release/aivm-sys-watch" aivm-sys-watch
-    chmod 555 aivm-sys-watch
-    cp "$ROOT/images/aivm-doctor" aivm-doctor
-    chmod 755 aivm-doctor
-    cp "$ROOT/images/aivm-bench" aivm-bench
-    chmod 755 aivm-bench
-    cp "$ROOT/images/aivm-bashrc" aivm-bashrc
-    cp "$ROOT/images/banner.txt" aivm-banner.txt
-    cp "$ROOT/images/tips.txt" aivm-tips.txt
+    rm -f clawcage-pty-agent clawcage-net-proxy clawcage-mcp-server clawcage-fs-watch clawcage-port-watch clawcage-sys-watch
+    cp "$ROOT/target/aarch64-unknown-linux-musl/release/clawcage-pty-agent" clawcage-pty-agent
+    chmod 555 clawcage-pty-agent
+    cp "$ROOT/target/aarch64-unknown-linux-musl/release/clawcage-net-proxy" clawcage-net-proxy
+    chmod 555 clawcage-net-proxy
+    cp "$ROOT/target/aarch64-unknown-linux-musl/release/clawcage-mcp-server" clawcage-mcp-server
+    chmod 555 clawcage-mcp-server
+    cp "$ROOT/target/aarch64-unknown-linux-musl/release/clawcage-fs-watch" clawcage-fs-watch
+    chmod 555 clawcage-fs-watch
+    cp "$ROOT/target/aarch64-unknown-linux-musl/release/clawcage-port-watch" clawcage-port-watch
+    chmod 555 clawcage-port-watch
+    cp "$ROOT/target/aarch64-unknown-linux-musl/release/clawcage-sys-watch" clawcage-sys-watch
+    chmod 555 clawcage-sys-watch
+    cp "$ROOT/images/clawcage-doctor" clawcage-doctor
+    chmod 755 clawcage-doctor
+    cp "$ROOT/images/clawcage-bench" clawcage-bench
+    chmod 755 clawcage-bench
+    cp "$ROOT/images/clawcage-bashrc" clawcage-bashrc
+    cp "$ROOT/images/banner.txt" clawcage-banner.txt
+    cp "$ROOT/images/tips.txt" clawcage-tips.txt
     rm -rf diagnostics
     cp -r "$ROOT/images/diagnostics" diagnostics
     find . | cpio -o -H newc 2>/dev/null | gzip > "$INITRD"

@@ -1,19 +1,19 @@
-// Terminal component - wraps the aivm-terminal web component
+// Terminal component - wraps the clawcage-terminal web component
 import { useEffect, useRef, useCallback, useState } from 'react';
-import type { AivmTerminal as AivmTerminalElement } from '../../components/aivm-terminal';
+import type { ClawcageTerminal as ClawcageTerminalElement } from '../../components/clawcage-terminal';
 import { serialInput, terminalResize, terminalPoll, onTerminalSourceChanged } from '../api';
 import { getTheme } from '../stores/theme';
 import { setTerminalRenderer } from '../stores/vm';
 
 // Side-effect: register the web component
-import '../../components/aivm-terminal';
+import '../../components/clawcage-terminal';
 
 interface TerminalProps {
   sessionId?: number;
 }
 
 export default function Terminal({ sessionId = 0 }: TerminalProps) {
-  const termRef = useRef<AivmTerminalElement>(null);
+  const termRef = useRef<ClawcageTerminalElement>(null);
   const mountedRef = useRef(true);
   const inputBufferRef = useRef('');
   const inputTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -178,9 +178,9 @@ export default function Terminal({ sessionId = 0 }: TerminalProps) {
             '\r\n' +
             'Dev:  python3  node  npm  git  vim\r\n' +
             'AI:   claude   gemini  codex\r\n' +
-            'Test: aivm-test\r\n' +
+            'Test: clawcage-test\r\n' +
             '\r\n' +
-            '\x1b[1;34maivm:~#\x1b[0m ',
+            '\x1b[1;34mclawcage:~#\x1b[0m ',
         ),
       );
     }
@@ -197,7 +197,7 @@ export default function Terminal({ sessionId = 0 }: TerminalProps) {
 
   return (
     <div className="relative h-full w-full">
-      <aivm-terminal
+      <clawcage-terminal
         ref={termRef as any}
         class="block h-full w-full"
       />
@@ -221,7 +221,7 @@ export default function Terminal({ sessionId = 0 }: TerminalProps) {
 declare module 'react' {
   namespace JSX {
     interface IntrinsicElements {
-      'aivm-terminal': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & {
+      'clawcage-terminal': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & {
         ref?: any;
         class?: string;
       };

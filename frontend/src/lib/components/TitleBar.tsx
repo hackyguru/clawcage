@@ -71,8 +71,9 @@ export default function TitleBar() {
     >
       <TrafficLights />
       <div data-tauri-drag-region className="flex-1" />
-      <span className="text-xs font-medium text-content/40 pointer-events-none pr-3">
-        {activeVenv ? activeVenv.name : 'Aivm'}
+      <span className="flex items-center gap-1.5 text-xs font-medium text-content/40 pointer-events-none pr-3">
+        <img src="/logo.svg" alt="" className="size-3.5 opacity-40" style={{ filter: 'var(--logo-filter, invert(1))' }} />
+        {activeVenv ? activeVenv.name : 'Clawcage'}
       </span>
     </header>
   );

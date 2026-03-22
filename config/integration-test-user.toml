@@ -1,5 +1,5 @@
 # Configuration for end-to-end integration tests.
-# This file is used by scripts/integration_test.py to ensure isolation from the user's ~/.aivm/user.toml.
+# This file is used by scripts/integration_test.py to ensure isolation from the user's ~/.clawcage/user.toml.
 
 [settings]
 "network.custom_allow" = { value = "elie.net, *.googleapis.com, ash-speed.hetzner.com", modified = "2026-03-05T00:00:00Z" }

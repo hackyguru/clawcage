@@ -1,4 +1,4 @@
-# Aivm
+# Clawcage
 
 Native macOS app that sandboxes AI agents in Linux VMs using Apple's Virtualization.framework. Built with Rust, Tauri 2.0, and React.
 
@@ -13,7 +13,7 @@ All workflows use `just` (not make):
 - `just run "CMD"` -- same but run a command instead of interactive shell
 - `just build-assets` -- doctor + full VM asset build from scratch (kernel, initrd, rootfs) via Docker/Podman
 - `just test` -- unit tests + cross-compile check + frontend type-check (no VM)
-- `just full-test` -- test + aivm-doctor + integration test + bench (boots VM multiple times)
+- `just full-test` -- test + clawcage-doctor + integration test + bench (boots VM multiple times)
 - `just bench` -- in-VM benchmarks (scratch disk I/O, rootfs read, CLI startup latency, HTTP throughput)
 - `just install` -- doctor + full-test + release `.app` + codesign + install to /Applications + launch
 - `just clean` -- clean build artifacts
@@ -41,9 +41,9 @@ Daily dev: `just run` (fast, ~10s). Before release: `just release`.
 ## Project Layout
 
 ```
-crates/aivm-core/       VM library (config, boot, serial, vsock, machine)
-crates/aivm-app/        Tauri binary (GUI, CLI, commands, state)
-crates/aivm-agent/      Guest PTY agent (vsock bridge, cross-compiled for aarch64-linux-musl)
+crates/clawcage-core/       VM library (config, boot, serial, vsock, machine)
+crates/clawcage-app/        Tauri binary (GUI, CLI, commands, state)
+crates/clawcage-agent/      Guest PTY agent (vsock bridge, cross-compiled for aarch64-linux-musl)
 frontend/                 Vite 6 + React 19 + Tailwind v4 + DaisyUI v5
   src/lib/components/     React components (App, Sidebar, StatusBar, Terminal, etc.)
   src/lib/views/          View components (TerminalView, StatsView, SettingsView)
@@ -51,9 +51,9 @@ frontend/                 Vite 6 + React 19 + Tailwind v4 + DaisyUI v5
   src/lib/icons/          SVG icon components
   src/lib/types.ts        TypeScript types mirroring Rust IPC structs
   src/lib/api.ts          Typed Tauri invoke/listen wrappers
-  src/components/         Web components (aivm-terminal xterm.js)
+  src/components/         Web components (clawcage-terminal xterm.js)
   src/main.tsx            React entry point (createRoot)
-images/                   VM image tooling (Dockerfiles, build.py, aivm-init)
+images/                   VM image tooling (Dockerfiles, build.py, clawcage-init)
 assets/                   Built VM assets (gitignored)
 ```
 
@@ -64,10 +64,10 @@ The overall project plan and milestone roadmap is in `docs/overall_plan.md`.
 ## Architecture
 
 - **Host**: Tauri app creates a VZVirtualMachine with a virtio serial console (boot logs) and a vsock device (terminal I/O + control + MITM proxy)
-- **Guest**: Linux VM boots with `console=hvc0`, runs `aivm-init` as PID 1 which sets up air-gapped networking (dummy0 NIC + fake DNS + iptables), launches `aivm-net-proxy` and `aivm-pty-agent`
-- **Guest Agent**: `aivm-pty-agent` creates a PTY pair, forks bash, and bridges master PTY <-> vsock (port 5001 for terminal data, port 5000 for control messages like resize/heartbeat)
-- **Net Proxy**: `aivm-net-proxy` listens on TCP 127.0.0.1:10443, bridges each connection to host vsock port 5002. iptables redirects port 443 traffic here.
-- **MITM Proxy**: Host terminates TLS from guest using a per-domain minted certificate (signed by static Aivm CA), inspects HTTP request (method, path, headers, body), applies domain+HTTP policy, forwards to real upstream over TLS, records full telemetry to web.db
+- **Guest**: Linux VM boots with `console=hvc0`, runs `clawcage-init` as PID 1 which sets up air-gapped networking (dummy0 NIC + fake DNS + iptables), launches `clawcage-net-proxy` and `clawcage-pty-agent`
+- **Guest Agent**: `clawcage-pty-agent` creates a PTY pair, forks bash, and bridges master PTY <-> vsock (port 5001 for terminal data, port 5000 for control messages like resize/heartbeat)
+- **Net Proxy**: `clawcage-net-proxy` listens on TCP 127.0.0.1:10443, bridges each connection to host vsock port 5002. iptables redirects port 443 traffic here.
+- **MITM Proxy**: Host terminates TLS from guest using a per-domain minted certificate (signed by static Clawcage CA), inspects HTTP request (method, path, headers, body), applies domain+HTTP policy, forwards to real upstream over TLS, records full telemetry to web.db
 - **Terminal I/O**: Frontend xterm.js `onData` -> Tauri `serial_input` command -> vsock fd (or serial fallback) -> guest PTY. Reverse: guest PTY -> vsock -> `CoalesceBuffer` (8ms/64KB) -> Tauri event -> xterm.js `write`
 - **Serial**: Stays active for kernel boot logs. Terminal I/O switches to vsock once the guest agent sends `Ready`
 
@@ -84,47 +84,47 @@ The overall project plan and milestone roadmap is in `docs/overall_plan.md`.
 | 5008 | System metrics (CPU/memory/disk telemetry) |
 
 ### Network Policy
-- User config: `~/.aivm/user.toml` -- editable domain allow/block lists + HTTP rules
-- Corp config: `/etc/aivm/corp.toml` -- enterprise lockdown (MDM-distributed)
+- User config: `~/.clawcage/user.toml` -- editable domain allow/block lists + HTTP rules
+- Corp config: `/etc/clawcage/corp.toml` -- enterprise lockdown (MDM-distributed)
 - Merge: corp fields override user fields entirely; unspecified fields fall through to user, then hardcoded defaults
 - HTTP rules: `[[network.rules]]` sections in TOML allow method+path matching per domain
-- Per-session telemetry: `~/.aivm/sessions/<vm_id>/web.db` (domain, method, path, status code, headers, body preview)
+- Per-session telemetry: `~/.clawcage/sessions/<vm_id>/web.db` (domain, method, path, status code, headers, body preview)
 
 ### MITM CA
-- Static CA: `config/aivm-ca.key` + `config/aivm-ca.crt` (ECDSA P-256, 100-year validity)
+- Static CA: `config/clawcage-ca.key` + `config/clawcage-ca.crt` (ECDSA P-256, 100-year validity)
 - Baked into rootfs via `update-ca-certificates` + certifi patch
 - Guest trusts it via system store + env vars (`REQUESTS_CA_BUNDLE`, `NODE_EXTRA_CA_CERTS`, `SSL_CERT_FILE`)
 - No security from the CA itself -- the guest is already fully sandboxed
 
 ## Key Files
 
-- `images/aivm-init` -- guest init script (PID 1). Changes require `just run` to take effect (repacks initrd automatically).
-- `images/aivm-bashrc` -- guest shell config (baked into rootfs, requires `just build`)
+- `images/clawcage-init` -- guest init script (PID 1). Changes require `just run` to take effect (repacks initrd automatically).
+- `images/clawcage-bashrc` -- guest shell config (baked into rootfs, requires `just build`)
 - `images/README.md` -- full documentation of the guest VM environment (packages, banner, tips, AI status)
-- `crates/aivm-agent/src/main.rs` -- guest PTY agent (vsock bridge, cross-compiled)
-- `crates/aivm-agent/src/net_proxy.rs` -- guest TCP-to-vsock relay (cross-compiled)
-- `crates/aivm-core/src/net/` -- network modules (MITM proxy, cert authority, HTTP policy, domain policy, SNI parser, policy config, telemetry)
-- `crates/aivm-core/src/net/mitm_proxy.rs` -- async MITM proxy (rustls + hyper): TLS termination, HTTP inspection, upstream bridging
-- `crates/aivm-core/src/net/cert_authority.rs` -- CA loader + on-demand domain cert minting with RwLock cache
-- `crates/aivm-core/src/net/http_policy.rs` -- method+path policy engine (extends domain-level policy)
+- `crates/clawcage-agent/src/main.rs` -- guest PTY agent (vsock bridge, cross-compiled)
+- `crates/clawcage-agent/src/net_proxy.rs` -- guest TCP-to-vsock relay (cross-compiled)
+- `crates/clawcage-core/src/net/` -- network modules (MITM proxy, cert authority, HTTP policy, domain policy, SNI parser, policy config, telemetry)
+- `crates/clawcage-core/src/net/mitm_proxy.rs` -- async MITM proxy (rustls + hyper): TLS termination, HTTP inspection, upstream bridging
+- `crates/clawcage-core/src/net/cert_authority.rs` -- CA loader + on-demand domain cert minting with RwLock cache
+- `crates/clawcage-core/src/net/http_policy.rs` -- method+path policy engine (extends domain-level policy)
 - `config/defaults.toml` -- settings registry (all built-in settings, embedded at compile time). See `docs/config.md` for format reference.
-- `config/aivm-ca.key` + `config/aivm-ca.crt` -- static MITM CA keypair (ECDSA P-256)
-- `crates/aivm-app/src/commands.rs` -- Tauri IPC commands (serial_input, vm_status, terminal_resize, net_events)
-- `crates/aivm-app/src/state.rs` -- per-VM state (serial + vsock fds)
-- `crates/aivm-core/src/vm/serial.rs` -- serial console pipe setup (boot logs)
-- `crates/aivm-core/src/vm/vsock.rs` -- vsock manager, control messages, coalescing buffer
-- `crates/aivm-core/src/vm/machine.rs` -- VZVirtualMachine wrapper (serial + vsock devices)
-- `frontend/src/components/aivm-terminal.ts` -- xterm.js web component (resize events)
+- `config/clawcage-ca.key` + `config/clawcage-ca.crt` -- static MITM CA keypair (ECDSA P-256)
+- `crates/clawcage-app/src/commands.rs` -- Tauri IPC commands (serial_input, vm_status, terminal_resize, net_events)
+- `crates/clawcage-app/src/state.rs` -- per-VM state (serial + vsock fds)
+- `crates/clawcage-core/src/vm/serial.rs` -- serial console pipe setup (boot logs)
+- `crates/clawcage-core/src/vm/vsock.rs` -- vsock manager, control messages, coalescing buffer
+- `crates/clawcage-core/src/vm/machine.rs` -- VZVirtualMachine wrapper (serial + vsock devices)
+- `frontend/src/components/clawcage-terminal.ts` -- xterm.js web component (resize events)
 - `frontend/src/main.tsx` -- React entry point
 
 ## Test Fixture (data/fixtures/test.db)
 
-The UI mock data and `aivm-logger` roundtrip tests share a single SQLite fixture captured from a real Aivm session. No synthetic data generators -- real data only.
+The UI mock data and `clawcage-logger` roundtrip tests share a single SQLite fixture captured from a real Clawcage session. No synthetic data generators -- real data only.
 
 **Updating the fixture** after a real session:
 
 ```
-just update-fixture ~/.aivm/sessions/<session-id>/web.db
+just update-fixture ~/.clawcage/sessions/<session-id>/web.db
 ```
 
 This:
@@ -135,7 +135,7 @@ This:
 
 The fixture is loaded by:
 - **Frontend mock mode** (`mock.ts`): sql.js loads it from `/fixtures/test.db` for browser-only dev
-- **Rust tests** (`aivm-logger/tests/roundtrip.rs`): reads it as a pre-populated DB for query tests
+- **Rust tests** (`clawcage-logger/tests/roundtrip.rs`): reads it as a pre-populated DB for query tests
 
 ## Testing
 
@@ -148,18 +148,18 @@ cargo test --workspace
 0. **TDD workflow (red-green-refactor)**: Always write tests FIRST, before writing implementation code. The sequence is: (1) write failing tests that capture the expected behavior, (2) verify they fail for the right reason, (3) write the minimal implementation to make them pass, (4) refactor. Do NOT write implementation code without a failing test that motivates it.
 1. **Unit tests**: Every new module, struct, or non-trivial function gets unit tests in a `#[cfg(test)] mod tests` block. Cover happy path, edge cases, and error paths.
 2. **Adversarial tests**: This is a security product. Think like an attacker trying to escape the sandbox, bypass policy, or exploit edge cases. Every security-relevant feature (policy evaluation, allow/block lists, corp lockdown, input validation, guest injection) must include tests that actively try to break the invariants. Examples: can a user sneak a corp-blocked domain through another provider's domain list? Does an overlapping wildcard in allow+block always deny? Does malformed input (empty strings, unicode, huge payloads, invalid JSON) get rejected? Stress-test boundary conditions and write tests for the attacks you'd attempt yourself.
-3. **Integration tests**: Features that cross crate boundaries or touch VM lifecycle get integration tests in `crates/aivm-core/tests/vm_integration.rs`.
+3. **Integration tests**: Features that cross crate boundaries or touch VM lifecycle get integration tests in `crates/clawcage-core/tests/vm_integration.rs`.
 4. **Run the full suite**: Before considering any work complete, run `cargo test --workspace` and `just test` (which includes cross-compile + frontend build). All tests must pass.
 4b. **After any telemetry/logging change**: Run a real session and verify with `just inspect-session` that all tables (model_calls, tool_calls, tool_responses, mcp_calls, net_events, fs_events) are populated correctly with model names, token counts, and tool origins.
-5. **Testable design**: Extract logic into standalone, testable functions/structs in `aivm-core` rather than embedding it in the app layer where it's coupled to Tauri. If you can't test it, refactor until you can.
+5. **Testable design**: Extract logic into standalone, testable functions/structs in `clawcage-core` rather than embedding it in the app layer where it's coupled to Tauri. If you can't test it, refactor until you can.
 
-## In-VM Diagnostics (aivm-doctor)
+## In-VM Diagnostics (clawcage-doctor)
 
-The `aivm-doctor` suite runs inside the guest VM to verify sandbox integrity, network isolation, and runtime environment. Tests are pytest-based, live in `images/diagnostics/`, and are baked into the rootfs via `Dockerfile.rootfs`.
+The `clawcage-doctor` suite runs inside the guest VM to verify sandbox integrity, network isolation, and runtime environment. Tests are pytest-based, live in `images/diagnostics/`, and are baked into the rootfs via `Dockerfile.rootfs`.
 
 **Running diagnostics:**
-- `just run "aivm-doctor"` -- repack + build + sign + boot VM + run aivm-doctor + shut down (fast path, ~10s)
-- Inside a running VM: `aivm-doctor` (all tests), `aivm-doctor -k sandbox` (subset), `aivm-doctor -x` (stop on first failure)
+- `just run "clawcage-doctor"` -- repack + build + sign + boot VM + run clawcage-doctor + shut down (fast path, ~10s)
+- Inside a running VM: `clawcage-doctor` (all tests), `clawcage-doctor -k sandbox` (subset), `clawcage-doctor -x` (stop on first failure)
 
 **Test categories:**
 
@@ -176,13 +176,13 @@ The `aivm-doctor` suite runs inside the guest VM to verify sandbox integrity, ne
 **Adding new in-VM tests:**
 1. Add test functions to the appropriate `images/diagnostics/test_*.py` file, or create a new `test_<category>.py`
 2. Use `from conftest import run` for shell commands, `output_dir` fixture for temp files
-3. Tests auto-skip outside the aivm VM (conftest.py checks for root + writable /root)
+3. Tests auto-skip outside the clawcage VM (conftest.py checks for root + writable /root)
 4. Rebuild rootfs with `just build` to pick up new/modified test files
-5. Verify with `just run "aivm-doctor"`
+5. Verify with `just run "clawcage-doctor"`
 
 ## Ephemeral VM Model -- Invariants (do not break)
 
-Every VM session is fully stateless. Two invariants in `images/aivm-init` must never be violated:
+Every VM session is fully stateless. Two invariants in `images/clawcage-init` must never be violated:
 
 1. **`mke2fs` runs unconditionally** at boot -- the scratch disk is always formatted fresh. No ext4 detection, no skip.
 2. **Overlay `upperdir` is always tmpfs** (`mount -t tmpfs tmpfs /mnt/b`). It must never be the scratch disk.
@@ -194,38 +194,38 @@ Breaking either invariant allows rootfs writes to survive across sessions, viola
 ## Notes
 
 - The binary must be codesigned with `com.apple.security.virtualization` or VZ calls crash. The justfile handles this.
-- `aivm-init` uses `setsid` to give bash a controlling terminal so Ctrl-C (SIGINT) works. Without setsid, the tty has no foreground process group and signals are not delivered.
+- `clawcage-init` uses `setsid` to give bash a controlling terminal so Ctrl-C (SIGINT) works. Without setsid, the tty has no foreground process group and signals are not delivered.
 - The initrd is a gzip+cpio archive. `just run` automatically repacks it, replacing `/init` and bundling the cross-compiled guest binaries. Changes to the rootfs (bashrc, installed packages) require `just build-assets`.
 
 ## Initrd Repack: Fast Iteration for Guest Binaries
 
-`just run` automatically repacks the initrd before every boot -- cross-compiles guest binaries, injects them into the initrd, and `aivm-init` prefers initrd-bundled copies over rootfs copies at boot. No separate repack step needed.
+`just run` automatically repacks the initrd before every boot -- cross-compiles guest binaries, injects them into the initrd, and `clawcage-init` prefers initrd-bundled copies over rootfs copies at boot. No separate repack step needed.
 
 **Currently repacked binaries:**
-- `aivm-init` -- PID 1 init script
-- `aivm-pty-agent` -- PTY-over-vsock bridge agent
-- `aivm-net-proxy` -- TCP-to-vsock relay for air-gapped HTTPS proxying
-- `aivm-mcp-server` -- MCP stdio-to-vsock relay for AI agent tool access
-- `aivm-fs-watch` -- inotify file watcher daemon for filesystem telemetry
-- `aivm-port-watch` -- /proc/net/tcp port watcher daemon for port detection
-- `aivm-sys-watch` -- system metrics daemon (CPU/memory/disk over vsock)
-- `aivm-doctor` -- VM self-diagnostic suite (bash script)
-- `diagnostics/` -- pytest test files for aivm-doctor
+- `clawcage-init` -- PID 1 init script
+- `clawcage-pty-agent` -- PTY-over-vsock bridge agent
+- `clawcage-net-proxy` -- TCP-to-vsock relay for air-gapped HTTPS proxying
+- `clawcage-mcp-server` -- MCP stdio-to-vsock relay for AI agent tool access
+- `clawcage-fs-watch` -- inotify file watcher daemon for filesystem telemetry
+- `clawcage-port-watch` -- /proc/net/tcp port watcher daemon for port detection
+- `clawcage-sys-watch` -- system metrics daemon (CPU/memory/disk over vsock)
+- `clawcage-doctor` -- VM self-diagnostic suite (bash script)
+- `diagnostics/` -- pytest test files for clawcage-doctor
 
 **When adding a new guest binary**, update three places:
 1. `_pack-initrd` recipe in `justfile` -- add the cross-compile + copy step
-2. `aivm-init` in `images/aivm-init` -- add initrd-bundled fallback logic (check `/binary` before rootfs path)
+2. `clawcage-init` in `images/clawcage-init` -- add initrd-bundled fallback logic (check `/binary` before rootfs path)
 3. This section in `CLAUDE.md` -- add it to the list above
 
 **When to use which:**
-- `just run` -- changed `aivm-init`, `aivm-agent`, `aivm-doctor`, `diagnostics/`, or any repacked binary (~10s)
-- `just build-assets` -- changed `Dockerfile.rootfs`, `aivm-bashrc`, installed packages, or added new rootfs files (minutes)
+- `just run` -- changed `clawcage-init`, `clawcage-agent`, `clawcage-doctor`, `diagnostics/`, or any repacked binary (~10s)
+- `just build-assets` -- changed `Dockerfile.rootfs`, `clawcage-bashrc`, installed packages, or added new rootfs files (minutes)
 
 ## Guest Binary Security
 
 All guest-side binaries (PTY agent, future credential helpers, etc.) are deployed read-only:
 - **Rootfs**: `chmod 555` in `Dockerfile.rootfs` (rootfs itself is mounted read-only)
-- **Initrd override**: `chmod 555` in `_pack-initrd` and `aivm-init` after copying to tmpfs
+- **Initrd override**: `chmod 555` in `_pack-initrd` and `clawcage-init` after copying to tmpfs
 - Guest processes cannot modify these binaries at runtime
 
 ## Changelog
@@ -247,11 +247,11 @@ Every commit that touches code should:
 
 ## Versioning
 
-The project follows [Semantic Versioning](https://semver.org/). The single source of truth for version is `workspace.package.version` in the root `Cargo.toml`. Crates inherit it via `version.workspace = true`. The version in `crates/aivm-app/tauri.conf.json` must be kept in sync manually.
+The project follows [Semantic Versioning](https://semver.org/). The single source of truth for version is `workspace.package.version` in the root `Cargo.toml`. Crates inherit it via `version.workspace = true`. The version in `crates/clawcage-app/tauri.conf.json` must be kept in sync manually.
 
 When bumping the version, update both:
 1. `workspace.package.version` in `/Cargo.toml`
-2. `version` in `crates/aivm-app/tauri.conf.json`
+2. `version` in `crates/clawcage-app/tauri.conf.json`
 
 **Never reuse or move a tag.** Always increment the version number. Git tags are immutable references -- moving them breaks caches, artifact references, and is not proper git practice.
 
@@ -274,9 +274,9 @@ Local backups of all credentials are in `private/` (gitignored):
 - `private/apple-certificate/` -- `.p12`, `.p8`, base64, passwords, team ID
 - `private/tauri/` -- signing key, public key, password
 
-**p12 encryption gotcha**: macOS `security import` only supports legacy PKCS12 (3DES/SHA1). OpenSSL 3.x creates PBES2/AES-256-CBC by default, which Keychain rejects with a misleading "wrong password" error. If the p12 was created or re-exported with modern OpenSSL, run `scripts/fix_p12_legacy.sh` to convert it, then upload with `gh secret set APPLE_CERTIFICATE < private/apple-certificate/aivm-b64.txt`.
+**p12 encryption gotcha**: macOS `security import` only supports legacy PKCS12 (3DES/SHA1). OpenSSL 3.x creates PBES2/AES-256-CBC by default, which Keychain rejects with a misleading "wrong password" error. If the p12 was created or re-exported with modern OpenSSL, run `scripts/fix_p12_legacy.sh` to convert it, then upload with `gh secret set APPLE_CERTIFICATE < private/apple-certificate/clawcage-b64.txt`.
 
-**Notarization gotcha**: First-time notarization can take hours per Apple's docs. The CI workflow uses `--skip-stapling` so `tauri build` submits for notarization but does not wait for Apple's response. The app is notarized asynchronously -- Gatekeeper checks with Apple's servers on first launch. On subsequent releases (after Apple has seen your Developer ID), notarization is near-instant. To verify credentials locally: `xcrun notarytool history --key private/apple-certificate/aivm.p8 --key-id KEY_ID --issuer ISSUER_ID`.
+**Notarization gotcha**: First-time notarization can take hours per Apple's docs. The CI workflow uses `--skip-stapling` so `tauri build` submits for notarization but does not wait for Apple's response. The app is notarized asynchronously -- Gatekeeper checks with Apple's servers on first launch. On subsequent releases (after Apple has seen your Developer ID), notarization is near-instant. To verify credentials locally: `xcrun notarytool history --key private/apple-certificate/clawcage.p8 --key-id KEY_ID --issuer ISSUER_ID`.
 
 ## Release Preflight
 
@@ -298,13 +298,13 @@ Releases are CI-only via `.github/workflows/release.yaml`. Push a `vX.Y.Z` tag t
 | Gate | What it does |
 |------|-------------|
 | Unit tests | `cargo llvm-cov` -- all workspace tests with coverage |
-| Cross-compile | Build `aivm-agent` for `aarch64-unknown-linux-musl` |
+| Cross-compile | Build `clawcage-agent` for `aarch64-unknown-linux-musl` |
 | Frontend check | `pnpm run check && pnpm run build` |
-| aivm-doctor | Boot VM, run sandbox/network/MCP/runtime/utility/AI CLI diagnostics |
+| clawcage-doctor | Boot VM, run sandbox/network/MCP/runtime/utility/AI CLI diagnostics |
 | Integration test | Boot VM, exercise all 6 telemetry pipelines, verify session DB + main.db rollup |
-| Benchmark | Boot VM, run `aivm-bench` (disk I/O, rootfs read, CLI startup, HTTP latency) |
+| Benchmark | Boot VM, run `clawcage-bench` (disk I/O, rootfs read, CLI startup, HTTP latency) |
 
-All gates must pass before the `.app` bundle is built. Requires API keys in `~/.aivm/user.toml` (Gemini key needed for the integration test's model_calls verification).
+All gates must pass before the `.app` bundle is built. Requires API keys in `~/.clawcage/user.toml` (Gemini key needed for the integration test's model_calls verification).
 
 To run the full validation suite without building: `just full-test`
 
@@ -365,4 +365,4 @@ Charts use [Recharts](https://recharts.org) v2 -- a composable React charting li
 
 ## Logging
 
-- Boot sequence instrumented with `tracing` spans (`FmtSpan::CLOSE` logs durations). Use `RUST_LOG=aivm=debug` for full boot timing breakdown, `RUST_LOG=aivm=info` for top-level only.
+- Boot sequence instrumented with `tracing` spans (`FmtSpan::CLOSE` logs durations). Use `RUST_LOG=clawcage=debug` for full boot timing breakdown, `RUST_LOG=clawcage=info` for top-level only.

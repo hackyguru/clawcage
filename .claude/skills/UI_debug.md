@@ -1,6 +1,6 @@
 # UI Debug & Visual Verification Skill
 
-Use this skill for systematic visual verification of the Aivm frontend using Chrome DevTools MCP tools.
+Use this skill for systematic visual verification of the Clawcage frontend using Chrome DevTools MCP tools.
 
 ## Prerequisites
 
@@ -25,7 +25,7 @@ If the page is blank or has errors, stop and fix the build first (`cd frontend &
 ### Phase 1: Page Load & Console
 
 1. **Navigate**: `navigate_page` to `http://localhost:5173`
-2. **Wait**: `wait_for` text `["Aivm"]` or a known UI element
+2. **Wait**: `wait_for` text `["Clawcage"]` or a known UI element
 3. **Console check**: `list_console_messages` with `types: ["error", "warn"]`
    - Zero errors expected (filter out known framework noise like Vite HMR)
    - Warnings about missing env vars in mock mode are OK
@@ -41,7 +41,7 @@ Walk every main view via the sidebar:
    b. `take_screenshot` with `fullPage: true`
    c. `list_console_messages` types=["error"] -- verify no new errors
 3. **Wizard view**: On first load with mock data (no API keys configured), the wizard should appear automatically. Verify:
-   a. "Welcome to Aivm" heading is visible
+   a. "Welcome to Clawcage" heading is visible
    b. "Configure Providers" button exists and works (click it, verify Settings view opens to AI Providers)
    c. "Skip for now" button exists and works (click it, verify Terminal view opens)
 

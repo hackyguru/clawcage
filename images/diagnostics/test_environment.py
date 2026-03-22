@@ -117,7 +117,7 @@ def test_root_scratch_disk_size():
 
 def test_tmp_is_writable():
     """/tmp must be writable (writes go through overlayfs to tmpfs upper)."""
-    test_file = "/tmp/.aivm_write_test"
+    test_file = "/tmp/.clawcage_write_test"
     result = run(f'echo "writable" > {test_file} && cat {test_file}')
     assert result.returncode == 0, "/tmp is not writable"
     assert "writable" in result.stdout

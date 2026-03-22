@@ -1,6 +1,6 @@
 # Settings Registry Format (`config/defaults.toml`)
 
-The settings registry defines all built-in settings for Aivm. It is embedded at compile time via `include_str!()` and parsed by `policy_config.rs`.
+The settings registry defines all built-in settings for Clawcage. It is embedded at compile time via `include_str!()` and parsed by `policy_config.rs`.
 
 ## Node Types
 
@@ -79,7 +79,7 @@ Setting IDs are dot-separated paths derived from the TOML table nesting. For exa
 
 ## User / Corp Files
 
-Settings files (`~/.aivm/user.toml` and `/etc/aivm/corp.toml`) store overrides as flat key-value pairs:
+Settings files (`~/.clawcage/user.toml` and `/etc/clawcage/corp.toml`) store overrides as flat key-value pairs:
 
 ```toml
 [settings]
