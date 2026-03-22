@@ -292,40 +292,40 @@ export default function LogsView() {
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Header */}
-      <div className="shrink-0 px-4 pt-4 pb-3">
-        <div className="flex items-center gap-3 mb-3">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-edge shrink-0">
+        <div>
           <h2 className="text-sm font-semibold">Logs</h2>
-          <span className="text-[10px] font-medium text-content/40 bg-content/5 px-1.5 py-0.5 rounded">
-            {data.length} rows
-          </span>
-          <button
-            className="ml-auto text-[10px] text-content/40 hover:text-content/70 transition-colors"
-            onClick={() => fetchData(tab)}
-          >
-            Refresh
-          </button>
+          <p className="text-xs text-content/50 mt-0.5">
+            {data.length} {data.length === 1 ? 'row' : 'rows'}
+          </p>
         </div>
+        <button
+          className="text-xs text-content/40 hover:text-content/70 transition-colors"
+          onClick={() => fetchData(tab)}
+        >
+          Refresh
+        </button>
+      </div>
 
-        {/* Tab bar */}
-        <div className="flex gap-1">
-          {TABS.map(t => (
-            <button
-              key={t.id}
-              className={`px-2.5 py-1 text-xs rounded-md transition-colors ${
-                tab === t.id
-                  ? 'bg-interactive/15 text-interactive font-medium'
-                  : 'text-content/40 hover:text-content/70 hover:bg-content/5'
-              }`}
-              onClick={() => setTab(t.id)}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
+      {/* Tab bar */}
+      <div className="flex items-center gap-0.5 px-4 py-2 border-b border-edge shrink-0">
+        {TABS.map(t => (
+          <button
+            key={t.id}
+            className={`px-2.5 py-1 text-xs rounded-md transition-colors ${
+              tab === t.id
+                ? 'bg-interactive/15 text-interactive font-medium'
+                : 'text-content/40 hover:text-content/70 hover:bg-content/5'
+            }`}
+            onClick={() => setTab(t.id)}
+          >
+            {t.label}
+          </button>
+        ))}
       </div>
 
       {/* Content */}
-      <div className="flex-1 min-h-0 overflow-auto px-4 pb-4">
+      <div className="flex-1 min-h-0 overflow-auto px-4 py-4">
         {loading ? (
           <div className="flex items-center justify-center h-32">
             <span className="spinner w-5 h-5 text-content/30" />

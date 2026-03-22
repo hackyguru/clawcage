@@ -21,7 +21,7 @@ pub use vm::machine::VirtualMachine;
 pub use vm::vsock::{
     self, CoalesceBuffer, VsockConnection, VsockManager, VSOCK_PORT_CONTROL,
     VSOCK_PORT_FS_WATCH, VSOCK_PORT_MCP_GATEWAY, VSOCK_PORT_PORT_FORWARD, VSOCK_PORT_PORT_WATCH,
-    VSOCK_PORT_SNI_PROXY, VSOCK_PORT_TERMINAL,
+    VSOCK_PORT_SNI_PROXY, VSOCK_PORT_SYS_WATCH, VSOCK_PORT_TERMINAL,
 };
 
 /// Create a sparse scratch disk image file.

@@ -266,7 +266,7 @@ function TreeRow({
           isSelected
             ? 'bg-interactive/10'
             : canOpen || node.isDir
-              ? 'hover:bg-base-200/60'
+              ? 'hover:bg-surface-alt/60'
               : ''
         }`}
         style={{ paddingLeft: `${depth * 16 + 8}px`, paddingRight: 8 }}
@@ -279,8 +279,8 @@ function TreeRow({
         <span className="w-4 shrink-0 flex items-center justify-center">
           {node.isDir ? (
             isOpen
-              ? <ChevronDown className="size-3 text-base-content/30" />
-              : <ChevronRight className="size-3 text-base-content/30" />
+              ? <ChevronDown className="size-3 text-content/30" />
+              : <ChevronRight className="size-3 text-content/30" />
           ) : null}
         </span>
 
@@ -289,34 +289,34 @@ function TreeRow({
           {node.isDir ? (
             <FolderIcon className="size-4 text-interactive/60" />
           ) : (
-            <FileIcon className="size-3.5 text-base-content/30" />
+            <FileIcon className="size-3.5 text-content/30" />
           )}
         </span>
 
         {/* Name */}
         <span className={`text-xs truncate flex-1 ${
           action === 'deleted'
-            ? 'line-through text-base-content/25'
+            ? 'line-through text-content/25'
             : node.isDir
-              ? 'font-medium text-base-content/70'
-              : 'text-base-content/60'
+              ? 'font-medium text-content/70'
+              : 'text-content/60'
         }`}>
           {node.name}
         </span>
 
         {/* Git indicator */}
         {node.hasGit && (
-          <GitBranchIcon className="size-3 text-base-content/30 shrink-0 mr-1" />
+          <GitBranchIcon className="size-3 text-content/30 shrink-0 mr-1" />
         )}
 
         {/* Badge + size */}
         {action && (
-          <span className={`badge badge-xs ${ACTION_BADGE[action] ?? 'badge-outline text-base-content/40'} shrink-0`}>
+          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${ACTION_BADGE[action] ?? 'text-content/40'} shrink-0`}>
             {ACTION_LABELS[action] ?? action}
           </span>
         )}
         {node.entry && node.entry.size != null && node.entry.size > 0 && (
-          <span className="text-[10px] text-base-content/25 font-mono ml-2 tabular-nums shrink-0">
+          <span className="text-[10px] text-content/25 font-mono ml-2 tabular-nums shrink-0">
             {formatSize(node.entry.size)}
           </span>
         )}
@@ -485,16 +485,16 @@ function EditorPanel({
   return (
     <div className="flex flex-col h-full border-l border-edge">
       {/* Editor header */}
-      <div className="flex items-center justify-between px-3 h-9 border-b border-edge shrink-0 bg-base-200/40">
+      <div className="flex items-center justify-between px-3 h-9 border-b border-edge shrink-0 bg-surface/40">
         <div className="flex items-center gap-2 min-w-0">
-          <FileIcon className="size-3.5 text-base-content/30 shrink-0" />
-          <span className="text-xs font-medium text-base-content/70 truncate">{node.name}</span>
+          <FileIcon className="size-3.5 text-content/30 shrink-0" />
+          <span className="text-xs font-medium text-content/70 truncate">{node.name}</span>
           {isDirty && <span className="size-1.5 rounded-full bg-caution shrink-0" title="Unsaved changes" />}
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
           {isDirty && (
             <button
-              className="btn btn-xs bg-interactive text-on-interactive hover:opacity-90 transition-opacity disabled:opacity-50"
+              className="px-2 py-0.5 text-xs rounded-md bg-interactive text-on-interactive hover:opacity-90 transition-opacity font-medium disabled:opacity-50"
               onClick={handleSave}
               disabled={saving}
             >
@@ -502,7 +502,7 @@ function EditorPanel({
             </button>
           )}
           <button
-            className="btn btn-ghost btn-xs text-base-content/40 hover:text-base-content"
+            className="px-1.5 py-0.5 text-xs rounded text-content/40 hover:text-content/70 transition-colors"
             onClick={onClose}
             aria-label="Close editor"
           >
@@ -514,12 +514,12 @@ function EditorPanel({
       {/* Editor body */}
       <div className="flex-1 min-h-0 overflow-auto">
         {loadError ? (
-          <div className="flex flex-col items-center justify-center h-full text-base-content/30 text-xs gap-2 px-4">
+          <div className="flex flex-col items-center justify-center h-full text-content/30 text-xs gap-2 px-4">
             <p className="text-center">{loadError}</p>
           </div>
         ) : content === null ? (
           <div className="flex items-center justify-center h-full">
-            <span className="loading loading-spinner loading-sm text-base-content/20" />
+            <span className="spinner w-5 h-5 text-content/30" />
           </div>
         ) : (
           <div ref={editorRef} className="h-full" />
@@ -528,7 +528,7 @@ function EditorPanel({
 
       {/* Status bar */}
       {content !== null && (
-        <div className="flex items-center justify-between px-3 h-6 border-t border-edge text-[10px] text-base-content/30 shrink-0 bg-base-200/20">
+        <div className="flex items-center justify-between px-3 h-6 border-t border-edge text-[10px] text-content/30 shrink-0 bg-surface/20">
           <span className="font-mono truncate">{guestPath}</span>
           <span className="font-mono shrink-0 ml-4">{lineCount} lines</span>
         </div>
@@ -611,12 +611,12 @@ export default function FilesView() {
       <div className="flex items-center justify-between px-4 py-3 border-b border-edge shrink-0">
         <div>
           <h2 className="text-sm font-semibold">Files</h2>
-          <p className="text-xs text-base-content/40 mt-0.5">
+          <p className="text-xs text-content/50 mt-0.5">
             Files created and modified during this session
           </p>
         </div>
         {entries.length > 0 && (
-          <span className="text-xs text-base-content/30 tabular-nums">
+          <span className="text-xs text-content/40 tabular-nums">
             {fileCount} file{fileCount !== 1 ? 's' : ''}
             {deletedCount > 0 && `, ${deletedCount} deleted`}
           </span>
@@ -624,42 +624,42 @@ export default function FilesView() {
       </div>
 
       {/* Toolbar */}
-      <div className="flex items-center gap-2 px-4 h-9 border-b border-edge shrink-0 bg-base-200/30">
+      <div className="flex items-center gap-3 px-4 h-9 border-b border-edge shrink-0">
         <input
           type="text"
           placeholder="Search files..."
-          className="input input-xs border-edge bg-base-100 w-44 text-xs focus:outline-none focus:ring-1 focus:ring-interactive/40"
+          className="w-44 rounded-md border border-edge bg-surface-alt px-2 py-1 text-xs text-content/80 placeholder:text-content/20 focus:outline-none focus:ring-1 focus:ring-interactive/40"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           aria-label="Search files"
         />
         {search && (
-          <span className="text-[11px] text-base-content/30 tabular-nums">
+          <span className="text-[11px] text-content/30 tabular-nums">
             {entries.length} result{entries.length !== 1 ? 's' : ''}
           </span>
         )}
         <span className="flex-1" />
-        <div className="flex items-center gap-1">
+        <label className="flex items-center gap-1.5 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            className="toggle-switch"
+            checked={showDotfiles}
+            onChange={(e) => setShowDotfiles(e.target.checked)}
+          />
+          <span className="text-[11px] text-content/50">Show dotfiles</span>
+        </label>
+        <div className="flex items-center gap-1 border-l border-edge/40 pl-3">
           <button
-            className={`btn btn-ghost btn-xs text-[11px] ${showDotfiles ? 'text-interactive' : 'text-base-content/40'}`}
-            onClick={() => setShowDotfiles((v) => !v)}
-            title={showDotfiles ? 'Hide dotfiles' : 'Show dotfiles'}
-          >
-            .files
-          </button>
-          <span className="text-base-content/10">|</span>
-          <button
-            className="btn btn-ghost btn-xs text-[11px] text-base-content/40"
+            className="px-1.5 py-0.5 text-[11px] rounded text-content/40 hover:text-content/70 transition-colors"
             onClick={expandAll}
           >
-            Expand
+            Expand all
           </button>
-          <span className="text-base-content/10">|</span>
           <button
-            className="btn btn-ghost btn-xs text-[11px] text-base-content/40"
+            className="px-1.5 py-0.5 text-[11px] rounded text-content/40 hover:text-content/70 transition-colors"
             onClick={collapseAll}
           >
-            Collapse
+            Collapse all
           </button>
         </div>
       </div>
@@ -670,13 +670,13 @@ export default function FilesView() {
         <div className={`overflow-auto ${selected ? 'w-72 shrink-0' : 'flex-1'}`}>
           {loading ? (
             <div className="flex items-center justify-center h-full">
-              <span className="loading loading-spinner loading-sm text-base-content/20" />
+              <span className="spinner w-5 h-5 text-content/30" />
             </div>
           ) : entries.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-base-content/30 text-sm gap-2">
+            <div className="flex flex-col items-center justify-center h-full text-content/30 text-sm gap-2">
               <FolderIcon className="size-8 opacity-30" />
               <p>No file activity yet</p>
-              <p className="text-xs text-base-content/20">
+              <p className="text-xs text-content/20">
                 Files created or modified in the VM will appear here
               </p>
             </div>

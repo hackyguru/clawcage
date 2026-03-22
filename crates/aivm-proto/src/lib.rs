@@ -170,6 +170,20 @@ pub enum GuestToHost {
     },
     /// A TCP listening port was closed in the guest.
     PortClosed { port: u16 },
+    // -- System metrics --
+    /// Periodic system resource usage snapshot from the guest.
+    SystemMetrics {
+        /// CPU usage percentage (0–100).
+        cpu_percent: f32,
+        /// Total physical memory in KB.
+        mem_total_kb: u64,
+        /// Used physical memory in KB (total - available).
+        mem_used_kb: u64,
+        /// Total disk space in KB (scratch disk / /root).
+        disk_total_kb: u64,
+        /// Used disk space in KB.
+        disk_used_kb: u64,
+    },
 }
 
 // ---------------------------------------------------------------------------
@@ -887,6 +901,13 @@ mod tests {
                 process: "node".into(),
             },
             GuestToHost::PortClosed { port: 8080 },
+            GuestToHost::SystemMetrics {
+                cpu_percent: 42.5,
+                mem_total_kb: 4_000_000,
+                mem_used_kb: 2_500_000,
+                disk_total_kb: 16_000_000,
+                disk_used_kb: 1_200_000,
+            },
         ];
         for msg in messages {
             let frame = encode_guest_msg(&msg).unwrap();

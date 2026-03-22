@@ -23,6 +23,10 @@ path = "src/fs_watch.rs"
 name = "aivm-port-watch"
 path = "src/port_watch.rs"
 
+[[bin]]
+name = "aivm-sys-watch"
+path = "src/sys_watch.rs"
+
 [dependencies]
 nix = { version = "0.29", features = ["fs", "ioctl", "inotify", "poll", "term", "signal", "process"] }
 rmp-serde = { workspace = true }

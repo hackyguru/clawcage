@@ -399,7 +399,7 @@ _pack-initrd:
     gzip -dc "$INITRD" | cpio -id 2>/dev/null
     cp "$ROOT/images/aivm-init" init
     chmod 755 init
-    rm -f aivm-pty-agent aivm-net-proxy aivm-mcp-server aivm-fs-watch aivm-port-watch
+    rm -f aivm-pty-agent aivm-net-proxy aivm-mcp-server aivm-fs-watch aivm-port-watch aivm-sys-watch
     cp "$ROOT/target/aarch64-unknown-linux-musl/release/aivm-pty-agent" aivm-pty-agent
     chmod 555 aivm-pty-agent
     cp "$ROOT/target/aarch64-unknown-linux-musl/release/aivm-net-proxy" aivm-net-proxy
@@ -410,6 +410,8 @@ _pack-initrd:
     chmod 555 aivm-fs-watch
     cp "$ROOT/target/aarch64-unknown-linux-musl/release/aivm-port-watch" aivm-port-watch
     chmod 555 aivm-port-watch
+    cp "$ROOT/target/aarch64-unknown-linux-musl/release/aivm-sys-watch" aivm-sys-watch
+    chmod 555 aivm-sys-watch
     cp "$ROOT/images/aivm-doctor" aivm-doctor
     chmod 755 aivm-doctor
     cp "$ROOT/images/aivm-bench" aivm-bench

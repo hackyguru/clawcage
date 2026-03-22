@@ -205,7 +205,7 @@ export default function DetailPanel({ selection, onClose }: Props) {
   );
 
   return (
-  <div className="border-l border-edge bg-surface w-80 flex flex-col overflow-hidden">
+    <div className="border-l border-edge bg-surface w-80 flex flex-col overflow-hidden">
       <div className="flex items-center justify-between px-3 py-2 border-b border-edge">
         <h3 className="text-sm font-semibold truncate">{title}</h3>
         <button className="p-1 rounded hover:bg-surface-alt transition-colors" onClick={onClose}>

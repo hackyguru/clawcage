@@ -1,0 +1,101 @@
+@import "tailwindcss";
+@source "../pages/**/*.tsx";
+@source "../components/**/*.tsx";
+
+/* --- Design tokens (dark mode default, matching desktop app) --- */
+
+@theme {
+  /* Surface / background */
+  --color-surface: #0a0a0a;
+  --color-surface-alt: #161616;
+
+  /* Border */
+  --color-edge: oklch(1 0 0 / 0.08);
+
+  /* Text */
+  --color-content: #e5e5e5;
+
+  /* Interactive (monochrome) */
+  --color-interactive: #ffffff;
+  --color-on-interactive: #09090b;
+
+  /* Status */
+  --color-allowed: oklch(0.74 0.16 233);
+  --color-denied: oklch(0.65 0.22 27);
+  --color-caution: oklch(0.82 0.189 84);
+}
+
+/* --- Light mode --- */
+
+[data-theme="light"] {
+  --color-surface: #f4f4f5;
+  --color-surface-alt: #e4e4e7;
+  --color-edge: oklch(0 0 0 / 0.08);
+  --color-content: #18181b;
+  --color-interactive: #18181b;
+  --color-on-interactive: #ffffff;
+}
+
+/* --- Glass --- */
+
+.glass {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.glass-elevated {
+  background: rgba(255, 255, 255, 0.07);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+[data-theme="light"] .glass {
+  background: rgba(255, 255, 255, 0.55);
+}
+
+[data-theme="light"] .glass-elevated {
+  background: rgba(255, 255, 255, 0.72);
+}
+
+/* --- Base --- */
+
+:root {
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--color-surface);
+  color: var(--color-content);
+}
+
+/* --- Bento cards --- */
+
+.bento-card {
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.bento-card:hover {
+  border-color: oklch(1 0 0 / 0.12);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+[data-theme="light"] .bento-card:hover {
+  border-color: oklch(0 0 0 / 0.12);
+  background: rgba(255, 255, 255, 0.7);
+}
+
+/* Visual elements inside cards brighten on hover */
+.bento-card .bento-visual {
+  opacity: 0.6;
+  transition: opacity 0.3s ease;
+}
+
+.bento-card:hover .bento-visual {
+  opacity: 1;
+}

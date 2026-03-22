@@ -15,7 +15,8 @@ use anyhow::{Context, Result};
 use aivm_core::{
     GuestToHost, HostState, HostStateMachine, HostToGuest, VirtualMachine,
     VmConfig, VsockManager, VSOCK_PORT_CONTROL, VSOCK_PORT_FS_WATCH, VSOCK_PORT_MCP_GATEWAY,
-    VSOCK_PORT_PORT_FORWARD, VSOCK_PORT_PORT_WATCH, VSOCK_PORT_SNI_PROXY, VSOCK_PORT_TERMINAL,
+    VSOCK_PORT_PORT_FORWARD, VSOCK_PORT_PORT_WATCH, VSOCK_PORT_SNI_PROXY, VSOCK_PORT_SYS_WATCH,
+    VSOCK_PORT_TERMINAL,
     create_scratch_disk, decode_guest_msg, encode_host_msg, validate_guest_msg, MAX_FRAME_SIZE,
 };
 use aivm_core::asset_manager::{self, AssetManager};
@@ -858,7 +859,7 @@ async fn setup_vsock(
                 match conn.port {
                     VSOCK_PORT_TERMINAL => terminal_conn = Some(conn),
                     VSOCK_PORT_CONTROL => control_conn = Some(conn),
-                    VSOCK_PORT_SNI_PROXY | VSOCK_PORT_FS_WATCH | VSOCK_PORT_MCP_GATEWAY | VSOCK_PORT_PORT_WATCH | VSOCK_PORT_PORT_FORWARD => {
+                    VSOCK_PORT_SNI_PROXY | VSOCK_PORT_FS_WATCH | VSOCK_PORT_MCP_GATEWAY | VSOCK_PORT_PORT_WATCH | VSOCK_PORT_PORT_FORWARD | VSOCK_PORT_SYS_WATCH => {
                         info!("vsock: port {} connection before terminal/control ready, deferring", conn.port);
                         deferred_conns.push(conn);
                     }
@@ -1063,14 +1064,14 @@ async fn setup_vsock(
     let _keep_terminal = terminal;
     let _keep_control = control;
 
-    // Get port_state for port-watch handling.
-    let port_state = {
+    // Get port_state and sys_metrics for watch handlers.
+    let (port_state, sys_metrics) = {
         let state = app_handle.state::<AppState>();
         let vm_id = state.active_session_id.lock().unwrap().clone();
-        vm_id.and_then(|id| {
+        vm_id.map(|id| {
             let vms = state.vms.lock().unwrap();
-            vms.get(&id).map(|inst| Arc::clone(&inst.port_state))
-        })
+            vms.get(&id).map(|inst| (Arc::clone(&inst.port_state), Arc::clone(&inst.sys_metrics)))
+        }).flatten().unzip()
     };
 
     // Process any connections that arrived during the handshake phase.
@@ -1126,12 +1127,23 @@ async fn setup_vsock(
                     drop(conn);
                 }
             }
+            VSOCK_PORT_SYS_WATCH => {
+                if let Some(ref sm) = sys_metrics {
+                    let fd = conn.fd;
+                    let sm = Arc::clone(sm);
+                    let ah = app_handle.clone();
+                    tokio::spawn(async move {
+                        let _conn = conn;
+                        handle_sys_watch(fd, sm, ah).await;
+                    });
+                }
+            }
             _ => {}
         }
     }
 
     // Accept MITM proxy + fs-watch + MCP gateway + port-watch + port-forward connections indefinitely.
-    info!("vsock: listening for proxy connections on ports 5002/5003/5005/5006/5007");
+    info!("vsock: listening for proxy connections on ports 5002/5003/5005/5006/5007/5008");
     loop {
         match vsock_manager.accept().await {
             Some(conn) if conn.port == VSOCK_PORT_SNI_PROXY => {
@@ -1191,6 +1203,20 @@ async fn setup_vsock(
                         let _ = ps.relay_tx.send(file.into_raw_fd());
                     }
                     drop(conn);
+                }
+            }
+            Some(conn) if conn.port == VSOCK_PORT_SYS_WATCH => {
+                info!("vsock: sys-watch connected (fd={})", conn.fd);
+                if let Some(ref sm) = sys_metrics {
+                    let fd = conn.fd;
+                    let sm = Arc::clone(sm);
+                    let ah = app_handle.clone();
+                    tokio::spawn(async move {
+                        let _conn = conn;
+                        handle_sys_watch(fd, sm, ah).await;
+                    });
+                } else {
+                    warn!("vsock: sys-watch connection rejected (no metrics state)");
                 }
             }
             Some(conn) => {
@@ -1390,6 +1416,102 @@ async fn handle_port_watch(fd: RawFd, port_state: Arc<crate::state::PortState>) 
         }
     }
     info!("port-watch: handler exiting");
+}
+
+/// Handle the sys-watch vsock connection: read framed GuestToHost::SystemMetrics
+/// messages and update the shared SystemMetricsState + emit Tauri event.
+async fn handle_sys_watch(
+    fd: RawFd,
+    state: Arc<crate::state::SystemMetricsState>,
+    app_handle: tauri::AppHandle,
+) {
+    use std::os::unix::io::{FromRawFd, IntoRawFd};
+    use tokio::io::AsyncReadExt;
+
+    let std_file = match clone_fd(fd) {
+        Ok(f) => f,
+        Err(e) => {
+            warn!("sys-watch: failed to clone fd: {e}");
+            return;
+        }
+    };
+
+    let std_stream = unsafe { std::os::unix::net::UnixStream::from_raw_fd(std_file.into_raw_fd()) };
+    if let Err(e) = std_stream.set_nonblocking(true) {
+        warn!("sys-watch: failed to set nonblocking: {e}");
+        return;
+    }
+
+    let mut stream = match tokio::net::UnixStream::from_std(std_stream) {
+        Ok(s) => s,
+        Err(e) => {
+            warn!("sys-watch: failed to create async stream: {e}");
+            return;
+        }
+    };
+
+    info!("sys-watch: handler started");
+    loop {
+        let mut len_buf = [0u8; 4];
+        match stream.read_exact(&mut len_buf).await {
+            Ok(_) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
+                info!("sys-watch: connection closed");
+                break;
+            }
+            Err(e) => {
+                warn!("sys-watch: read error: {e}");
+                break;
+            }
+        }
+        let len = u32::from_be_bytes(len_buf) as usize;
+        if len > MAX_FRAME_SIZE as usize {
+            warn!("sys-watch: frame too large ({len} bytes), skipping");
+            break;
+        }
+        let mut payload = vec![0u8; len];
+        if let Err(e) = stream.read_exact(&mut payload).await {
+            warn!("sys-watch: payload read error: {e}");
+            break;
+        }
+        let msg = match decode_guest_msg(&payload) {
+            Ok(m) => m,
+            Err(e) => {
+                warn!("sys-watch: decode error: {e}");
+                continue;
+            }
+        };
+        match msg {
+            GuestToHost::SystemMetrics {
+                cpu_percent,
+                mem_total_kb,
+                mem_used_kb,
+                disk_total_kb,
+                disk_used_kb,
+            } => {
+                let now_ms = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_millis() as u64;
+                let metrics = crate::state::SystemMetrics {
+                    cpu_percent,
+                    mem_total_kb,
+                    mem_used_kb,
+                    disk_total_kb,
+                    disk_used_kb,
+                    updated_at: now_ms,
+                };
+                // Update shared state.
+                *state.latest.write().unwrap() = metrics.clone();
+                // Emit event for frontend.
+                let _ = app_handle.emit("system-metrics", &metrics);
+            }
+            other => {
+                warn!("sys-watch: unexpected message type: {other:?}");
+            }
+        }
+    }
+    info!("sys-watch: handler exiting");
 }
 
 /// Read one guest-to-host control message from an fd (blocking).
@@ -1831,7 +1953,7 @@ fn run_cli(command: &str, cli_env: &[(String, String)], session_index: &SessionI
     let socket_devices = vm.socket_devices();
     let mut mgr = VsockManager::new(
         &socket_devices,
-        &[VSOCK_PORT_CONTROL, VSOCK_PORT_TERMINAL, VSOCK_PORT_SNI_PROXY, VSOCK_PORT_FS_WATCH, VSOCK_PORT_MCP_GATEWAY, VSOCK_PORT_PORT_WATCH, VSOCK_PORT_PORT_FORWARD],
+        &[VSOCK_PORT_CONTROL, VSOCK_PORT_TERMINAL, VSOCK_PORT_SNI_PROXY, VSOCK_PORT_FS_WATCH, VSOCK_PORT_MCP_GATEWAY, VSOCK_PORT_PORT_WATCH, VSOCK_PORT_PORT_FORWARD, VSOCK_PORT_SYS_WATCH],
     ).context("failed to set up vsock")?;
 
     // Port state for CLI mode.
@@ -2532,7 +2654,7 @@ fn gui_boot_vm(
                 let socket_devices = vm.socket_devices();
                 match VsockManager::new(
                     &socket_devices,
-                    &[VSOCK_PORT_CONTROL, VSOCK_PORT_TERMINAL, VSOCK_PORT_SNI_PROXY, VSOCK_PORT_FS_WATCH, VSOCK_PORT_MCP_GATEWAY, VSOCK_PORT_PORT_WATCH, VSOCK_PORT_PORT_FORWARD],
+                    &[VSOCK_PORT_CONTROL, VSOCK_PORT_TERMINAL, VSOCK_PORT_SNI_PROXY, VSOCK_PORT_FS_WATCH, VSOCK_PORT_MCP_GATEWAY, VSOCK_PORT_PORT_WATCH, VSOCK_PORT_PORT_FORWARD, VSOCK_PORT_SYS_WATCH],
                 ) {
                     Ok(mgr) => Some(mgr),
                     Err(e) => {
@@ -2583,6 +2705,7 @@ fn gui_boot_vm(
                     _scratch_disk_path: scratch_path,
                     port_state: std::sync::Arc::new(crate::state::PortState::new()),
                     vpn_state: Some(std::sync::Arc::new(aivm_core::net::vpn::VpnManager::new())),
+                    sys_metrics: std::sync::Arc::new(crate::state::SystemMetricsState::new()),
                 });
             }
 
@@ -2775,6 +2898,7 @@ fn main() {
             commands::get_ports,
             commands::forward_port,
             commands::stop_forward,
+            commands::system_metrics,
             commands::download_file,
             commands::read_file,
             commands::save_file,

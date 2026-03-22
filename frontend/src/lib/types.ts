@@ -171,8 +171,18 @@ export interface PortsResponse {
   forwarded: ForwardedPort[];
 }
 
+/** System metrics snapshot from the guest VM. */
+export interface SystemMetrics {
+  cpu_percent: number;
+  mem_total_kb: number;
+  mem_used_kb: number;
+  disk_total_kb: number;
+  disk_used_kb: number;
+  updated_at: number;
+}
+
 /** Stats panel tab names. */
-export type StatsTab = 'ai' | 'tools' | 'network' | 'files';
+export type StatsTab = 'ai' | 'tools' | 'network' | 'files' | 'system';
 
 /** Aggregated model stats (from stats bar polling). */
 export interface ModelStatsRow {

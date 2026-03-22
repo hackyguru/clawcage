@@ -3,13 +3,14 @@ import { useEffect } from 'react';
 import { useSettings, loadSettings } from '../stores/settings';
 import { useSidebar } from '../stores/sidebar';
 import { useVenvs } from '../stores/venvs';
+import { ChevronDown } from '../icons/Icons';
 import SubMenu from '../components/SubMenu';
 import SettingsSection from './settings/SettingsSection';
 
 export default function SettingsView() {
   const { sections, loading, venvId, setScope } = useSettings();
   const { settingsSection, setSettingsSection } = useSidebar();
-  const { venvs, activeVenvId } = useVenvs();
+  const { activeVenvId, activeVenv } = useVenvs();
 
   // Load settings on mount
   useEffect(() => {
@@ -44,21 +45,20 @@ export default function SettingsView() {
               {venvId ? 'Per-environment overrides' : 'Global configuration for all environments'}
             </p>
           </div>
-          {venvs.length > 0 && (
-            <div className="flex items-center gap-2">
+          {activeVenv && (
+            <div className="relative flex items-center gap-2">
               <span className="text-xs text-content/40">Scope</span>
-              <select
-                className="rounded-md border border-edge bg-surface-alt px-2 py-1 text-xs text-content/80 focus:outline-none focus:ring-1 focus:ring-interactive/40"
-                value={venvId ?? '__global__'}
-                onChange={(e) => setScope(e.target.value === '__global__' ? null : e.target.value)}
-              >
-                <option value="__global__">Global</option>
-                {venvs.map((v) => (
-                  <option key={v.id} value={v.id}>
-                    {v.name}{v.id === activeVenvId ? ' (active)' : ''}
-                  </option>
-                ))}
-              </select>
+              <div className="relative">
+                <select
+                  className="appearance-none rounded-md border border-edge bg-surface-alt pl-2.5 pr-7 py-1 text-xs text-content/80 focus:outline-none focus:ring-1 focus:ring-interactive/40 cursor-pointer"
+                  value={venvId ?? '__global__'}
+                  onChange={(e) => setScope(e.target.value === '__global__' ? null : e.target.value)}
+                >
+                  <option value="__global__">Global</option>
+                  <option value={activeVenvId!}>{activeVenv.name}</option>
+                </select>
+                <ChevronDown className="absolute right-1.5 top-1/2 -translate-y-1/2 size-3 text-content/40 pointer-events-none" />
+              </div>
             </div>
           )}
         </div>
@@ -66,12 +66,12 @@ export default function SettingsView() {
         <div className="flex-1 min-w-0 overflow-hidden">
           {loading ? (
             <div className="flex items-center justify-center h-full">
-              <span className="loading loading-spinner loading-sm text-base-content/20" />
+              <span className="spinner w-5 h-5 text-content/30" />
             </div>
           ) : activeSection ? (
             <SettingsSection sectionName={activeSection} />
           ) : (
-            <div className="flex items-center justify-center h-full text-base-content/30 text-sm">
+            <div className="flex items-center justify-center h-full text-content/30 text-sm">
               Select a settings section
             </div>
           )}

@@ -81,6 +81,7 @@ The overall project plan and milestone roadmap is in `docs/overall_plan.md`.
 | 5005 | Filesystem events (inotify watcher telemetry) |
 | 5006 | Port watcher (detected listening ports) |
 | 5007 | Port forwarding relay (TCP bridge connections) |
+| 5008 | System metrics (CPU/memory/disk telemetry) |
 
 ### Network Policy
 - User config: `~/.aivm/user.toml` -- editable domain allow/block lists + HTTP rules
@@ -207,6 +208,7 @@ Breaking either invariant allows rootfs writes to survive across sessions, viola
 - `aivm-mcp-server` -- MCP stdio-to-vsock relay for AI agent tool access
 - `aivm-fs-watch` -- inotify file watcher daemon for filesystem telemetry
 - `aivm-port-watch` -- /proc/net/tcp port watcher daemon for port detection
+- `aivm-sys-watch` -- system metrics daemon (CPU/memory/disk over vsock)
 - `aivm-doctor` -- VM self-diagnostic suite (bash script)
 - `diagnostics/` -- pytest test files for aivm-doctor
 

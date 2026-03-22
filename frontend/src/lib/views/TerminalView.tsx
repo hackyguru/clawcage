@@ -33,7 +33,7 @@ function TerminalToolbar() {
 
   return (
     <>
-      <div className="flex items-center gap-2 px-3 py-1.5 bg-base-300 border-b border-edge select-none">
+      <div className="flex items-center gap-2 px-3 py-1.5 bg-surface border-b border-edge select-none">
         <button
           className="text-content/40 hover:text-interactive transition-colors"
           onClick={() => setView('home')}
@@ -148,7 +148,7 @@ function ShellTabBar() {
   const { tabs, activeSessionId, spawnShell, closeShell, setActiveSession, renameShell } = useShells();
 
   return (
-    <div className="flex items-center gap-0.5 px-2 py-1 bg-base-300 border-b border-edge select-none overflow-x-auto" role="tablist" aria-label="Shell tabs">
+    <div className="flex items-center gap-0.5 px-2 py-1 bg-surface border-b border-edge select-none overflow-x-auto" role="tablist" aria-label="Shell tabs">
       {tabs.map((tab) => (
         <button
           key={tab.sessionId}

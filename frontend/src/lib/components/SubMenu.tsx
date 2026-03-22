@@ -25,7 +25,7 @@ export default function SubMenu({ groups, active, onSelect }: SubMenuProps) {
           {gi > 0 && <div className="my-2 border-t border-edge" />}
           <ul className="flex flex-col gap-0.5 p-0">
             {group.items.length > 1 && group.label && (
-              <li className="text-[10px] uppercase tracking-wider text-base-content/30 font-semibold mb-1 mt-2 px-2">
+              <li className="text-[10px] uppercase tracking-wider text-content/30 font-semibold mb-1 mt-2 px-2">
                 {group.label}
               </li>
             )}
@@ -35,7 +35,7 @@ export default function SubMenu({ groups, active, onSelect }: SubMenuProps) {
                   className={`w-full text-left text-xs px-2.5 py-1.5 rounded-md transition-colors duration-100 ${
                     active === item.id
                       ? 'bg-interactive/15 text-interactive font-semibold'
-                      : 'text-base-content/60 hover:text-base-content/80 hover:bg-base-200/60'
+                      : 'text-content/60 hover:text-content/80 hover:bg-surface-alt/60'
                   }`}
                   onClick={() => onSelect(item.id)}
                 >

@@ -247,6 +247,24 @@ else
     echo "[aivm-init] WARNING: aivm-port-watch not found, no port telemetry"
 fi
 
+# Launch system metrics watcher (CPU/mem/disk->vsock bridge) as background process.
+# Prefer initrd-bundled copy, fall back to rootfs.
+SYS_WATCH_PATH=""
+if [ -x /aivm-sys-watch ]; then
+    cp /aivm-sys-watch /newroot/run/aivm-sys-watch
+    chmod 555 /newroot/run/aivm-sys-watch
+    SYS_WATCH_PATH=/run/aivm-sys-watch
+elif [ -x /newroot/usr/local/bin/aivm-sys-watch ]; then
+    SYS_WATCH_PATH=/usr/local/bin/aivm-sys-watch
+fi
+if [ -n "$SYS_WATCH_PATH" ]; then
+    chroot /newroot "$SYS_WATCH_PATH" &
+    sleep 0.1
+    echo "[aivm-init] sys-watch started"
+else
+    echo "[aivm-init] WARNING: aivm-sys-watch not found, no system metrics"
+fi
+
 # Deploy initrd-bundled aivm-doctor and diagnostics (fast iteration).
 # Overwrites rootfs copies via the overlayfs upper layer.
 if [ -x /aivm-doctor ]; then

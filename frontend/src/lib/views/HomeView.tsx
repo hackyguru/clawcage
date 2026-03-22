@@ -239,64 +239,75 @@ function VenvCard({ venv, onDelete }: { venv: VenvInfo; onDelete: (v: VenvInfo) 
     stopVenvAction(venv.id);
   }, [venv.id]);
 
+  const isRunning = venv.status === 'running';
+  const isBooting = venv.status === 'booting';
+
   return (
     <>
       <div
-        className="group glass border border-edge rounded-xl p-4 shadow-xs hover:shadow-md hover:border-interactive/30 transition-all cursor-pointer"
+        className={`group relative glass border rounded-xl p-4 shadow-xs hover:shadow-md transition-all cursor-pointer ${
+          isRunning ? 'border-allowed/30 hover:border-allowed/50' : 'border-edge hover:border-interactive/30'
+        }`}
         onClick={handleOpen}
       >
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-interactive/10 text-interactive shrink-0">
-                <TemplateIcon icon={tmpl.icon} className="size-4" />
-              </div>
-              <div className="min-w-0">
-                <h3 className="text-sm font-semibold truncate">{venv.name}</h3>
-                <div className="flex items-center gap-1.5 mt-0.5">
-                  <span className={`inline-block size-1.5 rounded-full ${statusDot(venv.status)}`} />
-                  <span className={`text-[11px] capitalize ${statusText(venv.status)}`}>{venv.status}</span>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${venv.ephemeral ? 'bg-caution/15 text-caution' : 'bg-allowed/15 text-allowed'}`}>
-                    {venv.ephemeral ? 'ephemeral' : 'persistent'}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
-            {venv.status === 'running' ? (
-              <button
-                className="p-1 rounded hover:bg-surface-alt text-content/50 hover:text-denied transition-colors"
-                onClick={(e) => { e.stopPropagation(); setShowStopDialog(true); }}
-                title="Stop"
-                aria-label={`Stop ${venv.name}`}
-              >
-                <StopIcon className="size-3.5" />
-              </button>
-            ) : (
-              <button
-                className="p-1 rounded hover:bg-surface-alt text-content/50 hover:text-allowed transition-colors"
-                onClick={(e) => { e.stopPropagation(); handleOpen(); }}
-                title="Start"
-                aria-label={`Start ${venv.name}`}
-              >
-                <PlayIcon className="size-3.5" />
-              </button>
-            )}
+        {/* Actions (top-right) */}
+        <div className="absolute top-3 right-3 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+          {isRunning ? (
             <button
-              className="p-1 rounded hover:bg-surface-alt text-content/50 hover:text-denied transition-colors"
-              onClick={(e) => { e.stopPropagation(); onDelete(venv); }}
-              title="Delete"
-              aria-label={`Delete ${venv.name}`}
+              className="p-1.5 rounded-md hover:bg-denied/10 text-content/40 hover:text-denied transition-colors"
+              onClick={(e) => { e.stopPropagation(); setShowStopDialog(true); }}
+              title="Stop"
+              aria-label={`Stop ${venv.name}`}
             >
-              <TrashIcon className="size-3.5" />
+              <StopIcon className="size-3.5" />
             </button>
+          ) : (
+            <button
+              className="p-1.5 rounded-md hover:bg-allowed/10 text-content/40 hover:text-allowed transition-colors"
+              onClick={(e) => { e.stopPropagation(); handleOpen(); }}
+              title="Start"
+              aria-label={`Start ${venv.name}`}
+            >
+              <PlayIcon className="size-3.5" />
+            </button>
+          )}
+          <button
+            className="p-1.5 rounded-md hover:bg-denied/10 text-content/40 hover:text-denied transition-colors"
+            onClick={(e) => { e.stopPropagation(); onDelete(venv); }}
+            title="Delete"
+            aria-label={`Delete ${venv.name}`}
+          >
+            <TrashIcon className="size-3.5" />
+          </button>
+        </div>
+
+        {/* Icon + name */}
+        <div className="flex items-center gap-3 mb-3">
+          <div className={`flex items-center justify-center w-10 h-10 rounded-xl shrink-0 ${
+            isRunning ? 'bg-allowed/10 text-allowed' : 'bg-interactive/10 text-interactive'
+          }`}>
+            <TemplateIcon icon={tmpl.icon} className="size-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h3 className="text-sm font-semibold truncate">{venv.name}</h3>
+            <span className="text-[11px] text-content/35">{tmpl.name}</span>
           </div>
         </div>
 
-        <div className="mt-3 flex items-center justify-between text-[11px] text-content/40">
-          <span>Last used: {relativeTime(venv.last_used)}</span>
+        {/* Status + badges */}
+        <div className="flex items-center gap-2 mb-3">
+          <div className="flex items-center gap-1.5">
+            <span className={`inline-block size-1.5 rounded-full ${statusDot(venv.status)} ${isBooting ? 'animate-pulse' : ''}`} />
+            <span className={`text-[11px] capitalize font-medium ${statusText(venv.status)}`}>{venv.status}</span>
+          </div>
+          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${venv.ephemeral ? 'bg-caution/10 text-caution' : 'bg-allowed/10 text-allowed'}`}>
+            {venv.ephemeral ? 'ephemeral' : 'persistent'}
+          </span>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between text-[11px] text-content/30 pt-2 border-t border-edge/30">
+          <span>{relativeTime(venv.last_used)}</span>
           <span>{new Date(venv.created_at).toLocaleDateString()}</span>
         </div>
       </div>
@@ -390,23 +401,27 @@ export default function HomeView() {
   }, [deleteTarget]);
 
   return (
-    <div className="flex flex-col h-full overflow-auto">
-      <div className="max-w-4xl w-full mx-auto px-6 py-8">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-xl font-bold">Environments</h1>
-            <p className="text-sm text-content/50 mt-1">Create and manage isolated virtual environments</p>
-          </div>
-          <button
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-interactive text-on-interactive hover:opacity-90 transition font-medium"
-            onClick={() => setCreating(true)}
-            aria-label="Create new environment"
-          >
-            <PlusIcon className="size-4" />
-            New
-          </button>
+    <div className="flex flex-col h-full overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-edge shrink-0">
+        <div>
+          <h2 className="text-sm font-semibold">Environments</h2>
+          <p className="text-xs text-content/50 mt-0.5">
+            {venvs.length > 0 ? `${venvs.length} environment${venvs.length !== 1 ? 's' : ''}` : 'Create and manage sandboxed environments'}
+          </p>
         </div>
+        <button
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-md bg-interactive text-on-interactive hover:opacity-90 transition font-medium"
+          onClick={() => setCreating(true)}
+          aria-label="Create new environment"
+        >
+          <PlusIcon className="size-3.5" />
+          New
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-auto">
+      <div className="max-w-5xl w-full mx-auto px-6 py-6">
 
         {/* Create dialog */}
         <Dialog open={creating} onClose={handleCloseCreate} title="New Environment">
@@ -500,12 +515,13 @@ export default function HomeView() {
 
         {/* Venv grid */}
         {venvs.length > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
             {venvs.map((v) => (
               <VenvCard key={v.id} venv={v} onDelete={setDeleteTarget} />
             ))}
           </div>
         )}
+      </div>
       </div>
     </div>
   );

@@ -9,6 +9,7 @@ import type {
   ResolvedSetting,
   SessionInfo,
   SettingsNode,
+  SystemMetrics,
   VenvInfo,
   VmStateResponse,
   GuestConfigResponse,
@@ -641,6 +642,30 @@ export const mockApi = {
   },
   onPortDetected: async (_cb: (port: DetectedPort) => void) => () => {},
   onPortClosed: async (_cb: (data: { port: number }) => void) => () => {},
+
+  // System metrics
+  getSystemMetrics: async (): Promise<SystemMetrics> => ({
+    cpu_percent: 23.5,
+    mem_total_kb: 2097152,
+    mem_used_kb: 892416,
+    disk_total_kb: 10485760,
+    disk_used_kb: 3145728,
+    updated_at: Date.now(),
+  }),
+  onSystemMetrics: async (cb: (metrics: SystemMetrics) => void) => {
+    // Simulate periodic updates with varying values.
+    const id = setInterval(() => {
+      cb({
+        cpu_percent: Math.random() * 60 + 5,
+        mem_total_kb: 2097152,
+        mem_used_kb: Math.floor(800000 + Math.random() * 400000),
+        disk_total_kb: 10485760,
+        disk_used_kb: Math.floor(3000000 + Math.random() * 200000),
+        updated_at: Date.now(),
+      });
+    }, 2000);
+    return () => clearInterval(id);
+  },
 
   // File operations (mock)
   downloadFile: async (_guestPath: string, _hostPath: string) => {},

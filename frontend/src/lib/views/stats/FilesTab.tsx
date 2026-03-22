@@ -143,7 +143,7 @@ export default function FilesTab() {
             <input
               type="text"
               placeholder="Search paths..."
-              className="px-2 py-1 text-xs border border-edge rounded bg-surface focus:outline-none focus:ring-1 focus:ring-interactive/40 w-48"
+              className="w-48 rounded-md border border-edge bg-surface-alt px-2 py-1 text-xs text-content/80 placeholder:text-content/20 focus:outline-none focus:ring-1 focus:ring-interactive/40"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               aria-label="Search file events"

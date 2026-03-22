@@ -69,6 +69,31 @@ impl PortState {
     }
 }
 
+/// Latest system metrics snapshot from the guest VM.
+#[derive(Debug, Clone, Default, serde::Serialize)]
+pub struct SystemMetrics {
+    pub cpu_percent: f32,
+    pub mem_total_kb: u64,
+    pub mem_used_kb: u64,
+    pub disk_total_kb: u64,
+    pub disk_used_kb: u64,
+    /// Unix timestamp (ms) of last update.
+    pub updated_at: u64,
+}
+
+/// Shared system metrics state for a running VM.
+pub struct SystemMetricsState {
+    pub latest: RwLock<SystemMetrics>,
+}
+
+impl SystemMetricsState {
+    pub fn new() -> Self {
+        Self {
+            latest: RwLock::new(SystemMetrics::default()),
+        }
+    }
+}
+
 /// Per-VM instance state.
 pub struct VmInstance {
     pub _vm: VirtualMachine,
@@ -83,6 +108,8 @@ pub struct VmInstance {
     /// Per-venv VPN manager. Routes upstream MITM connections through a
     /// WireGuard tunnel when enabled.
     pub vpn_state: Option<Arc<aivm_core::net::vpn::VpnManager>>,
+    /// System metrics from guest (CPU/RAM/disk).
+    pub sys_metrics: Arc<SystemMetricsState>,
 }
 
 /// Max queued output chunks before dropping to prevent OOM when the frontend

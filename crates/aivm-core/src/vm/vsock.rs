@@ -32,6 +32,8 @@ pub const VSOCK_PORT_FS_WATCH: u32 = 5005;
 pub const VSOCK_PORT_PORT_WATCH: u32 = 5006;
 /// vsock port for port-forwarding relay (guest connects per-TCP-client bridge).
 pub const VSOCK_PORT_PORT_FORWARD: u32 = 5007;
+/// vsock port for system metrics (CPU/RAM/disk snapshots from guest).
+pub const VSOCK_PORT_SYS_WATCH: u32 = 5008;
 
 // ---------------------------------------------------------------------------
 // Output coalescing buffer

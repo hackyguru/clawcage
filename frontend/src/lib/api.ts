@@ -27,6 +27,7 @@ import type {
   SettingsNode,
   SettingValue,
   QueryResult,
+  SystemMetrics,
   VenvInfo,
   VmStateResponse,
 } from './types';
@@ -249,6 +250,18 @@ export function onPortDetected(callback: (port: DetectedPort) => void): Promise<
 
 export function onPortClosed(callback: (data: { port: number }) => void): Promise<UnlistenFn> {
   return ensureDeps().then(() => isMock ? mockApi.onPortClosed(callback) : tauriListen<{ port: number }>('port-closed', callback));
+}
+
+// ---------------------------------------------------------------------------
+// System metrics
+// ---------------------------------------------------------------------------
+
+export function getSystemMetrics(): Promise<SystemMetrics> {
+  return ensureDeps().then(() => isMock ? mockApi.getSystemMetrics() : tauriInvoke<SystemMetrics>('system_metrics'));
+}
+
+export function onSystemMetrics(callback: (metrics: SystemMetrics) => void): Promise<UnlistenFn> {
+  return ensureDeps().then(() => isMock ? mockApi.onSystemMetrics(callback) : tauriListen<SystemMetrics>('system-metrics', callback));
 }
 
 // ---------------------------------------------------------------------------

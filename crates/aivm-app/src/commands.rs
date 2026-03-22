@@ -793,6 +793,19 @@ pub async fn stop_forward(
 }
 
 // ---------------------------------------------------------------------------
+// System metrics
+// ---------------------------------------------------------------------------
+
+#[tauri::command]
+pub fn system_metrics(state: State<'_, AppState>) -> Result<crate::state::SystemMetrics, String> {
+    let vm_id = active_vm_id(&state)?;
+    let vms = state.vms.lock().unwrap();
+    let instance = vms.get(&vm_id).ok_or("VM not found")?;
+    let metrics = instance.sys_metrics.latest.read().unwrap().clone();
+    Ok(metrics)
+}
+
+// ---------------------------------------------------------------------------
 // File download from guest VM
 // ---------------------------------------------------------------------------
 

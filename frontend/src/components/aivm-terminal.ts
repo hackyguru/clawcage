@@ -11,14 +11,14 @@ export interface TerminalTheme {
 }
 
 const DARK_THEME: TerminalTheme = {
-  background: "#000000",
+  background: "#0a0a0a",
   foreground: "#c9d1d9",
   cursor: "#58a6ff",
   selectionBackground: "#58a6ff40",
 };
 
 const LIGHT_THEME: TerminalTheme = {
-  background: "#f5f5f5",
+  background: "#f4f4f5",
   foreground: "#1b1b2f",
   cursor: "#1a56db",
   selectionBackground: "#1a56db30",
