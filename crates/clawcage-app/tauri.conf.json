@@ -52,9 +52,9 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDk2RTIxOTI5RDUxRkU3NDIKUldSQzV4L1ZLUm5pbGhrdVQ2Y0dhbE11NlJPSlNRTzBrWVpFUkV1VkFuZEgyNjVza2lSNWV2S3QK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDQ5MDkyNzAwNDYyMjdDNgpSV1RHSjJJRWNKS1FCRGpqYmg2N3RabllMZHp4MWRlWTlkL25rcDJLekFoaHduLzVHUE9XQXdISAo=",
       "endpoints": [
-        "https://github.com/google/clawcage/releases/latest/download/latest.json"
+        "https://github.com/hackyguru/clawcage/releases/latest/download/latest.json"
       ]
     }
   }
