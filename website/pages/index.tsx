@@ -769,21 +769,21 @@ export default function Home() {
         <meta name="description" content="Run AI agents in air-gapped Linux VMs on your Mac. Full network inspection, credential isolation and kill-switch control. Free and open source." />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" href="/favicon.ico" />
-        <link rel="canonical" href="https://clawcage.com" />
+        <link rel="canonical" href="https://clawcage.hackyguru.com" />
 
         {/* Open Graph */}
         <meta property="og:type" content="website" />
-        <meta property="og:url" content="https://clawcage.com" />
+        <meta property="og:url" content="https://clawcage.hackyguru.com" />
         <meta property="og:title" content="Clawcage — Cage your AI agents" />
         <meta property="og:description" content="Run AI agents in air-gapped Linux VMs on your Mac. Full network inspection, credential isolation and kill-switch control. Free and open source." />
-        <meta property="og:image" content="https://clawcage.com/og-image.jpg" />
+        <meta property="og:image" content="https://clawcage.hackyguru.com/og-image.jpg" />
         <meta property="og:site_name" content="Clawcage" />
 
         {/* Twitter Card */}
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content="Clawcage — Cage your AI agents" />
         <meta name="twitter:description" content="Run AI agents in air-gapped Linux VMs on your Mac. Full network inspection, credential isolation and kill-switch control." />
-        <meta name="twitter:image" content="https://clawcage.com/og-image.jpg" />
+        <meta name="twitter:image" content="https://clawcage.hackyguru.com/og-image.jpg" />
 
         {/* Additional SEO */}
         <meta name="keywords" content="AI sandbox, AI agent security, virtual machine, macOS, network isolation, credential isolation, MITM proxy, open source, Claude, Gemini, ChatGPT, code sandbox" />
@@ -808,7 +808,7 @@ export default function Home() {
                 "priceCurrency": "USD",
               },
               "description": "Cage your AI agents in air-gapped Linux VMs on your Mac. Full network inspection, credential isolation and kill-switch control.",
-              "url": "https://clawcage.com",
+              "url": "https://clawcage.hackyguru.com",
               "downloadUrl": "https://github.com/hackyguru/clawcage/releases/latest",
               "softwareVersion": "0.8.8",
               "license": "https://github.com/hackyguru/clawcage/blob/master/LICENSE",
