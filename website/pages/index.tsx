@@ -438,8 +438,6 @@ function Features() {
                   alt="Caged Claw"
                   className="w-full h-full object-cover object-center transition-transform duration-700 ease-out group-hover:scale-110"
                 />
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent to-surface/90 pointer-events-none" />
-                <div className="absolute inset-0 bg-gradient-to-t from-surface/60 via-transparent to-transparent pointer-events-none" />
               </div>
               {/* Text side */}
               <div className="flex flex-col justify-center p-8 md:p-10 relative z-10">
