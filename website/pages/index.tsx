@@ -432,7 +432,7 @@ function Features() {
           <div className="group md:col-span-3 glass border border-edge rounded-lg overflow-hidden relative cursor-default">
             <div className="grid grid-cols-1 md:grid-cols-2 min-h-[320px]">
               {/* Image side */}
-              <div className="relative overflow-hidden flex items-center justify-center bg-black/40">
+              <div className="relative overflow-hidden flex items-center justify-center">
                 <img
                   src="/cagedclaw.png"
                   alt="Caged Claw"
