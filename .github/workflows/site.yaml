@@ -18,9 +18,9 @@ jobs:
         with:
           node-version: 'latest'
       - name: install
-        run: cd site && npm install
+        run: cd website && npm install
       - name: Build
-        run: cd site && npm run build
+        run: cd website && npm run build
       - name: Deploy
         uses: cloudflare/wrangler-action@v3
         env:
@@ -29,4 +29,4 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy site/dist/ --project-name=clawcage
+          command: pages deploy website/out/ --project-name=clawcage
