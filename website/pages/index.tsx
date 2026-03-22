@@ -441,10 +441,8 @@ function Features() {
               </div>
               {/* Text side */}
               <div className="flex flex-col justify-center p-8 md:p-10 relative z-10">
-                <div className="flex items-center gap-2 mb-4">
-                  {["Claude", "Gemini", "ChatGPT", "Codex"].map((name) => (
-                    <span key={name} className="text-[9px] px-2 py-1 rounded-full border border-edge text-content/30 group-hover:text-content/60 group-hover:border-content/20 transition-all duration-500">{name}</span>
-                  ))}
+                <div className="mb-4">
+                  <span className="text-[10px] text-content/30 uppercase tracking-widest font-semibold">Open Source</span>
                 </div>
                 <h3 className="text-xl sm:text-2xl font-bold mb-3 tracking-tight">
                   Made to host any claw of your choice
