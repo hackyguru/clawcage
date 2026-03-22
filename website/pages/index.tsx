@@ -543,6 +543,15 @@ function HowItWorks() {
             </div>
           ))}
         </div>
+
+        <div className="mt-14 max-w-4xl mx-auto relative">
+          <img
+            src="/mockup2.png"
+            alt="Clawcage in action"
+            className="w-full rounded-xl border border-edge"
+            style={{ maskImage: "linear-gradient(to bottom, black 50%, transparent 100%)", WebkitMaskImage: "linear-gradient(to bottom, black 50%, transparent 100%)" }}
+          />
+        </div>
       </div>
     </section>
   );
