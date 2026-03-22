@@ -306,13 +306,15 @@ function Navbar() {
           <a href="#features" className="hover:text-content transition-colors">Features</a>
           <a href="#how-it-works" className="hover:text-content transition-colors">How it works</a>
           <a href="#pricing" className="hover:text-content transition-colors">Pricing</a>
-          <a href="https://github.com" target="_blank" rel="noopener noreferrer" className="hover:text-content transition-colors flex items-center gap-1.5">
+          <a href="https://github.com/hackyguru/clawcage" target="_blank" rel="noopener noreferrer" className="hover:text-content transition-colors flex items-center gap-1.5">
             <GithubIcon className="size-3.5" />
             GitHub
           </a>
         </div>
         <a
-          href="#download"
+          href="https://github.com/hackyguru/clawcage/releases/latest"
+          target="_blank"
+          rel="noopener noreferrer"
           className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-interactive text-on-interactive hover:opacity-90 transition"
         >
           Download
@@ -352,14 +354,16 @@ function Hero() {
         {/* CTA */}
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3" id="download">
           <a
-            href="#"
+            href="https://github.com/hackyguru/clawcage/releases/latest"
+            target="_blank"
+            rel="noopener noreferrer"
             className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-medium rounded-lg bg-interactive text-on-interactive hover:opacity-90 transition"
           >
             <AppleIcon className="size-4" />
             Download for macOS
           </a>
           <a
-            href="https://github.com"
+            href="https://github.com/hackyguru/clawcage"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-medium rounded-lg border border-edge hover:bg-surface-alt transition"
@@ -552,7 +556,9 @@ function Pricing() {
             </ul>
 
             <a
-              href="#download"
+              href="https://github.com/hackyguru/clawcage/releases/latest"
+              target="_blank"
+              rel="noopener noreferrer"
               className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border border-edge hover:bg-surface-alt transition w-full"
             >
               Download
@@ -627,14 +633,16 @@ function CTA() {
         </p>
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
           <a
-            href="#"
+            href="https://github.com/hackyguru/clawcage/releases/latest"
+            target="_blank"
+            rel="noopener noreferrer"
             className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-medium rounded-lg bg-interactive text-on-interactive hover:opacity-90 transition"
           >
             <AppleIcon className="size-4" />
             Download for macOS
           </a>
           <a
-            href="https://github.com"
+            href="https://github.com/hackyguru/clawcage"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-medium rounded-lg border border-edge hover:bg-surface-alt transition"
@@ -661,7 +669,7 @@ function Footer() {
           <span>&copy; {new Date().getFullYear()} Clawcage</span>
         </div>
         <div className="flex items-center gap-5">
-          <a href="https://github.com" target="_blank" rel="noopener noreferrer" className="hover:text-content/50 transition-colors">GitHub</a>
+          <a href="https://github.com/hackyguru/clawcage" target="_blank" rel="noopener noreferrer" className="hover:text-content/50 transition-colors">GitHub</a>
           <a href="#" className="hover:text-content/50 transition-colors">Docs</a>
           <a href="#" className="hover:text-content/50 transition-colors">License</a>
         </div>
