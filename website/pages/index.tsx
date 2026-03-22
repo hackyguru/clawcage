@@ -428,6 +428,53 @@ function Features() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {/* Hero bento card */}
+          <div className="group md:col-span-3 glass border border-edge rounded-lg overflow-hidden relative cursor-default">
+            <div className="grid grid-cols-1 md:grid-cols-2 min-h-[320px]">
+              {/* Image side */}
+              <div className="relative overflow-hidden flex items-center justify-center bg-black/40">
+                <img
+                  src="/cagedclaw.png"
+                  alt="Caged Claw"
+                  className="w-full h-full object-cover object-center transition-transform duration-700 ease-out group-hover:scale-110"
+                />
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent to-surface/90 pointer-events-none" />
+                <div className="absolute inset-0 bg-gradient-to-t from-surface/60 via-transparent to-transparent pointer-events-none" />
+              </div>
+              {/* Text side */}
+              <div className="flex flex-col justify-center p-8 md:p-10 relative z-10">
+                <div className="flex items-center gap-2 mb-4">
+                  {["Claude", "Gemini", "ChatGPT", "Codex"].map((name) => (
+                    <span key={name} className="text-[9px] px-2 py-1 rounded-full border border-edge text-content/30 group-hover:text-content/60 group-hover:border-content/20 transition-all duration-500">{name}</span>
+                  ))}
+                </div>
+                <h3 className="text-xl sm:text-2xl font-bold mb-3 tracking-tight">
+                  Made to host any claw of your choice
+                </h3>
+                <p className="text-sm text-content/40 leading-relaxed max-w-sm">
+                  You are not vendor locked to a specific claw — run any AI agent of your choice.
+                </p>
+                <div className="mt-6 flex items-center gap-3">
+                  <div className="flex -space-x-2">
+                    {[
+                      "bg-provider-anthropic",
+                      "bg-provider-google",
+                      "bg-provider-openai",
+                      "bg-provider-mistral",
+                    ].map((bg, i) => (
+                      <div
+                        key={i}
+                        className={`w-7 h-7 rounded-full ${bg} border-2 border-surface transition-transform duration-500 group-hover:translate-x-0`}
+                        style={{ transform: `translateX(${i * 4}px)`, transitionDelay: `${i * 75}ms` }}
+                      />
+                    ))}
+                  </div>
+                  <span className="text-[10px] text-content/25 group-hover:text-content/50 transition-colors duration-500">+ any agent you want</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <BentoCard icon={<ShieldIcon className="size-5" />} title="Air-Gapped Sandbox" description="Every AI agent runs in a full Linux VM with no direct internet access. Traffic is routed through a MITM proxy with domain-level allow/block policies." span="md:col-span-2">
             <BentoSandbox />
           </BentoCard>
