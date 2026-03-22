@@ -99,3 +99,10 @@ body {
 .bento-card:hover .bento-visual {
   opacity: 1;
 }
+
+/* --- Progress bar animation (how-it-works) --- */
+
+@keyframes progress {
+  from { width: 0%; }
+  to { width: 100%; }
+}

@@ -516,11 +516,20 @@ function Features() {
 
 function HowItWorks() {
   const steps = [
-    { num: "1", title: "Create an environment", desc: "Pick a template, set hardware limits, and optionally add your API keys. Each environment is a fully isolated VM." },
-    { num: "2", title: "Run your AI agent", desc: "Launch Claude, Codex, Gemini, or any tool. It runs inside the VM with no direct internet access." },
-    { num: "3", title: "Observe everything", desc: "Watch every network request, tool call, and file change in real time. Block or allow domains on the fly." },
-    { num: "4", title: "Stay in control", desc: "Credential isolation keeps your API keys safe. Ephemeral VMs ensure nothing persists beyond the session." },
+    { num: "1", title: "Create an environment", desc: "Pick a template, set hardware limits, and optionally add your API keys. Each environment is a fully isolated VM.", image: "/mockup2.png" },
+    { num: "2", title: "Run your AI agent", desc: "Launch Claude, Codex, Gemini, or any tool. It runs inside the VM with no direct internet access.", image: "/mockup3.png" },
+    { num: "3", title: "Observe everything", desc: "Watch every network request, tool call, and file change in real time. Block or allow domains on the fly.", image: "/mockup4.png" },
+    { num: "4", title: "Stay in control", desc: "Credential isolation keeps your API keys safe. Ephemeral VMs ensure nothing persists beyond the session.", image: "/mockup5.png" },
   ];
+
+  const [active, setActive] = useState(0);
+  const [paused, setPaused] = useState(false);
+
+  useEffect(() => {
+    if (paused) return;
+    const interval = setInterval(() => setActive((prev) => (prev + 1) % steps.length), 4000);
+    return () => clearInterval(interval);
+  }, [paused, steps.length]);
 
   return (
     <section id="how-it-works" className="py-20 sm:py-28 border-t border-edge">
@@ -533,10 +542,23 @@ function HowItWorks() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {steps.map((step) => (
-            <div key={step.num}>
-              <div className="text-[10px] text-content/20 uppercase tracking-widest font-semibold mb-3">
-                Step {step.num}
+          {steps.map((step, i) => (
+            <div
+              key={step.num}
+              className={`cursor-pointer transition-all duration-500 ${active === i ? "opacity-100" : "opacity-30 hover:opacity-60"}`}
+              onClick={() => { setActive(i); setPaused(true); }}
+              onMouseLeave={() => setPaused(false)}
+            >
+              <div className="relative mb-3">
+                <div className="text-[10px] text-content/20 uppercase tracking-widest font-semibold">
+                  Step {step.num}
+                </div>
+                {active === i && (
+                  <div className="absolute -bottom-1.5 left-0 h-[2px] bg-allowed rounded-full animate-[progress_4s_linear]"
+                    style={{ width: "100%" }}
+                    key={`progress-${active}`}
+                  />
+                )}
               </div>
               <h3 className="text-sm font-semibold mb-1.5">{step.title}</h3>
               <p className="text-xs text-content/35 leading-relaxed">{step.desc}</p>
@@ -545,12 +567,15 @@ function HowItWorks() {
         </div>
 
         <div className="mt-14 max-w-4xl mx-auto relative">
-          <img
-            src="/mockup2.png"
-            alt="Clawcage in action"
-            className="w-full rounded-xl border border-edge"
-            style={{ maskImage: "linear-gradient(to bottom, black 50%, transparent 100%)", WebkitMaskImage: "linear-gradient(to bottom, black 50%, transparent 100%)" }}
-          />
+          {steps.map((step, i) => (
+            <img
+              key={step.num}
+              src={step.image}
+              alt={step.title}
+              className={`w-full rounded-xl border border-edge transition-opacity duration-700 ${i === 0 ? "relative" : "absolute inset-0"} ${active === i ? "opacity-100" : "opacity-0"}`}
+              style={{ maskImage: "linear-gradient(to bottom, black 50%, transparent 100%)", WebkitMaskImage: "linear-gradient(to bottom, black 50%, transparent 100%)" }}
+            />
+          ))}
         </div>
       </div>
     </section>
