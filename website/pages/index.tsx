@@ -341,9 +341,9 @@ function Hero() {
         </div>
 
         <h1 className="text-3xl sm:text-4xl md:text-5xl font-semibold tracking-tight leading-[1.15] text-center mb-5">
-          Sandbox your AI agents
+          Cage your AI agents before
           <br />
-          <span className="text-content/30">before they sandbox you</span>
+          <span className="text-content/30">they rage against your machine</span>
         </h1>
 
         <p className="text-sm sm:text-base text-content/40 max-w-xl mx-auto text-center mb-10 leading-relaxed">
@@ -765,7 +765,7 @@ export default function Home() {
   return (
     <>
       <Head>
-        <title>Clawcage — Sandbox your AI agents</title>
+        <title>Clawcage — Cage your AI agents</title>
         <meta name="description" content="Run AI agents in air-gapped Linux VMs on your Mac. Full network inspection, credential isolation, and kill-switch control. Free and open source." />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" href="/favicon.ico" />
@@ -774,14 +774,14 @@ export default function Home() {
         {/* Open Graph */}
         <meta property="og:type" content="website" />
         <meta property="og:url" content="https://clawcage.com" />
-        <meta property="og:title" content="Clawcage — Sandbox your AI agents" />
+        <meta property="og:title" content="Clawcage — Cage your AI agents" />
         <meta property="og:description" content="Run AI agents in air-gapped Linux VMs on your Mac. Full network inspection, credential isolation, and kill-switch control. Free and open source." />
         <meta property="og:image" content="https://clawcage.com/og-image.jpg" />
         <meta property="og:site_name" content="Clawcage" />
 
         {/* Twitter Card */}
         <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content="Clawcage — Sandbox your AI agents" />
+        <meta name="twitter:title" content="Clawcage — Cage your AI agents" />
         <meta name="twitter:description" content="Run AI agents in air-gapped Linux VMs on your Mac. Full network inspection, credential isolation, and kill-switch control." />
         <meta name="twitter:image" content="https://clawcage.com/og-image.jpg" />
 
@@ -807,7 +807,7 @@ export default function Home() {
                 "price": "0",
                 "priceCurrency": "USD",
               },
-              "description": "Sandbox your AI agents in air-gapped Linux VMs on your Mac. Full network inspection, credential isolation, and kill-switch control.",
+              "description": "Cage your AI agents in air-gapped Linux VMs on your Mac. Full network inspection, credential isolation, and kill-switch control.",
               "url": "https://clawcage.com",
               "downloadUrl": "https://github.com/hackyguru/clawcage/releases/latest",
               "softwareVersion": "0.8.8",
