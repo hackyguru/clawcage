@@ -697,14 +697,14 @@ export default function Home() {
         <meta property="og:url" content="https://clawcage.com" />
         <meta property="og:title" content="Clawcage — Sandbox your AI agents" />
         <meta property="og:description" content="Run AI agents in air-gapped Linux VMs on your Mac. Full network inspection, credential isolation, and kill-switch control. Free and open source." />
-        <meta property="og:image" content="https://clawcage.com/og-image.png" />
+        <meta property="og:image" content="https://clawcage.com/og-image.jpg" />
         <meta property="og:site_name" content="Clawcage" />
 
         {/* Twitter Card */}
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content="Clawcage — Sandbox your AI agents" />
         <meta name="twitter:description" content="Run AI agents in air-gapped Linux VMs on your Mac. Full network inspection, credential isolation, and kill-switch control." />
-        <meta name="twitter:image" content="https://clawcage.com/og-image.png" />
+        <meta name="twitter:image" content="https://clawcage.com/og-image.jpg" />
 
         {/* Additional SEO */}
         <meta name="keywords" content="AI sandbox, AI agent security, virtual machine, macOS, network isolation, credential isolation, MITM proxy, open source, Claude, Gemini, ChatGPT, code sandbox" />
