@@ -687,9 +687,55 @@ export default function Home() {
     <>
       <Head>
         <title>Clawcage — Sandbox your AI agents</title>
-        <meta name="description" content="Run AI agents in air-gapped Linux VMs on your Mac. Full network inspection, credential isolation, and kill-switch control." />
+        <meta name="description" content="Run AI agents in air-gapped Linux VMs on your Mac. Full network inspection, credential isolation, and kill-switch control. Free and open source." />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" href="/favicon.ico" />
+        <link rel="canonical" href="https://clawcage.com" />
+
+        {/* Open Graph */}
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content="https://clawcage.com" />
+        <meta property="og:title" content="Clawcage — Sandbox your AI agents" />
+        <meta property="og:description" content="Run AI agents in air-gapped Linux VMs on your Mac. Full network inspection, credential isolation, and kill-switch control. Free and open source." />
+        <meta property="og:image" content="https://clawcage.com/og-image.png" />
+        <meta property="og:site_name" content="Clawcage" />
+
+        {/* Twitter Card */}
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="Clawcage — Sandbox your AI agents" />
+        <meta name="twitter:description" content="Run AI agents in air-gapped Linux VMs on your Mac. Full network inspection, credential isolation, and kill-switch control." />
+        <meta name="twitter:image" content="https://clawcage.com/og-image.png" />
+
+        {/* Additional SEO */}
+        <meta name="keywords" content="AI sandbox, AI agent security, virtual machine, macOS, network isolation, credential isolation, MITM proxy, open source, Claude, Gemini, ChatGPT, code sandbox" />
+        <meta name="author" content="Clawcage" />
+        <meta name="robots" content="index, follow" />
+        <meta name="theme-color" content="#0a0a0a" />
+        <link rel="apple-touch-icon" href="/logo.svg" />
+
+        {/* Structured Data */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "SoftwareApplication",
+              "name": "Clawcage",
+              "applicationCategory": "DeveloperApplication",
+              "operatingSystem": "macOS",
+              "offers": {
+                "@type": "Offer",
+                "price": "0",
+                "priceCurrency": "USD",
+              },
+              "description": "Sandbox your AI agents in air-gapped Linux VMs on your Mac. Full network inspection, credential isolation, and kill-switch control.",
+              "url": "https://clawcage.com",
+              "downloadUrl": "https://github.com/hackyguru/clawcage/releases/latest",
+              "softwareVersion": "0.8.8",
+              "license": "https://github.com/hackyguru/clawcage/blob/master/LICENSE",
+            }),
+          }}
+        />
       </Head>
       <Navbar />
       <main>
