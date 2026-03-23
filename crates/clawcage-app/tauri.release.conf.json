@@ -1,0 +1,9 @@
+{
+  "bundle": {
+    "resources": {
+      "../../assets/vmlinuz": "vmlinuz",
+      "../../assets/initrd.img": "initrd.img",
+      "../../assets/B3SUMS": "B3SUMS"
+    }
+  }
+}
