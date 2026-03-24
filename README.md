@@ -1,20 +1,53 @@
-# Clawcage
+<p align="center">
+  <img src="frontend/public/logo.svg" width="80" height="80" alt="Clawcage" />
+</p>
 
-Native macOS app that sandboxes AI agents in Linux VMs using Apple's Virtualization.framework.
+<h1 align="center">Clawcage</h1>
 
-Built with Rust, Tauri 2.0, and Astro.
+<p align="center">
+  <strong>Cage your AI agents before they rage against your machine.</strong>
+</p>
+
+<p align="center">
+  <a href="https://github.com/hackyguru/clawcage/releases/latest"><img src="https://img.shields.io/github/v/release/hackyguru/clawcage?style=flat-square&color=blue" alt="Release" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-CC%20BY--NC%204.0-blue?style=flat-square" alt="License" /></a>
+  <a href="https://github.com/hackyguru/clawcage/actions"><img src="https://img.shields.io/github/actions/workflow/status/hackyguru/clawcage/ci.yaml?style=flat-square&label=CI" alt="CI" /></a>
+  <a href="https://clawcage.hackyguru.com"><img src="https://img.shields.io/badge/website-clawcage.hackyguru.com-blue?style=flat-square" alt="Website" /></a>
+</p>
+
+<p align="center">
+  <a href="https://clawcage.hackyguru.com">Website</a> &middot;
+  <a href="https://github.com/hackyguru/clawcage/releases/latest">Download</a> &middot;
+  <a href="docs/architecture.md">Architecture</a> &middot;
+  <a href="docs/security.md">Security</a>
+</p>
+
+---
+
+Native macOS app that sandboxes AI agents in isolated Linux VMs using Apple's Virtualization.framework. Every agent runs in an air-gapped environment with full network inspection, credential isolation, and kill-switch control.
+
+Built with **Rust**, **Tauri 2.0**, and **React**.
+
+<p align="center">
+  <img src="website/public/mockup.png" width="700" alt="Clawcage Desktop App" />
+</p>
+
+## Features
+
+- **Air-Gapped Sandbox** — Each AI agent runs in a full Linux VM with no direct internet access. All traffic is routed through a MITM proxy with domain-level allow/block policies.
+- **Credential Isolation** — API keys never enter the guest VM. The host-side proxy injects credentials into upstream requests.
+- **Full Visibility** — See every HTTP request, tool call, and file change in real time.
+- **Network Policy Engine** — Granular domain allow/block lists with HTTP method+path rules. Corporate policies override user settings.
+- **Ephemeral by Default** — VMs are stateless. The scratch disk is formatted fresh every boot. Nothing survives across sessions.
+- **Any AI Agent** — Not vendor-locked. Run Claude, Gemini, ChatGPT, Codex, or any CLI tool of your choice.
 
 ## Install
 
-Download the latest release from [Releases](https://github.com/google/clawcage/releases) and drag Clawcage.app to your Applications folder.
+Download the latest `.dmg` from [**Releases**](https://github.com/hackyguru/clawcage/releases/latest) and drag Clawcage to your Applications folder.
 
-Or build from source:
+> Requires **macOS 13+** on **Apple Silicon**.
 
-```sh
-bash install.sh
-```
-
-Requires macOS 13+ on Apple Silicon.
+On first launch, the app downloads the Linux rootfs (~443 MB) automatically.
 
 ## Usage
 
@@ -26,7 +59,7 @@ open /Applications/Clawcage.app
 
 ### CLI
 
-Run a command inside the sandboxed Linux VM:
+Run commands inside the sandboxed Linux VM:
 
 ```sh
 clawcage uname -a
@@ -41,189 +74,85 @@ The CLI binary lives at `/Applications/Clawcage.app/Contents/MacOS/clawcage`.
 ### Prerequisites
 
 - macOS 13+ on Apple Silicon
-- Rust via [rustup](https://rustup.rs/)
-- Node.js 20+ and pnpm (`npm install -g pnpm`)
+- [Rust](https://rustup.rs/) via rustup
+- [Node.js](https://nodejs.org/) 20+ and [pnpm](https://pnpm.io/) (`npm install -g pnpm`)
 - [just](https://github.com/casey/just) (`brew install just`)
-- Tauri CLI (`cargo install tauri-cli`)
-- Podman (`brew install podman` or [podman.io](https://podman.io/))
-- `b3sum` (`brew install b3sum`)
-- `aarch64-unknown-linux-musl` cross-compiler (required to cross-compile the guest agent)
-  - `brew install messense/macos-cross-toolchains/aarch64-unknown-linux-musl`
+- [Tauri CLI](https://tauri.app/) (`cargo install tauri-cli`)
+- [Podman](https://podman.io/) or Docker (`brew install podman`)
+- [b3sum](https://github.com/BLAKE3-team/BLAKE3) (`brew install b3sum`)
+- aarch64 musl cross-compiler (`brew install messense/macos-cross-toolchains/aarch64-unknown-linux-musl`)
+
+### Quick Start
+
+```sh
+just doctor         # check all tools are installed
+just build-assets   # build VM assets (kernel, initrd, rootfs) — ~10 min first time
+just dev            # build + sign + run app with hot-reloading frontend
+```
+
+Or for frontend-only work (no VM needed):
+
+```sh
+just ui             # mock mode dev server on http://localhost:5173
+```
 
 ### Project Structure
 
 ```
-crates/clawcage-core/    Rust VM library (config, boot, serial, machine)
-crates/clawcage-app/     Tauri 2.0 binary (GUI, CLI, updater, IPC commands)
-frontend/              Astro + xterm.js (shadow DOM web component)
-images/                VM image build tooling (Dockerfile + build.py + clawcage-init)
-assets/                Built VM assets (vmlinuz, initrd, rootfs -- gitignored)
-docs/                  Architecture and security documentation
+crates/clawcage-core/     VM library (config, boot, serial, vsock, MITM proxy)
+crates/clawcage-app/      Tauri binary (GUI, CLI, IPC commands, state)
+crates/clawcage-agent/    Guest agent (PTY bridge, net proxy, cross-compiled for aarch64)
+frontend/                 Vite 6 + React 19 + Tailwind v4
+images/                   VM image tooling (Dockerfiles, build.py, init script)
+assets/                   Built VM assets (gitignored)
+docs/                     Architecture and security documentation
 ```
 
-### Just Commands
+### Commands
 
-All build workflows use `just`. Run `just --list` to see all targets.
-
-| Command | What it does |
+| Command | Description |
 |---------|-------------|
-| `just setup` | **One-command first-time setup** (installs deps, configures toolchain, builds assets) |
-| `just dev` | Build + sign + run app with frontend dev server |
-| `just ui` | Frontend-only dev server (mock mode, no VM) |
-| `just run` | Cross-compile + repack initrd + build + sign + boot VM (~10s) |
-| `just run "CMD"` | Same but run a command instead of interactive shell |
-| `just build-assets` | Full VM asset rebuild (kernel, initrd, rootfs) via Docker/Podman |
-| `just test` | Unit tests + cross-compile check + frontend type-check (no VM) |
-| `just full-test` | test + clawcage-doctor + integration test + bench (boots VM) |
-| `just bench` | In-VM benchmarks (disk I/O, rootfs read, CLI startup, HTTP) |
-| `just release` | full-test + release `.app` + codesign + DMG |
-| `just install` | full-test + release `.app` + install to /Applications + launch |
+| `just dev` | Build + sign + run with frontend dev server |
+| `just ui` | Frontend-only dev server with mock data |
+| `just run` | Cross-compile + repack + build + boot VM (~10s) |
+| `just run "CMD"` | Run a command in the VM |
+| `just build-assets` | Full VM asset rebuild via Docker/Podman |
+| `just test` | Unit tests + cross-compile + frontend type-check |
+| `just full-test` | Everything: test + in-VM diagnostics + integration + bench |
+| `just install` | Full test + release build + install to /Applications |
 | `just clean` | Remove all build artifacts |
-| `just inspect-session` | Inspect session DB integrity and event summary |
-| `just update-fixture` | Copy + scrub a real session DB as the test fixture |
-
-### First-Time Setup
-
-The easiest way to get started is the one-command setup:
-
-```sh
-just setup    # installs all deps, configures toolchain, builds VM assets (~10 min)
-```
-
-This handles everything: Homebrew packages, musl cross-compiler, Rust targets, pnpm deps, Podman machine, and VM asset builds.
-
-Or do it manually:
-
-```sh
-podman machine init && podman machine start   # first time only
-cd frontend && pnpm install
-just build-assets                              # build VM assets (~10 min)
-```
-
-Run `just doctor` at any time to check your environment.
-
-### Development Workflow
-
-```sh
-just dev        # build + sign + run full app with frontend dev server
-just ui         # frontend-only dev server (mock mode, no VM needed)
-just run        # cross-compile + repack + build + sign + boot VM (~10s)
-```
-
-> **Note:** `just dev` builds the Rust binary, codesigns it with the virtualization entitlement,
-> and launches it alongside the Astro dev server. `just ui` is faster when you only need to
-> work on the frontend — it serves mock data without booting a VM.
-
-### Release
-
-```sh
-just release    # full-test + build + sign + DMG (target/release/Clawcage.dmg)
-just install    # full-test + build + sign + install to /Applications + launch
-```
 
 ### Testing
 
-Testing has three layers: host-side Rust tests, frontend checks, and in-VM diagnostics.
-
-**Host-side (out of VM)** -- standard Rust unit and integration tests that run on macOS without booting a VM:
-
 ```sh
-cargo test --workspace
-just test                             # cargo llvm-cov + cross-compile + frontend check
+cargo test --workspace    # Rust unit & integration tests
+just test                 # full host-side test suite
+just run "clawcage-doctor"  # in-VM sandbox diagnostics
+just full-test            # everything end-to-end
 ```
-
-**Frontend** -- the UI can be developed and tested in a browser without booting a VM. Mock data (fake VM state, network events, settings) is served automatically when Tauri is not present:
-
-```sh
-just ui                               # starts Astro dev server on http://localhost:5173
-cd frontend && pnpm run check         # astro check + svelte-check (type errors)
-cd frontend && pnpm run build         # production build (catches bundling issues)
-```
-
-The mock mode is transparent -- `src/lib/api.ts` detects the absence of `window.__TAURI_INTERNALS__` and returns fake data from `src/lib/mock.ts`. All views (Terminal, Sessions, Network, Settings) are functional with mock data.
-
-**In-VM diagnostics** -- a pytest suite that runs inside the guest VM to verify the sandbox actually works end-to-end. It checks sandbox security (read-only rootfs, no kernel modules, no networking), unix utilities, dev runtimes (Python, Node.js, git), AI CLI availability, and file I/O workflows.
-
-```sh
-just run "clawcage-doctor"              # repack + build + sign + boot VM + run diagnostics (~10s)
-just run                              # or boot interactively, then:
-clawcage-doctor                         # run all diagnostics
-clawcage-doctor -k sandbox              # run only sandbox tests
-clawcage-doctor -x                      # stop on first failure
-```
-
-The diagnostic suite lives in `images/diagnostics/` and is baked into the rootfs via `Dockerfile.rootfs`. `clawcage-doctor` (aliased as `clawcage-test`) is the entry point. It returns a non-zero exit code on failure, so `just run "clawcage-doctor"` fails the build when tests fail.
-
-**Full validation** -- to test everything end-to-end (Rust tests + cross-compile + frontend + VM boot + diagnostics + integration + bench):
-
-```sh
-just test                             # host-side: llvm-cov + cross-compile + frontend
-just full-test                        # everything: test + clawcage-doctor + integration + bench
-```
-
-### Entitlements
-
-The binary must be signed with `com.apple.security.virtualization` or Virtualization.framework calls crash at runtime. The justfile handles this automatically.
 
 ## Security
 
-Clawcage assumes the AI agent inside the VM is adversarial. The sandbox is hardened at every layer:
+Clawcage assumes the AI agent inside the VM is **adversarial**:
 
-- **Hardware VM isolation** -- Apple Silicon Stage 2 page tables, no shared memory
-- **Custom hardened kernel** -- compiled from source with `CONFIG_MODULES=n` (no rootkits), `CONFIG_INET=n` (no IP stack), KASLR, stack protector, FORTIFY_SOURCE. 7MB vs 30MB stock Debian. See `images/defconfig` for the full config.
-- **No network interface** -- no NIC exists in the VM. DNS, HTTP, and all IP traffic are physically impossible.
-- **Read-only rootfs** -- system binaries are immutable. Only `/root`, `/tmp`, and `/run` are writable (tmpfs, wiped on reboot).
-- **Boot asset integrity** -- BLAKE3 hashes of kernel, initrd, and rootfs are compiled into the binary. Tampered assets are rejected before the VM boots.
-- **No systemd, no services** -- PID 1 is our init script. No cron, no sshd, no background processes.
+- **Hardware VM isolation** — Apple Silicon Stage 2 page tables, no shared memory
+- **No network interface** — no NIC exists in the VM. All traffic goes through the MITM proxy.
+- **Read-only rootfs** — system binaries are immutable
+- **Boot asset integrity** — BLAKE3 hashes verified before VM boots
+- **No systemd, no services** — PID 1 is a minimal init script
 
-Full threat model and security analysis: **[docs/security.md](docs/security.md)**
-
-## Defaults
-
-AI agents run in **yolo mode** by default -- all permission prompts are bypassed because Clawcage's VM sandbox is the security boundary. Telemetry, auto-updates, and first-run prompts are also disabled since they serve no purpose in an air-gapped VM.
-
-### Claude Code
-
-Boot files injected to `~/.claude/settings.json` and `~/.claude.json`:
-
-| Setting | Value | Why |
-|---------|-------|-----|
-| `permissions.defaultMode` | `bypassPermissions` | Clawcage is the sandbox -- Claude's own permission prompts are redundant |
-| `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` | `1` | Master switch: disables telemetry, error reporting, auto-updates, and `/bug` command. The VM is air-gapped anyway. |
-| `hasCompletedOnboarding` | `true` | Skips the first-run onboarding wizard |
-| `hasTrustDialogAccepted` | `true` | No "trust this folder?" prompt |
-| `hasTrustDialogHooksAccepted` | `true` | No hooks trust dialog |
-| `shiftEnterKeyBindingInstalled` | `true` | No keybinding installation prompt |
-
-### Gemini CLI
-
-Boot files injected to `~/.gemini/settings.json`, `projects.json`, `trustedFolders.json`, and `installation_id`:
-
-| Setting | Value | Why |
-|---------|-------|-----|
-| `approvalMode` | `yolo` | Auto-approve all tool calls -- Clawcage is the sandbox |
-| `enableAutoUpdate` | `false` | VM has a fixed version, update checks would fail anyway |
-| `telemetry.enabled` | `false` | No telemetry in an air-gapped VM |
-| `usageStatisticsEnabled` | `false` | No usage stats collection |
-| `folderTrust.enabled` | `false` | No folder trust prompts -- `/root` is pre-trusted |
-| `tools.sandbox` | `false` | Disable Gemini's own sandbox (Clawcage IS the sandbox) |
-| `hideTips`, `showShortcutsHint` | suppressed | Reduce terminal noise |
-| `homeDirectoryWarningDismissed` | `true` | No "running in home dir" warning |
-
-### Overriding defaults
-
-All defaults can be overridden per-setting in `~/.clawcage/user.toml`. Corporate deployments can lock settings via `/etc/clawcage/corp.toml` (MDM-distributed). See [docs/security.md](docs/security.md) for details.
-
-## Documentation
-
-- [Architecture](docs/architecture.md) -- how the system works
-- [Security](docs/security.md) -- threat model, isolation guarantees, supply chain
-- [Status](docs/status.md) -- milestone progress
+Full threat model: [docs/security.md](docs/security.md)
 
 ## Auto-Update
 
-Release builds include Tauri's updater plugin. When a new version is published to GitHub Releases, the app shows a native dialog offering to download and install the update.
+The app includes Tauri's updater plugin. When a new version is published to GitHub Releases, the app offers to download and install the update automatically.
 
 ## License
 
-See [LICENSE](LICENSE).
+This project is licensed under [**CC BY-NC 4.0**](LICENSE) — free for non-commercial use with attribution. See the [LICENSE](LICENSE) file for details.
+
+## Credits
+
+Built by [Kumaraguru Thambidurai](https://github.com/hackyguru).
+
+If you use Clawcage in your work, a mention or link back is appreciated.
