@@ -768,7 +768,8 @@ export default function Home() {
         <title>Clawcage — Cage your AI agents</title>
         <meta name="description" content="Run AI agents in air-gapped Linux VMs on your Mac. Full network inspection, credential isolation and kill-switch control. Free and open source." />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <link rel="icon" href="/favicon.ico" />
+        <link rel="icon" href="/favicon.ico" sizes="any" />
+        <link rel="icon" href="/logo.svg" type="image/svg+xml" />
         <link rel="canonical" href="https://clawcage.hackyguru.com" />
 
         {/* Open Graph */}
