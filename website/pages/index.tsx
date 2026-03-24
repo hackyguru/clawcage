@@ -742,15 +742,20 @@ function CTA() {
 function Footer() {
   return (
     <footer className="border-t border-edge py-6">
-      <div className="max-w-5xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-content/20">
-        <div className="flex items-center gap-2">
-          <img src="/logo.svg" alt="Clawcage" className="w-5 h-5 invert" />
-          <span>&copy; {new Date().getFullYear()} Clawcage</span>
-        </div>
-        <div className="flex items-center gap-5">
-          <a href="https://github.com/hackyguru/clawcage" target="_blank" rel="noopener noreferrer" className="hover:text-content/50 transition-colors">GitHub</a>
-          <a href="#" className="hover:text-content/50 transition-colors">Docs</a>
-          <a href="#" className="hover:text-content/50 transition-colors">License</a>
+      <div className="max-w-5xl mx-auto px-6 flex flex-col items-center gap-6">
+        <a href="https://www.producthunt.com/products/clawcage?embed=true&utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-clawcage" target="_blank" rel="noopener noreferrer">
+          <img alt="Clawcage - Run AI agents in an air-gapped VM in Apple Virtualisation | Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1105646&theme=light&t=1774318390233" />
+        </a>
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-content/20 w-full">
+          <div className="flex items-center gap-2">
+            <img src="/logo.svg" alt="Clawcage" className="w-5 h-5 invert" />
+            <span>&copy; {new Date().getFullYear()} Clawcage</span>
+          </div>
+          <div className="flex items-center gap-5">
+            <a href="https://github.com/hackyguru/clawcage" target="_blank" rel="noopener noreferrer" className="hover:text-content/50 transition-colors">GitHub</a>
+            <a href="#" className="hover:text-content/50 transition-colors">Docs</a>
+            <a href="#" className="hover:text-content/50 transition-colors">License</a>
+          </div>
         </div>
       </div>
     </footer>
