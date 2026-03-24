@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.9.0] - 2026-03-24
+## [0.9.1] - 2026-03-24
 
 ### Added
 - MITM proxy hardening: per-domain token-bucket rate limiting, max response body size enforcement (100 MB default), connection idle timeout (60s default), upstream connect timeout (10s default), and max concurrent connection cap (100 default) via tokio semaphore — prevents runaway AI agents from exhausting host resources
