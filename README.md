@@ -145,9 +145,3 @@ The app includes Tauri's updater plugin. When a new version is published to GitH
 ## License
 
 This project is licensed under [**CC BY-NC 4.0**](LICENSE) — free for non-commercial use with attribution. See the [LICENSE](LICENSE) file for details.
-
-## Credits
-
-Built by [Kumaraguru Thambidurai](https://github.com/hackyguru).
-
-If you use Clawcage in your work, a mention or link back is appreciated.
