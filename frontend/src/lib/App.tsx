@@ -7,6 +7,7 @@ import { loadSettings } from './stores/settings';
 import { initTheme } from './stores/theme';
 import ToastContainer from './components/ToastContainer';
 import { showToast } from './stores/toast';
+import { startPorts } from './stores/ports';
 import type { ViewName } from './types';
 import WizardView from './views/WizardView';
 
@@ -81,6 +82,7 @@ function AppInner() {
     initVm().catch((e) => showToast('Failed to initialize VM: ' + String(e), 'error'));
     loadSettings().catch((e) => showToast('Failed to load settings: ' + String(e), 'error'));
     loadVenvs().catch((e) => showToast('Failed to load environments: ' + String(e), 'error'));
+    startPorts();
   }, []);
 
   const currentView = activeView;

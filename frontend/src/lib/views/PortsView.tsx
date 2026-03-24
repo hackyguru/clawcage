@@ -1,15 +1,9 @@
 // PortsView -- shows detected guest VM ports with forwarding controls
-import { useEffect } from 'react';
-import { usePorts, startPorts, stopPorts, forwardPortAction, stopForwardAction } from '../stores/ports';
+import { usePorts, forwardPortAction, stopForwardAction } from '../stores/ports';
 import { showToast } from '../stores/toast';
 
 export default function PortsView() {
   const { detected, forwarded, loading, error } = usePorts();
-
-  useEffect(() => {
-    startPorts();
-    return () => stopPorts();
-  }, []);
 
   const isForwarded = (port: number) => forwarded.some((f) => f.guest_port === port);
   const getHostPort = (port: number) => forwarded.find((f) => f.guest_port === port)?.host_port;
