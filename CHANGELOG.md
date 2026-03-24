@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-03-24
+
 ### Added
 - MITM proxy hardening: per-domain token-bucket rate limiting, max response body size enforcement (100 MB default), connection idle timeout (60s default), upstream connect timeout (10s default), and max concurrent connection cap (100 default) via tokio semaphore — prevents runaway AI agents from exhausting host resources
 - MITM proxy enable/disable toggle: new `network.proxy_enabled` setting lets users disable TLS inspection per environment; when disabled, traffic tunnels transparently (no HTTP inspection) but domain-level allow/deny still applies via SNI extraction
@@ -20,13 +22,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Inline file editor: click any file in the Files view to view and edit its contents directly in the app; changes are saved back to the VM via Cmd+S or the Save button; supports text files up to 1 MB
 - File read/save protocol: new `FileSave`/`FileSaved` protocol messages for runtime file writes, complementing the existing `FileRead`/`FileContent` flow
 - Multi-shell terminals: create multiple shell sessions within the same VM with a tab bar UI, each backed by its own PTY over multiplexed vsock framing
-- Ports view: new sidebar page (Cmd+2) showing all TCP listening ports detected inside the VM with process name, PID, and forwarding status
+- Ports view: new sidebar page (Cmd+2) showing all TCP listening ports detected inside the VM with process name, PID, and forwarding status; includes a "Processes" toggle to show all running guest processes with CPU, memory, and runtime stats
+- Process monitoring: guest agent scans `/proc` for all running processes and sends periodic snapshots over vsock; host tracks process state per-venv; kill process support via control channel
 - Reusable `Dialog` and `ConfirmDialog` components for modal overlays with backdrop dismiss, Escape key, and entrance animation
-- Confirmation dialogs for destructive actions: delete environment (from both home and terminal views), stop environment (with ephemeral data loss warning)
+- Confirmation dialogs for destructive actions: stop environment (with ephemeral data loss warning), delete environment (moved to Settings "Danger Zone" with confirmation)
 - New Environment dialog: create form now opens as a centered modal instead of inline card
 - Venv template system: extensible template registry (`templates.ts`) with template picker in the create dialog; environments store which template was used; ships with a "Blank" template, ready for future templates (e.g. Claw Bot)
 - Hardware settings in create dialog: collapsible "Hardware" section with CPU cores (1-8), RAM (1-16 GB), and scratch disk (1-128 GB) sliders; collapsed by default showing a summary line; non-default values are saved as per-venv setting overrides
 - Live system metrics: new "System" tab in Stats view showing real-time CPU, memory, and disk usage from the guest VM with area charts and summary cards; powered by a new `clawcage-sys-watch` guest daemon that polls `/proc/stat`, `/proc/meminfo`, and `statvfs` every 2 seconds over vsock port 5008
+
+### Changed
+- Chart tooltips and pie chart labels now use consistent brand styling across all Stats tabs (Network, Files, AI, Tools, System) — shared via `chart-utils.tsx`
+- Application icon regenerated from new brand logo (`applogo.png`)
 
 ### Fixed
 - Persistent venvs: files now survive stop/start cycles — VM stop sync command uses framed vsock encoding matching the multi-shell agent protocol, and flush timeout increased to 1500ms for journalless ext4
@@ -34,6 +41,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Port forwarding: forward guest ports to host localhost with one click, making in-VM web servers accessible from the host browser via vsock relay bridge (port 5007)
 - Port detection daemon (`clawcage-port-watch`): guest-side binary that polls `/proc/net/tcp` and sends `PortOpened`/`PortClosed` events over vsock port 5006, also runs relay workers for port forwarding
 - Per-venv port scoping: detected and forwarded ports are tracked per virtual environment
+- Port watcher now starts at app init so ports are detected regardless of which view is active
+- Terminal no longer appears empty when navigating away from a venv and back — web component `ready` promise ensures xterm is fully initialized before writes; `vmStatus` check skips boot phase for already-running VMs
 
 ## [0.8.8] - 2026-03-07
 
