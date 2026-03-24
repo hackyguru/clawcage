@@ -4,7 +4,9 @@ import type {
   ConfigIssue,
   DetectedPort,
   ForwardedPort,
+  GuestProcess,
   PortsResponse,
+  ProcessesResponse,
   QueryResult,
   ResolvedSetting,
   SessionInfo,
@@ -554,6 +556,20 @@ let mockForwardedPorts: ForwardedPort[] = [
 ];
 
 // ---------------------------------------------------------------------------
+// Mock process data
+// ---------------------------------------------------------------------------
+
+let mockProcesses: GuestProcess[] = [
+  { pid: 1234, ppid: 1, name: 'node', cpu_percent: 12.3, mem_kb: 51200, runtime_secs: 300, port: 3000 },
+  { pid: 1235, ppid: 1, name: 'python3', cpu_percent: 0.8, mem_kb: 24576, runtime_secs: 180, port: 8080 },
+  { pid: 1236, ppid: 1, name: 'postgres', cpu_percent: 2.1, mem_kb: 65536, runtime_secs: 600, port: 5432 },
+  { pid: 1237, ppid: 1234, name: 'node', cpu_percent: 8.5, mem_kb: 40960, runtime_secs: 120, port: 5173 },
+  { pid: 1240, ppid: 1, name: 'bash', cpu_percent: 0.0, mem_kb: 4096, runtime_secs: 900, port: null },
+  { pid: 1241, ppid: 1, name: 'git', cpu_percent: 0.2, mem_kb: 8192, runtime_secs: 15, port: null },
+  { pid: 1242, ppid: 1, name: 'cargo', cpu_percent: 45.0, mem_kb: 131072, runtime_secs: 60, port: null },
+];
+
+// ---------------------------------------------------------------------------
 // Exported mock API (non-SQL commands only)
 // ---------------------------------------------------------------------------
 
@@ -642,6 +658,15 @@ export const mockApi = {
   },
   onPortDetected: async (_cb: (port: DetectedPort) => void) => () => {},
   onPortClosed: async (_cb: (data: { port: number }) => void) => () => {},
+
+  // Processes
+  getProcesses: async (): Promise<ProcessesResponse> => ({
+    processes: [...mockProcesses],
+    forwarded: [...mockForwardedPorts],
+  }),
+  killProcess: async (pid: number) => {
+    mockProcesses = mockProcesses.filter((p) => p.pid !== pid);
+  },
 
   // System metrics
   getSystemMetrics: async (): Promise<SystemMetrics> => ({

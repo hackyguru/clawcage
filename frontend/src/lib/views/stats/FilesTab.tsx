@@ -10,6 +10,7 @@ import {
   FILE_EVENTS_ALL_SQL, FILE_EVENTS_SEARCH_SQL,
 } from '../../sql';
 import { colors } from '../../css-var';
+import { chartTooltipStyle, PieLabel } from './chart-utils';
 import StatCards from './StatCards';
 import DetailPanel from './DetailPanel';
 import { showToast } from '../../stores/toast';
@@ -99,7 +100,7 @@ export default function FilesTab() {
                 <BarChart data={timeline}>
                   <XAxis dataKey="bucket" tick={false} />
                   <YAxis width={40} />
-                  <Tooltip />
+                  <Tooltip contentStyle={chartTooltipStyle} />
                   {actionKeys.map((action) => (
                     <Bar
                       key={action}
@@ -122,12 +123,12 @@ export default function FilesTab() {
             {actionPieData.length > 0 ? (
               <ResponsiveContainer width="100%" height={180}>
                 <PieChart>
-                  <Pie data={actionPieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={60} label={({ name }: { name: string }) => name}>
+                  <Pie data={actionPieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={60} label={PieLabel} labelLine={false}>
                     {actionPieData.map((entry, i) => (
                       <Cell key={i} fill={entry.fill} />
                     ))}
                   </Pie>
-                  <Tooltip />
+                  <Tooltip contentStyle={chartTooltipStyle} />
                 </PieChart>
               </ResponsiveContainer>
             ) : (

@@ -28,6 +28,20 @@ const POLL_INTERVAL_MS: u64 = 1000;
 /// Ports that are internal infrastructure and should be hidden from the user.
 const HIDDEN_PORTS: &[u16] = &[10443]; // clawcage-net-proxy listen port
 
+/// Process names that are infrastructure and should be hidden from the user.
+const HIDDEN_PROCESSES: &[&str] = &[
+    "clawcage-pty-a", "clawcage-net-p", "clawcage-mcp-s",
+    "clawcage-fs-wa", "clawcage-port-", "clawcage-sys-w",
+    "clawcage-docto", "dnsmasq", "init",
+];
+
+/// Minimum process age (seconds) before it appears in snapshots.
+/// Filters out short-lived commands (ls, cat, etc.).
+const MIN_PROCESS_AGE_SECS: u64 = 5;
+
+/// Interval for sending full process snapshots.
+const PROCESS_SNAPSHOT_INTERVAL_MS: u64 = 3000;
+
 // ── Pure helpers (testable on macOS) ─────────────────────────────────
 
 /// A parsed listening socket entry from /proc/net/tcp.
@@ -120,6 +134,147 @@ fn resolve_pid_for_inode(inode: u64) -> Option<(u32, String)> {
     None
 }
 
+/// Check if a process name matches any hidden infrastructure process.
+fn is_hidden_process(name: &str) -> bool {
+    HIDDEN_PROCESSES.iter().any(|h| name.starts_with(h))
+}
+
+/// Read system boot time from /proc/stat (btime field), in seconds since epoch.
+#[cfg(target_os = "linux")]
+fn boot_time_secs() -> Option<u64> {
+    let stat = std::fs::read_to_string("/proc/stat").ok()?;
+    for line in stat.lines() {
+        if let Some(rest) = line.strip_prefix("btime ") {
+            return rest.trim().parse().ok();
+        }
+    }
+    None
+}
+
+/// Scan /proc for all user processes. Returns a vec of ProcessEntry.
+/// Merges in port info from the known ports map.
+#[cfg(target_os = "linux")]
+fn scan_processes(known_ports: &HashMap<u16, (u32, String)>) -> Vec<clawcage_proto::ProcessEntry> {
+    let now_secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    let btime = boot_time_secs().unwrap_or(0);
+    let clk_tck: u64 = 100; // standard on Linux
+
+    // Build pid -> port lookup from known ports
+    let mut pid_to_port: HashMap<u32, u16> = HashMap::new();
+    for (&port, &(pid, _)) in known_ports {
+        if pid > 0 {
+            pid_to_port.insert(pid, port);
+        }
+    }
+
+    let proc_dir = match std::fs::read_dir("/proc") {
+        Ok(d) => d,
+        Err(_) => return Vec::new(),
+    };
+
+    let mut processes = Vec::new();
+
+    for entry in proc_dir.flatten() {
+        let name = entry.file_name();
+        let name_str = name.to_string_lossy();
+        let pid: u32 = match name_str.parse() {
+            Ok(p) => p,
+            Err(_) => continue,
+        };
+
+        // Skip PID 1 and 2 (init, kthreadd)
+        if pid <= 2 {
+            continue;
+        }
+
+        // Read /proc/<pid>/stat for ppid, start time, cpu times
+        let stat_path = format!("/proc/{pid}/stat");
+        let stat_content = match std::fs::read_to_string(&stat_path) {
+            Ok(s) => s,
+            Err(_) => continue,
+        };
+
+        // Parse stat: fields after the comm (which is in parens)
+        let comm_end = match stat_content.rfind(')') {
+            Some(i) => i,
+            None => continue,
+        };
+        let comm_start = match stat_content.find('(') {
+            Some(i) => i,
+            None => continue,
+        };
+        let comm = stat_content[comm_start + 1..comm_end].to_string();
+
+        // Skip kernel threads (state 'Z' for zombie, or comm starts with '[')
+        if comm.starts_with('[') {
+            continue;
+        }
+
+        // Skip hidden infrastructure processes
+        if is_hidden_process(&comm) {
+            continue;
+        }
+
+        let fields_after_comm: Vec<&str> = stat_content[comm_end + 2..].split_whitespace().collect();
+        if fields_after_comm.len() < 20 {
+            continue;
+        }
+
+        // Field indices (0-based after comm): 0=state, 1=ppid, 11=utime, 12=stime, 19=starttime
+        let ppid: u32 = fields_after_comm[1].parse().unwrap_or(0);
+        let utime: u64 = fields_after_comm[11].parse().unwrap_or(0);
+        let stime: u64 = fields_after_comm[12].parse().unwrap_or(0);
+        let starttime: u64 = fields_after_comm[19].parse().unwrap_or(0);
+
+        // Calculate runtime
+        let start_secs = btime + starttime / clk_tck;
+        let runtime_secs = now_secs.saturating_sub(start_secs);
+
+        // Skip short-lived processes
+        if runtime_secs < MIN_PROCESS_AGE_SECS {
+            continue;
+        }
+
+        // Approximate CPU% = (utime + stime) / clk_tck / runtime * 100
+        let cpu_ticks = utime + stime;
+        let cpu_percent = if runtime_secs > 0 {
+            (cpu_ticks as f32 / clk_tck as f32 / runtime_secs as f32 * 100.0).min(100.0)
+        } else {
+            0.0
+        };
+
+        // Read RSS from /proc/<pid>/status
+        let status_path = format!("/proc/{pid}/status");
+        let mem_kb = std::fs::read_to_string(&status_path)
+            .ok()
+            .and_then(|s| {
+                s.lines()
+                    .find(|l| l.starts_with("VmRSS:"))
+                    .and_then(|l| {
+                        l.split_whitespace().nth(1).and_then(|v| v.parse::<u64>().ok())
+                    })
+            })
+            .unwrap_or(0);
+
+        let port = pid_to_port.get(&pid).copied();
+
+        processes.push(clawcage_proto::ProcessEntry {
+            pid,
+            ppid,
+            name: comm,
+            cpu_percent,
+            mem_kb,
+            runtime_secs,
+            port,
+        });
+    }
+
+    processes
+}
+
 // ── Port watcher (Linux only) ────────────────────────────────────────
 
 #[cfg(target_os = "linux")]
@@ -136,6 +291,11 @@ fn run_watcher() {
 
     // Track known listening ports: port -> (pid, process_name)
     let mut known: HashMap<u16, (u32, String)> = HashMap::new();
+
+    // Track when the last process snapshot was sent.
+    let mut last_snapshot = std::time::Instant::now()
+        .checked_sub(std::time::Duration::from_millis(PROCESS_SNAPSHOT_INTERVAL_MS))
+        .unwrap_or_else(std::time::Instant::now);
 
     // Set up signal handler for graceful shutdown
     let term_now = Arc::new(AtomicBool::new(false));
@@ -202,6 +362,13 @@ fn run_watcher() {
             eprintln!("[clawcage-port-watch] port closed: {port}");
             send_event(vsock_fd, &GuestToHost::PortClosed { port });
             known.remove(&port);
+        }
+
+        // Send periodic process snapshot
+        if last_snapshot.elapsed() >= std::time::Duration::from_millis(PROCESS_SNAPSHOT_INTERVAL_MS) {
+            let processes = scan_processes(&known);
+            send_event(vsock_fd, &GuestToHost::ProcessSnapshot { processes });
+            last_snapshot = std::time::Instant::now();
         }
 
         std::thread::sleep(std::time::Duration::from_millis(POLL_INTERVAL_MS));
@@ -445,6 +612,19 @@ mod tests {
         let line = "   0: 00000000:FFFF 00000000:0000 0A 00000000:00000000 00:00000000 00000000     0        0 22222 1 0000000000000000 100 0 0 10 0";
         let lp = parse_proc_net_tcp_line(line).unwrap();
         assert_eq!(lp.port, 65535);
+    }
+
+    #[test]
+    fn hidden_process_matching() {
+        assert!(is_hidden_process("clawcage-pty-agent"));
+        assert!(is_hidden_process("clawcage-pty-a"));
+        assert!(is_hidden_process("clawcage-net-proxy"));
+        assert!(is_hidden_process("dnsmasq"));
+        assert!(is_hidden_process("init"));
+        assert!(!is_hidden_process("node"));
+        assert!(!is_hidden_process("python3"));
+        assert!(!is_hidden_process("bash"));
+        assert!(!is_hidden_process("npm"));
     }
 
     #[cfg(target_os = "linux")]

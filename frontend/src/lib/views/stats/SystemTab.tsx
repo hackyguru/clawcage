@@ -4,6 +4,7 @@ import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
 } from 'recharts';
 import { useSystemMetrics, startSystemMetrics, stopSystemMetrics } from '../../stores/system';
+import { chartTooltipStyle } from './chart-utils';
 import StatCards from './StatCards';
 import type { StatCard } from './StatCards';
 
@@ -71,7 +72,7 @@ export default function SystemTab() {
             <Tooltip
               labelFormatter={fmtTime}
               formatter={(v: number) => [fmtPct(v), 'CPU']}
-              contentStyle={{ background: 'var(--color-surface-alt)', border: '1px solid var(--color-edge)', borderRadius: 8, fontSize: 12 }}
+              contentStyle={chartTooltipStyle}
             />
             <Area type="monotone" dataKey="cpu" stroke={CPU_COLOR} fill="url(#cpuGrad)" strokeWidth={1.5} dot={false} isAnimationActive={false} />
           </AreaChart>
@@ -94,7 +95,7 @@ export default function SystemTab() {
             <Tooltip
               labelFormatter={fmtTime}
               formatter={(v: number) => [fmtPct(v), 'Memory']}
-              contentStyle={{ background: 'var(--color-surface-alt)', border: '1px solid var(--color-edge)', borderRadius: 8, fontSize: 12 }}
+              contentStyle={chartTooltipStyle}
             />
             <Area type="monotone" dataKey="memUsedPct" stroke={MEM_COLOR} fill="url(#memGrad)" strokeWidth={1.5} dot={false} isAnimationActive={false} />
           </AreaChart>
@@ -117,7 +118,7 @@ export default function SystemTab() {
             <Tooltip
               labelFormatter={fmtTime}
               formatter={(v: number) => [fmtPct(v), 'Disk']}
-              contentStyle={{ background: 'var(--color-surface-alt)', border: '1px solid var(--color-edge)', borderRadius: 8, fontSize: 12 }}
+              contentStyle={chartTooltipStyle}
             />
             <Area type="monotone" dataKey="diskUsedPct" stroke={DISK_COLOR} fill="url(#diskGrad)" strokeWidth={1.5} dot={false} isAnimationActive={false} />
           </AreaChart>

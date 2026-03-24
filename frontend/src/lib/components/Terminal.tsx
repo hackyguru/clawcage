@@ -1,7 +1,7 @@
 // Terminal component - wraps the clawcage-terminal web component
 import { useEffect, useRef, useCallback, useState } from 'react';
 import type { ClawcageTerminal as ClawcageTerminalElement } from '../../components/clawcage-terminal';
-import { serialInput, terminalResize, terminalPoll, onTerminalSourceChanged } from '../api';
+import { serialInput, terminalResize, terminalPoll, onTerminalSourceChanged, vmStatus } from '../api';
 import { getTheme } from '../stores/theme';
 import { setTerminalRenderer } from '../stores/vm';
 
@@ -26,6 +26,7 @@ export default function Terminal({ sessionId = 0 }: TerminalProps) {
   // but bashrc hasn't cleared screen yet (accumulate), 'ready' = pass-through.
   const phaseRef = useRef<'booting' | 'buffering' | 'ready'>('booting');
   const postBootBuf = useRef<number[]>([]);
+  const vmAlreadyRunning = useRef(false);
 
   const INPUT_BATCH_MS = 5;
   const INPUT_BATCH_MAX = 4096;
@@ -51,10 +52,7 @@ export default function Terminal({ sessionId = 0 }: TerminalProps) {
     mountedRef.current = true;
     const cleanups: (() => void)[] = [];
 
-    // Set initial theme
-    termEl.setTheme(getTheme() as 'light' | 'dark');
-
-    // Forward terminal input with batching
+    // Forward terminal input with batching (DOM events work before open)
     const onInput = ((e: CustomEvent) => {
       inputBufferRef.current += e.detail;
       if (inputBufferRef.current.length >= INPUT_BATCH_MAX) {
@@ -74,6 +72,25 @@ export default function Terminal({ sessionId = 0 }: TerminalProps) {
     termEl.addEventListener('terminal-resize', onResize);
     cleanups.push(() => termEl.removeEventListener('terminal-resize', onResize));
 
+    // Wait for the web component to finish opening xterm (async connectedCallback
+    // awaits font loading). Without this, write/fit/focus calls silently fail.
+    termEl.ready.then(() => {
+      if (!mountedRef.current) return;
+      initTerminal(termEl, cleanups);
+    });
+
+    return () => {
+      mountedRef.current = false;
+      flushInput();
+      for (const fn of cleanups) fn();
+    };
+  }, [flushInput, sessionId]);
+
+  // Extracted so it runs only after the web component is fully opened.
+  function initTerminal(termEl: ClawcageTerminalElement, cleanups: (() => void)[]) {
+    // Set initial theme
+    termEl.setTheme(getTheme() as 'light' | 'dark');
+
     // Poll-based output loop with retry for VM boot delay.
     // Until we see the bashrc clear-screen escape (\x1b[2J), all data is
     // accumulated but hidden behind the loading overlay.  Once the clear-
@@ -90,6 +107,24 @@ export default function Terminal({ sessionId = 0 }: TerminalProps) {
         }
       }
       return -1;
+    }
+
+    // If the VM is already running when we mount (e.g. switching venvs back),
+    // skip the boot phase — the clear-screen was sent long ago and won't repeat.
+    // This prevents an empty terminal stuck on "Starting environment..." for 8s.
+    if (!isMock) {
+      vmStatus().then((s) => {
+        if (!mountedRef.current) return;
+        if (s.toLowerCase() === 'running' && phaseRef.current !== 'ready') {
+          vmAlreadyRunning.current = true;
+          phaseRef.current = 'ready';
+          setBooting(false);
+          termEl.clear();
+          termEl.fit();
+          // Send Enter so the shell prints a fresh prompt on the new terminal
+          serialInput('\n', sessionId).catch(() => {});
+        }
+      }).catch(() => {});
     }
 
     if (!isMock) {
@@ -187,13 +222,7 @@ export default function Terminal({ sessionId = 0 }: TerminalProps) {
 
     setTerminalRenderer(termEl.renderer);
     termEl.focusTerminal();
-
-    return () => {
-      mountedRef.current = false;
-      flushInput();
-      for (const fn of cleanups) fn();
-    };
-  }, [flushInput, sessionId]);
+  }
 
   return (
     <div className="relative h-full w-full">

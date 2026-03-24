@@ -151,6 +151,23 @@ export interface VenvInfo {
 /** Sidebar view names. */
 export type ViewName = 'home' | 'terminal' | 'ports' | 'files' | 'logs' | 'stats' | 'vpn' | 'settings';
 
+/** A running process inside the guest VM. */
+export interface GuestProcess {
+  pid: number;
+  ppid: number;
+  name: string;
+  cpu_percent: number;
+  mem_kb: number;
+  runtime_secs: number;
+  port: number | null;
+}
+
+/** Response from get_processes. */
+export interface ProcessesResponse {
+  processes: GuestProcess[];
+  forwarded: ForwardedPort[];
+}
+
 /** A detected listening port inside the guest VM. */
 export interface DetectedPort {
   port: number;

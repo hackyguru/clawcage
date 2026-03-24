@@ -8,6 +8,7 @@ import { initTheme } from './stores/theme';
 import ToastContainer from './components/ToastContainer';
 import { showToast } from './stores/toast';
 import { startPorts } from './stores/ports';
+import { startProcesses } from './stores/processes';
 import type { ViewName } from './types';
 import WizardView from './views/WizardView';
 
@@ -62,7 +63,7 @@ function AppInner() {
   // Show onboarding only after venvs have loaded to prevent flash for returning users
   const showOnboarding = venvsInitialized && venvs.length === 0 && !onboardingDismissed;
 
-  // Keyboard shortcuts: Cmd+1 = Console, Cmd+2 = Ports, Cmd+3 = Files, Cmd+4 = Stats, Cmd+5 = Settings
+  // Keyboard shortcuts: Cmd+1..8 for views
   const viewKeys: Record<string, ViewName> = { '1': 'terminal', '2': 'ports', '3': 'files', '4': 'logs', '5': 'stats', '6': 'vpn', '7': 'settings' };
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if ((e.metaKey || e.ctrlKey) && viewKeys[e.key]) {
@@ -83,6 +84,7 @@ function AppInner() {
     loadSettings().catch((e) => showToast('Failed to load settings: ' + String(e), 'error'));
     loadVenvs().catch((e) => showToast('Failed to load environments: ' + String(e), 'error'));
     startPorts();
+    startProcesses();
   }, []);
 
   const currentView = activeView;

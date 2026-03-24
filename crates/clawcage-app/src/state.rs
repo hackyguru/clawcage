@@ -69,6 +69,31 @@ impl PortState {
     }
 }
 
+/// A running process inside the guest VM.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct GuestProcess {
+    pub pid: u32,
+    pub ppid: u32,
+    pub name: String,
+    pub cpu_percent: f32,
+    pub mem_kb: u64,
+    pub runtime_secs: u64,
+    pub port: Option<u16>,
+}
+
+/// Process list state for a running VM.
+pub struct ProcessState {
+    pub processes: RwLock<Vec<GuestProcess>>,
+}
+
+impl ProcessState {
+    pub fn new() -> Self {
+        Self {
+            processes: RwLock::new(Vec::new()),
+        }
+    }
+}
+
 /// Latest system metrics snapshot from the guest VM.
 #[derive(Debug, Clone, Default, serde::Serialize)]
 pub struct SystemMetrics {
@@ -105,6 +130,8 @@ pub struct VmInstance {
     pub state_machine: HostStateMachine,
     pub _scratch_disk_path: Option<PathBuf>,
     pub port_state: Arc<PortState>,
+    /// Guest process list (periodic snapshots from port-watch daemon).
+    pub process_state: Arc<ProcessState>,
     /// Per-venv VPN manager. Routes upstream MITM connections through a
     /// WireGuard tunnel when enabled.
     pub vpn_state: Option<Arc<clawcage_core::net::vpn::VpnManager>>,

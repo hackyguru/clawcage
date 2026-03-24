@@ -2,29 +2,21 @@
 import { useState, useCallback } from 'react';
 import Terminal from '../components/Terminal';
 import StatsBar from '../components/StatsBar';
-import { useVenvs, stopVenvAction, deleteVenvAction } from '../stores/venvs';
+import { useVenvs, stopVenvAction } from '../stores/venvs';
 import { useSidebar } from '../stores/sidebar';
 import { useShells } from '../stores/shells';
 import { ConfirmDialog } from '../components/Dialog';
-import { StopIcon, TrashIcon, HomeIcon, PlusIcon, CloseIcon } from '../icons/Icons';
+import { StopIcon, HomeIcon, PlusIcon, CloseIcon } from '../icons/Icons';
 
 function TerminalToolbar() {
   const { activeVenv } = useVenvs();
   const { setView } = useSidebar();
   const { spawnShell } = useShells();
   const [showStopDialog, setShowStopDialog] = useState(false);
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   const handleConfirmStop = useCallback(() => {
     if (activeVenv) {
       stopVenvAction(activeVenv.id);
-      setView('home');
-    }
-  }, [activeVenv, setView]);
-
-  const handleConfirmDelete = useCallback(() => {
-    if (activeVenv) {
-      deleteVenvAction(activeVenv.id);
       setView('home');
     }
   }, [activeVenv, setView]);
@@ -70,15 +62,6 @@ function TerminalToolbar() {
             Stop
           </button>
         )}
-        <button
-          className="flex items-center gap-1 text-[11px] text-content/40 hover:text-denied transition-colors"
-          onClick={() => setShowDeleteDialog(true)}
-          title="Delete environment"
-          aria-label="Delete environment"
-        >
-          <TrashIcon className="size-3" />
-          Delete
-        </button>
       </div>
 
       {/* Stop confirmation */}
@@ -90,17 +73,6 @@ function TerminalToolbar() {
         message={`Stop "${activeVenv.name}"? ${activeVenv.ephemeral ? 'This is an ephemeral environment — all files will be lost.' : 'Persistent files will be saved.'}`}
         confirmLabel="Stop"
         variant="caution"
-      />
-
-      {/* Delete confirmation */}
-      <ConfirmDialog
-        open={showDeleteDialog}
-        onClose={() => setShowDeleteDialog(false)}
-        onConfirm={handleConfirmDelete}
-        title="Delete Environment"
-        message={`Are you sure you want to delete "${activeVenv.name}"? ${activeVenv.ephemeral ? 'This environment is ephemeral so no data will be lost.' : 'All persistent data for this environment will be permanently removed.'}`}
-        confirmLabel="Delete"
-        variant="danger"
       />
     </>
   );

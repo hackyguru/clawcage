@@ -10,6 +10,7 @@ import {
   NET_TOP_DOMAINS_SQL, NET_EVENTS_ALL_SQL, NET_EVENTS_SEARCH_SQL,
 } from '../../sql';
 import { colors } from '../../css-var';
+import { chartTooltipStyle, PieLabel } from './chart-utils';
 import StatCards from './StatCards';
 import DetailPanel from './DetailPanel';
 import { showToast } from '../../stores/toast';
@@ -100,7 +101,7 @@ export default function NetworkTab() {
                 <BarChart data={timeline}>
                   <XAxis dataKey="bucket" tick={false} />
                   <YAxis width={40} />
-                  <Tooltip />
+                  <Tooltip contentStyle={chartTooltipStyle} />
                   <Bar dataKey="allowed" stackId="a" fill={colors.allowed} name="Allowed" />
                   <Bar dataKey="denied" stackId="a" fill={colors.denied} name="Denied" />
                 </BarChart>
@@ -116,12 +117,12 @@ export default function NetworkTab() {
             {methodPieData.length > 0 ? (
               <ResponsiveContainer width="100%" height={180}>
                 <PieChart>
-                  <Pie data={methodPieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={60} label={({ name }: { name: string }) => name}>
+                  <Pie data={methodPieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={60} label={PieLabel} labelLine={false}>
                     {methodPieData.map((entry, i) => (
                       <Cell key={i} fill={entry.fill} />
                     ))}
                   </Pie>
-                  <Tooltip />
+                  <Tooltip contentStyle={chartTooltipStyle} />
                 </PieChart>
               </ResponsiveContainer>
             ) : (
@@ -138,7 +139,7 @@ export default function NetworkTab() {
               <BarChart data={domains} layout="vertical">
                 <XAxis type="number" />
                 <YAxis dataKey="domain" type="category" width={120} tick={{ fontSize: 10 }} />
-                <Tooltip />
+                <Tooltip contentStyle={chartTooltipStyle} />
                 <Bar dataKey="allowed" stackId="a" fill={colors.allowed} name="Allowed" />
                 <Bar dataKey="denied" stackId="a" fill={colors.denied} name="Denied" />
               </BarChart>

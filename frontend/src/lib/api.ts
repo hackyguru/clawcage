@@ -22,6 +22,7 @@ import type {
   GuestConfigResponse,
   NetworkPolicyResponse,
   PortsResponse,
+  ProcessesResponse,
   ResolvedSetting,
   SessionInfo,
   SettingsNode,
@@ -242,6 +243,18 @@ export function forwardPort(guestPort: number, hostPort?: number): Promise<numbe
 
 export function stopForward(guestPort: number): Promise<void> {
   return ensureDeps().then(() => isMock ? mockApi.stopForward(guestPort) : tauriInvoke<void>('stop_forward', { guestPort }));
+}
+
+// ---------------------------------------------------------------------------
+// Processes
+// ---------------------------------------------------------------------------
+
+export function getProcesses(): Promise<ProcessesResponse> {
+  return ensureDeps().then(() => isMock ? mockApi.getProcesses() : tauriInvoke<ProcessesResponse>('get_processes'));
+}
+
+export function killProcess(pid: number): Promise<void> {
+  return ensureDeps().then(() => isMock ? mockApi.killProcess(pid) : tauriInvoke<void>('kill_process', { pid }));
 }
 
 export function onPortDetected(callback: (port: DetectedPort) => void): Promise<UnlistenFn> {

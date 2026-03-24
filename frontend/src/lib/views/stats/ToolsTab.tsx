@@ -10,6 +10,7 @@ import {
   TOOLS_OVER_TIME_SQL, TOOLS_UNIFIED_SQL, TOOLS_UNIFIED_SEARCH_SQL,
 } from '../../sql';
 import { colors, serverColor } from '../../css-var';
+import { chartTooltipStyle, PieLabel } from './chart-utils';
 import StatCards from './StatCards';
 import DetailPanel from './DetailPanel';
 import { showToast } from '../../stores/toast';
@@ -92,7 +93,7 @@ export default function ToolsTab() {
                 <BarChart data={timeline}>
                   <XAxis dataKey="bucket" tick={false} />
                   <YAxis width={40} />
-                  <Tooltip />
+                  <Tooltip contentStyle={chartTooltipStyle} />
                   <Bar dataKey="native" stackId="a" fill={colors.allowed} name="Native" />
                   <Bar dataKey="mcp" stackId="a" fill={colors.providerMistral} name="MCP" />
                 </BarChart>
@@ -108,12 +109,12 @@ export default function ToolsTab() {
             {toolPieData.length > 0 ? (
               <ResponsiveContainer width="100%" height={180}>
                 <PieChart>
-                  <Pie data={toolPieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={60} label={({ name }) => name}>
+                  <Pie data={toolPieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={60} label={PieLabel} labelLine={false}>
                     {toolPieData.map((entry, i) => (
                       <Cell key={i} fill={entry.fill} />
                     ))}
                   </Pie>
-                  <Tooltip />
+                  <Tooltip contentStyle={chartTooltipStyle} />
                 </PieChart>
               </ResponsiveContainer>
             ) : (

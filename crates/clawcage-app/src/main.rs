@@ -1064,14 +1064,14 @@ async fn setup_vsock(
     let _keep_terminal = terminal;
     let _keep_control = control;
 
-    // Get port_state and sys_metrics for watch handlers.
-    let (port_state, sys_metrics) = {
+    // Get port_state, process_state, and sys_metrics for watch handlers.
+    let (port_state, process_state, sys_metrics) = {
         let state = app_handle.state::<AppState>();
         let vm_id = state.active_session_id.lock().unwrap().clone();
         vm_id.map(|id| {
             let vms = state.vms.lock().unwrap();
-            vms.get(&id).map(|inst| (Arc::clone(&inst.port_state), Arc::clone(&inst.sys_metrics)))
-        }).flatten().unzip()
+            vms.get(&id).map(|inst| (Arc::clone(&inst.port_state), Arc::clone(&inst.process_state), Arc::clone(&inst.sys_metrics)))
+        }).flatten().map(|(ps, proc_s, sm)| (Some(ps), Some(proc_s), Some(sm))).unwrap_or((None, None, None))
     };
 
     // Process any connections that arrived during the handshake phase.
@@ -1108,12 +1108,13 @@ async fn setup_vsock(
                 }
             }
             VSOCK_PORT_PORT_WATCH => {
-                if let Some(ref ps) = port_state {
+                if let (Some(ref ps), Some(ref proc_s)) = (&port_state, &process_state) {
                     let fd = conn.fd;
                     let ps = Arc::clone(ps);
+                    let proc_s = Arc::clone(proc_s);
                     tokio::spawn(async move {
                         let _conn = conn;
-                        handle_port_watch(fd, ps).await;
+                        handle_port_watch(fd, ps, proc_s).await;
                     });
                 }
             }
@@ -1185,12 +1186,13 @@ async fn setup_vsock(
             }
             Some(conn) if conn.port == VSOCK_PORT_PORT_WATCH => {
                 info!("vsock: port-watch connected (fd={})", conn.fd);
-                if let Some(ref ps) = port_state {
+                if let (Some(ref ps), Some(ref proc_s)) = (&port_state, &process_state) {
                     let fd = conn.fd;
                     let ps = Arc::clone(ps);
+                    let proc_s = Arc::clone(proc_s);
                     tokio::spawn(async move {
                         let _conn = conn;
-                        handle_port_watch(fd, ps).await;
+                        handle_port_watch(fd, ps, proc_s).await;
                     });
                 } else {
                     warn!("vsock: port-watch connection rejected (no port state)");
@@ -1323,8 +1325,8 @@ async fn handle_fs_watch(fd: RawFd, db: Arc<DbWriter>) {
 }
 
 /// Handle the port-watch vsock connection: read framed GuestToHost messages
-/// and update the port state for the active VM.
-async fn handle_port_watch(fd: RawFd, port_state: Arc<crate::state::PortState>) {
+/// and update the port state and process state for the active VM.
+async fn handle_port_watch(fd: RawFd, port_state: Arc<crate::state::PortState>, process_state: Arc<crate::state::ProcessState>) {
     use std::os::unix::io::{FromRawFd, IntoRawFd};
     use tokio::io::AsyncReadExt;
 
@@ -1408,6 +1410,27 @@ async fn handle_port_watch(fd: RawFd, port_state: Arc<crate::state::PortState>) 
                 let mut tasks = port_state.forward_tasks.lock().unwrap();
                 if let Some(handle) = tasks.remove(&port) {
                     handle.abort();
+                }
+            }
+            GuestToHost::ProcessSnapshot { processes } => {
+                let guest_procs: Vec<crate::state::GuestProcess> = processes.into_iter().map(|p| {
+                    crate::state::GuestProcess {
+                        pid: p.pid,
+                        ppid: p.ppid,
+                        name: p.name,
+                        cpu_percent: p.cpu_percent,
+                        mem_kb: p.mem_kb,
+                        runtime_secs: p.runtime_secs,
+                        port: p.port,
+                    }
+                }).collect();
+                *process_state.processes.write().unwrap() = guest_procs;
+            }
+            GuestToHost::ProcessKilled { pid, success } => {
+                if success {
+                    info!("port-watch: process {pid} killed successfully");
+                } else {
+                    warn!("port-watch: failed to kill process {pid}");
                 }
             }
             other => {
@@ -1956,8 +1979,9 @@ fn run_cli(command: &str, cli_env: &[(String, String)], session_index: &SessionI
         &[VSOCK_PORT_CONTROL, VSOCK_PORT_TERMINAL, VSOCK_PORT_SNI_PROXY, VSOCK_PORT_FS_WATCH, VSOCK_PORT_MCP_GATEWAY, VSOCK_PORT_PORT_WATCH, VSOCK_PORT_PORT_FORWARD, VSOCK_PORT_SYS_WATCH],
     ).context("failed to set up vsock")?;
 
-    // Port state for CLI mode.
+    // Port and process state for CLI mode.
     let cli_port_state = Arc::new(crate::state::PortState::new());
+    let cli_process_state = Arc::new(crate::state::ProcessState::new());
 
     // Create per-VM network state for MITM proxy.
     let net_state = create_net_state(&cli_session_id).ok();
@@ -2065,9 +2089,10 @@ fn run_cli(command: &str, cli_env: &[(String, String)], session_index: &SessionI
                 VSOCK_PORT_PORT_WATCH => {
                     let fd = conn.fd;
                     let ps = Arc::clone(&cli_port_state);
+                    let proc_s = Arc::clone(&cli_process_state);
                     rt.spawn(async move {
                         let _conn = conn;
-                        handle_port_watch(fd, ps).await;
+                        handle_port_watch(fd, ps, proc_s).await;
                     });
                     continue;
                 }
@@ -2258,9 +2283,10 @@ fn run_cli(command: &str, cli_env: &[(String, String)], session_index: &SessionI
             } else if conn.port == VSOCK_PORT_PORT_WATCH {
                 let fd = conn.fd;
                 let ps = Arc::clone(&cli_port_state);
+                let proc_s = Arc::clone(&cli_process_state);
                 rt.spawn(async move {
                     let _conn = conn;
-                    handle_port_watch(fd, ps).await;
+                    handle_port_watch(fd, ps, proc_s).await;
                 });
             } else if conn.port == VSOCK_PORT_PORT_FORWARD {
                 if let Ok(file) = clone_fd(conn.fd) {
@@ -2704,6 +2730,7 @@ fn gui_boot_vm(
                     state_machine: sm,
                     _scratch_disk_path: scratch_path,
                     port_state: std::sync::Arc::new(crate::state::PortState::new()),
+                    process_state: std::sync::Arc::new(crate::state::ProcessState::new()),
                     vpn_state: Some(std::sync::Arc::new(clawcage_core::net::vpn::VpnManager::new())),
                     sys_metrics: std::sync::Arc::new(crate::state::SystemMetricsState::new()),
                 });
@@ -2898,6 +2925,8 @@ fn main() {
             commands::get_ports,
             commands::forward_port,
             commands::stop_forward,
+            commands::get_processes,
+            commands::kill_process,
             commands::system_metrics,
             commands::download_file,
             commands::read_file,

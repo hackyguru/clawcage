@@ -1,9 +1,10 @@
 // SettingsView -- settings panel with section sub-menu and venv scope selector
-import { useEffect } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useSettings, loadSettings } from '../stores/settings';
 import { useSidebar } from '../stores/sidebar';
-import { useVenvs } from '../stores/venvs';
-import { ChevronDown } from '../icons/Icons';
+import { useVenvs, deleteVenvAction } from '../stores/venvs';
+import { ChevronDown, TrashIcon } from '../icons/Icons';
+import { ConfirmDialog } from '../components/Dialog';
 import SubMenu from '../components/SubMenu';
 import SettingsSection from './settings/SettingsSection';
 
@@ -11,6 +12,15 @@ export default function SettingsView() {
   const { sections, loading, venvId, setScope } = useSettings();
   const { settingsSection, setSettingsSection } = useSidebar();
   const { activeVenvId, activeVenv } = useVenvs();
+  const { setView } = useSidebar();
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+
+  const handleConfirmDelete = useCallback(() => {
+    if (activeVenv) {
+      deleteVenvAction(activeVenv.id);
+      setView('home');
+    }
+  }, [activeVenv, setView]);
 
   // Load settings on mount
   useEffect(() => {
@@ -63,7 +73,7 @@ export default function SettingsView() {
           )}
         </div>
 
-        <div className="flex-1 min-w-0 overflow-hidden">
+        <div className="flex-1 min-w-0 overflow-auto">
           {loading ? (
             <div className="flex items-center justify-center h-full">
               <span className="spinner w-5 h-5 text-content/30" />
@@ -75,7 +85,35 @@ export default function SettingsView() {
               Select a settings section
             </div>
           )}
+
+          {/* Danger zone -- delete environment */}
+          {activeVenv && (
+            <div className="border-t border-edge mx-4 mt-6 pt-4 pb-6">
+              <h3 className="text-xs font-semibold text-denied mb-1">Danger Zone</h3>
+              <p className="text-xs text-content/50 mb-3">
+                Permanently delete this environment and all its configuration.
+              </p>
+              <button
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border border-denied/30 text-denied hover:bg-denied/10 transition-colors font-medium"
+                onClick={() => setShowDeleteDialog(true)}
+              >
+                <TrashIcon className="size-3" />
+                Delete &ldquo;{activeVenv.name}&rdquo;
+              </button>
+            </div>
+          )}
         </div>
+
+        {/* Delete confirmation dialog */}
+        <ConfirmDialog
+          open={showDeleteDialog}
+          onClose={() => setShowDeleteDialog(false)}
+          onConfirm={handleConfirmDelete}
+          title="Delete Environment"
+          message={`Are you sure you want to delete "${activeVenv?.name ?? ''}"? ${activeVenv?.ephemeral ? 'This environment is ephemeral so no data will be lost.' : 'All persistent data for this environment will be permanently removed.'}`}
+          confirmLabel="Delete"
+          variant="danger"
+        />
       </div>
     </div>
   );

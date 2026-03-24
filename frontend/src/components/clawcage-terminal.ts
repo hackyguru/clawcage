@@ -64,9 +64,13 @@ export class ClawcageTerminal extends HTMLElement {
   private wrapper: HTMLDivElement | null = null;
   private resizeRafId: number = 0;
   renderer: "webgl" | "canvas" = "canvas";
+  /** Resolves once connectedCallback has opened the terminal. */
+  readonly ready: Promise<void>;
+  private resolveReady!: () => void;
 
   constructor() {
     super();
+    this.ready = new Promise((resolve) => { this.resolveReady = resolve; });
     this.shadow = this.attachShadow({ mode: "closed" });
 
     this.terminal = new Terminal({
@@ -162,6 +166,8 @@ export class ClawcageTerminal extends HTMLElement {
       });
     });
     this.resizeObserver.observe(this);
+
+    this.resolveReady();
   }
 
   disconnectedCallback() {

@@ -68,6 +68,26 @@ pub const BLOCKED_ENV_VARS: &[&str] = &[
 ];
 
 // ---------------------------------------------------------------------------
+// Shared types
+// ---------------------------------------------------------------------------
+
+/// A single process entry reported by the guest process watcher.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ProcessEntry {
+    pub pid: u32,
+    pub ppid: u32,
+    pub name: String,
+    /// CPU usage percentage (0–100) since last snapshot.
+    pub cpu_percent: f32,
+    /// Resident memory in KB.
+    pub mem_kb: u64,
+    /// How long this process has been running, in seconds.
+    pub runtime_secs: u64,
+    /// Listening TCP port, if any.
+    pub port: Option<u16>,
+}
+
+// ---------------------------------------------------------------------------
 // Message types
 // ---------------------------------------------------------------------------
 
@@ -110,6 +130,9 @@ pub enum HostToGuest {
     CloseShell { session_id: u32 },
     /// Resize a specific shell session.
     ShellResize { session_id: u32, cols: u16, rows: u16 },
+    // -- Process management --
+    /// Kill a process in the guest by PID (SIGTERM).
+    KillProcess { pid: u32 },
     // -- Lifecycle (reserved) --
     /// Graceful shutdown request.
     Shutdown,
@@ -170,6 +193,11 @@ pub enum GuestToHost {
     },
     /// A TCP listening port was closed in the guest.
     PortClosed { port: u16 },
+    // -- Process telemetry --
+    /// Periodic snapshot of all running user processes in the guest.
+    ProcessSnapshot { processes: Vec<ProcessEntry> },
+    /// Result of a KillProcess request.
+    ProcessKilled { pid: u32, success: bool },
     // -- System metrics --
     /// Periodic system resource usage snapshot from the guest.
     SystemMetrics {
@@ -1363,6 +1391,85 @@ mod tests {
                 assert_eq!(exit_code, -1);
             }
             other => panic!("expected ShellClosed, got {other:?}"),
+        }
+    }
+
+    // -------------------------------------------------------------------
+    // Process message roundtrips
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn roundtrip_kill_process() {
+        let msg = HostToGuest::KillProcess { pid: 1234 };
+        let frame = encode_host_msg(&msg).unwrap();
+        let decoded = decode_host_msg(&frame[4..]).unwrap();
+        match decoded {
+            HostToGuest::KillProcess { pid } => assert_eq!(pid, 1234),
+            other => panic!("expected KillProcess, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn roundtrip_process_snapshot() {
+        let msg = GuestToHost::ProcessSnapshot {
+            processes: vec![
+                ProcessEntry {
+                    pid: 100,
+                    ppid: 1,
+                    name: "node".into(),
+                    cpu_percent: 12.5,
+                    mem_kb: 51200,
+                    runtime_secs: 300,
+                    port: Some(3000),
+                },
+                ProcessEntry {
+                    pid: 200,
+                    ppid: 1,
+                    name: "python3".into(),
+                    cpu_percent: 0.5,
+                    mem_kb: 8192,
+                    runtime_secs: 60,
+                    port: None,
+                },
+            ],
+        };
+        let frame = encode_guest_msg(&msg).unwrap();
+        let decoded = decode_guest_msg(&frame[4..]).unwrap();
+        match decoded {
+            GuestToHost::ProcessSnapshot { processes } => {
+                assert_eq!(processes.len(), 2);
+                assert_eq!(processes[0].pid, 100);
+                assert_eq!(processes[0].name, "node");
+                assert_eq!(processes[0].port, Some(3000));
+                assert_eq!(processes[1].pid, 200);
+                assert_eq!(processes[1].port, None);
+            }
+            other => panic!("expected ProcessSnapshot, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn roundtrip_process_snapshot_empty() {
+        let msg = GuestToHost::ProcessSnapshot { processes: vec![] };
+        let frame = encode_guest_msg(&msg).unwrap();
+        let decoded = decode_guest_msg(&frame[4..]).unwrap();
+        match decoded {
+            GuestToHost::ProcessSnapshot { processes } => assert!(processes.is_empty()),
+            other => panic!("expected ProcessSnapshot, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn roundtrip_process_killed() {
+        let msg = GuestToHost::ProcessKilled { pid: 42, success: true };
+        let frame = encode_guest_msg(&msg).unwrap();
+        let decoded = decode_guest_msg(&frame[4..]).unwrap();
+        match decoded {
+            GuestToHost::ProcessKilled { pid, success } => {
+                assert_eq!(pid, 42);
+                assert!(success);
+            }
+            other => panic!("expected ProcessKilled, got {other:?}"),
         }
     }
 

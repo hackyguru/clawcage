@@ -11,6 +11,7 @@ import {
   TRACE_TOOL_CALLS_SQL, TRACE_TOOL_RESPONSES_SQL,
 } from '../../sql';
 import { providerColor, modelColor, colors } from '../../css-var';
+import { chartTooltipStyle, PieLabel } from './chart-utils';
 import StatCards from './StatCards';
 import DetailPanel from './DetailPanel';
 import { showToast } from '../../stores/toast';
@@ -167,7 +168,7 @@ export default function AITab() {
                 <BarChart data={tokenTimeline}>
                   <XAxis dataKey="bucket" tick={false} />
                   <YAxis width={50} tickFormatter={fmtTokens} />
-                  <Tooltip formatter={(v: number) => fmtTokens(v)} />
+                  <Tooltip contentStyle={chartTooltipStyle} formatter={(v: number) => fmtTokens(v)} />
                   {modelNames.map((m) => (
                     <Bar
                       key={m}
@@ -189,12 +190,12 @@ export default function AITab() {
             {costPieData.length > 0 ? (
               <ResponsiveContainer width="100%" height={200}>
                 <PieChart>
-                  <Pie data={costPieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={70} label={({ name }) => name}>
+                  <Pie data={costPieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={70} label={PieLabel} labelLine={false}>
                     {costPieData.map((entry, i) => (
                       <Cell key={i} fill={entry.fill} />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(v: number) => fmtCost(v)} />
+                  <Tooltip contentStyle={chartTooltipStyle} formatter={(v: number) => fmtCost(v)} />
                 </PieChart>
               </ResponsiveContainer>
             ) : (

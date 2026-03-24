@@ -793,6 +793,51 @@ pub async fn stop_forward(
 }
 
 // ---------------------------------------------------------------------------
+// Processes
+// ---------------------------------------------------------------------------
+
+/// Response for get_processes.
+#[derive(Serialize)]
+pub struct ProcessesResponse {
+    pub processes: Vec<crate::state::GuestProcess>,
+    pub forwarded: Vec<crate::state::ForwardedPort>,
+}
+
+#[tauri::command]
+pub fn get_processes(state: State<'_, AppState>) -> Result<ProcessesResponse, String> {
+    let vm_id = active_vm_id(&state)?;
+    let vms = state.vms.lock().unwrap();
+    let instance = vms.get(&vm_id).ok_or("VM not found")?;
+    let processes = instance.process_state.processes.read().unwrap().clone();
+    let forwarded = instance.port_state.forwarded.read().unwrap().clone();
+    Ok(ProcessesResponse { processes, forwarded })
+}
+
+#[tauri::command]
+pub async fn kill_process(
+    pid: u32,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let vm_id = active_vm_id(&state)?;
+    let vms = state.vms.lock().unwrap();
+    let instance = vms.get(&vm_id).ok_or("VM not found")?;
+    let control_fd = instance.vsock_control_fd.ok_or("no control channel")?;
+    drop(vms);
+
+    // Send KillProcess via control channel
+    let msg = clawcage_core::clawcage_proto::HostToGuest::KillProcess { pid };
+    let frame = clawcage_core::clawcage_proto::encode_host_msg(&msg)
+        .map_err(|e| format!("encode KillProcess: {e}"))?;
+    {
+        use std::io::Write;
+        let mut file = crate::clone_fd(control_fd).map_err(|e| format!("clone fd: {e}"))?;
+        file.write_all(&frame).map_err(|e| format!("write KillProcess: {e}"))?;
+    }
+    tracing::info!("sent KillProcess for pid {pid}");
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
 // System metrics
 // ---------------------------------------------------------------------------
 

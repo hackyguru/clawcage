@@ -66,6 +66,7 @@ const CHROMA_STEPS = [0.15, 0.18, 0.12, 0.20, 0.14];
 const providerModelIndex = new Map<string, number>();
 const modelColorCache = new Map<string, string>();
 
+
 /** Get a chart color for a model, grouped by provider hue family. */
 export function modelColor(model: string, provider: string): string {
   let c = modelColorCache.get(model);
