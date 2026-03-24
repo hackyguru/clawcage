@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="frontend/public/logo.svg" width="80" height="80" alt="Clawcage" />
+  <img src="frontend/public/applogo.png" width="80" height="80" alt="Clawcage" />
 </p>
 
 <h1 align="center">Clawcage</h1>
@@ -17,9 +17,7 @@
 
 <p align="center">
   <a href="https://clawcage.hackyguru.com">Website</a> &middot;
-  <a href="https://github.com/hackyguru/clawcage/releases/latest">Download</a> &middot;
-  <a href="docs/architecture.md">Architecture</a> &middot;
-  <a href="docs/security.md">Security</a>
+  <a href="https://github.com/hackyguru/clawcage/releases/latest">Download</a>
 </p>
 
 ---
@@ -105,7 +103,6 @@ crates/clawcage-agent/    Guest agent (PTY bridge, net proxy, cross-compiled for
 frontend/                 Vite 6 + React 19 + Tailwind v4
 images/                   VM image tooling (Dockerfiles, build.py, init script)
 assets/                   Built VM assets (gitignored)
-docs/                     Architecture and security documentation
 ```
 
 ### Commands
@@ -140,8 +137,6 @@ Clawcage assumes the AI agent inside the VM is **adversarial**:
 - **Read-only rootfs** — system binaries are immutable
 - **Boot asset integrity** — BLAKE3 hashes verified before VM boots
 - **No systemd, no services** — PID 1 is a minimal init script
-
-Full threat model: [docs/security.md](docs/security.md)
 
 ## Auto-Update
 
