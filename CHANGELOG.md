@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.2] - 2026-03-25
+
+### Fixed
+- Auto-updater now retries up to 3 times with exponential backoff (2s, 4s) to handle transient GitHub CDN failures that caused "Could not fetch a valid release JSON" errors
+- Auto-updater waits 3 seconds after launch before checking, giving the network stack time to settle on cold boot
+
 ## [0.9.1] - 2026-03-24
 
 ### Added

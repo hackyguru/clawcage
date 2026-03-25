@@ -2352,6 +2352,8 @@ fn run_cli(command: &str, cli_env: &[(String, String)], session_index: &SessionI
 /// Check for app updates using Tauri's updater plugin.
 /// Uses a native dialog (not the WebView) since the webview gets replaced with
 /// VZVirtualMachineView after VM boot.
+/// Retries up to 3 times with exponential backoff to handle transient network
+/// failures (GitHub CDN hiccups, rate limits, slow DNS on cold start).
 async fn check_for_update(app: tauri::AppHandle) {
     use tauri_plugin_updater::UpdaterExt;
     use tauri_plugin_dialog::DialogExt;
@@ -2364,16 +2366,33 @@ async fn check_for_update(app: tauri::AppHandle) {
         }
     };
 
-    let update = match updater.check().await {
-        Ok(Some(update)) => update,
-        Ok(None) => {
-            info!("no update available");
-            return;
+    let mut update_result = None;
+    for attempt in 0..3u32 {
+        if attempt > 0 {
+            let delay = std::time::Duration::from_secs(2u64.pow(attempt)); // 2s, 4s
+            info!("retrying update check in {}s (attempt {})", delay.as_secs(), attempt + 1);
+            tokio::time::sleep(delay).await;
         }
-        Err(e) => {
-            info!("update check failed: {e:#}");
-            return;
+        match updater.check().await {
+            Ok(Some(update)) => {
+                update_result = Some(update);
+                break;
+            }
+            Ok(None) => {
+                info!("no update available");
+                return;
+            }
+            Err(e) => {
+                info!("update check attempt {} failed: {e:#}", attempt + 1);
+                if attempt == 2 {
+                    return;
+                }
+            }
         }
+    }
+    let update = match update_result {
+        Some(u) => u,
+        None => return,
     };
 
     let current_version = app.package_info().version.to_string();
@@ -2867,9 +2886,10 @@ fn main() {
                 }).ok();
             }
 
-            // Check for updates.
+            // Check for updates after a short delay to ensure network is ready.
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
+                tokio::time::sleep(std::time::Duration::from_secs(3)).await;
                 check_for_update(handle).await;
             });
 
