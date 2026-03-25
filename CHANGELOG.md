@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.3] - 2026-03-25
+
+### Added
+- In-app update UI: "Update available" badge in the status bar with version number; clicking opens a modal with release notes, download progress bar, and one-click install
+
+### Changed
+- Auto-updater now uses frontend UI instead of native OS dialog for update prompts
+
 ## [0.9.2] - 2026-03-25
 
 ### Fixed

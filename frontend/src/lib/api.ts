@@ -323,6 +323,32 @@ export function vpnStatus(): Promise<VpnState> {
 }
 
 // ---------------------------------------------------------------------------
+// App updates
+// ---------------------------------------------------------------------------
+
+export interface UpdateInfo {
+  version: string;
+  notes: string;
+}
+
+export interface UpdateProgress {
+  downloaded: number;
+  total: number | null;
+}
+
+export function onUpdateAvailable(callback: (info: UpdateInfo) => void): Promise<UnlistenFn> {
+  return ensureDeps().then(() => isMock ? mockApi.onUpdateAvailable(callback) : tauriListen<UpdateInfo>('update-available', callback));
+}
+
+export function onUpdateProgress(callback: (progress: UpdateProgress) => void): Promise<UnlistenFn> {
+  return ensureDeps().then(() => isMock ? mockApi.onUpdateProgress(callback) : tauriListen<UpdateProgress>('update-progress', callback));
+}
+
+export function installUpdate(): Promise<void> {
+  return ensureDeps().then(() => isMock ? mockApi.installUpdate() : tauriInvoke('install_update'));
+}
+
+// ---------------------------------------------------------------------------
 // Session DB queries
 // ---------------------------------------------------------------------------
 

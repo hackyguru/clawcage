@@ -2349,14 +2349,15 @@ fn run_cli(command: &str, cli_env: &[(String, String)], session_index: &SessionI
     std::process::exit(exit_code);
 }
 
+/// Holds a pending update so the frontend can trigger download+install on demand.
+struct PendingUpdate(std::sync::Mutex<Option<tauri_plugin_updater::Update>>);
+
 /// Check for app updates using Tauri's updater plugin.
-/// Uses a native dialog (not the WebView) since the webview gets replaced with
-/// VZVirtualMachineView after VM boot.
+/// Emits `update-available` to the frontend instead of showing a native dialog.
 /// Retries up to 3 times with exponential backoff to handle transient network
 /// failures (GitHub CDN hiccups, rate limits, slow DNS on cold start).
 async fn check_for_update(app: tauri::AppHandle) {
     use tauri_plugin_updater::UpdaterExt;
-    use tauri_plugin_dialog::DialogExt;
 
     let updater = match app.updater() {
         Ok(u) => u,
@@ -2395,24 +2396,52 @@ async fn check_for_update(app: tauri::AppHandle) {
         None => return,
     };
 
-    let current_version = app.package_info().version.to_string();
-    let accepted = app
-        .dialog()
-        .message(format!(
-            "Clawcage {} is available (you have {}). Download and install?",
-            update.version, current_version
-        ))
-        .title("Update Available")
-        .buttons(tauri_plugin_dialog::MessageDialogButtons::OkCancel)
-        .blocking_show();
+    let version = update.version.clone();
+    let body = update.body.clone().unwrap_or_default();
+    info!("update available: v{version}");
 
-    if accepted {
-        if let Err(e) = update.download_and_install(|_, _| {}, || {}).await {
-            error!("update failed: {e:#}");
-        } else {
-            app.restart();
-        }
+    // Store for later download.
+    if let Some(state) = app.try_state::<PendingUpdate>() {
+        *state.0.lock().unwrap() = Some(update);
     }
+
+    // Notify frontend.
+    let _ = app.emit("update-available", serde_json::json!({
+        "version": version,
+        "notes": body,
+    }));
+}
+
+/// Frontend-triggered: download and install the pending update with progress events.
+#[tauri::command]
+async fn install_update(app: tauri::AppHandle) -> Result<(), String> {
+    let update = app
+        .try_state::<PendingUpdate>()
+        .and_then(|s| s.0.lock().unwrap().take())
+        .ok_or_else(|| "no pending update".to_string())?;
+
+    let handle = app.clone();
+    let mut downloaded: usize = 0;
+    update
+        .download_and_install(
+            move |chunk_len, total| {
+                downloaded += chunk_len;
+                let _ = handle.emit(
+                    "update-progress",
+                    serde_json::json!({
+                        "downloaded": downloaded,
+                        "total": total,
+                    }),
+                );
+            },
+            || {},
+        )
+        .await
+        .map_err(|e| format!("{e:#}"))?;
+
+    app.restart();
+    #[allow(unreachable_code)]
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------
@@ -2853,6 +2882,7 @@ fn main() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(AppState::new(session_index))
+        .manage(PendingUpdate(std::sync::Mutex::new(None)))
         .setup(|app| {
             info!("tauri setup hook running");
 
@@ -2961,6 +2991,7 @@ fn main() {
             venvs::delete_venv,
             venvs::start_venv,
             venvs::stop_venv,
+            install_update,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

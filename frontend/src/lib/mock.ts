@@ -713,6 +713,11 @@ export const mockApi = {
   onShellReady: async (_cb: (data: { session_id: number }) => void) => () => {},
   onShellClosed: async (_cb: (data: { session_id: number; exit_code: number }) => void) => () => {},
 
+  // Update
+  onUpdateAvailable: async (_cb: (info: { version: string; notes: string }) => void) => () => {},
+  onUpdateProgress: async (_cb: (progress: { downloaded: number; total: number | null }) => void) => () => {},
+  installUpdate: async () => {},
+
   // Venv management
   listVenvs: async (): Promise<VenvInfo[]> => mockVenvs.map((v) => ({ ...v })),
   createVenv: async (name: string, ephemeral: boolean = false, template: string = 'blank'): Promise<VenvInfo> => {
