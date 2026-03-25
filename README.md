@@ -11,7 +11,6 @@
 <p align="center">
   <a href="https://github.com/hackyguru/clawcage/releases/latest"><img src="https://img.shields.io/github/v/release/hackyguru/clawcage?style=flat-square&color=blue" alt="Release" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-CC%20BY--NC%204.0-blue?style=flat-square" alt="License" /></a>
-  <a href="https://github.com/hackyguru/clawcage/actions"><img src="https://img.shields.io/github/actions/workflow/status/hackyguru/clawcage/ci.yaml?style=flat-square&label=CI" alt="CI" /></a>
   <a href="https://clawcage.hackyguru.com"><img src="https://img.shields.io/badge/website-clawcage.hackyguru.com-blue?style=flat-square" alt="Website" /></a>
 </p>
 
