@@ -141,7 +141,7 @@ export default function StatusBar() {
               </button>
             )}
             <button
-              className="px-3 py-1.5 text-sm rounded-lg font-medium bg-interactive text-white hover:opacity-90 transition disabled:opacity-50"
+              className="px-3 py-1.5 text-sm rounded-lg font-medium bg-interactive text-on-interactive hover:opacity-90 transition disabled:opacity-50"
               onClick={handleInstall}
               disabled={installing}
             >

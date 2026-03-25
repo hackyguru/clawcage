@@ -184,6 +184,21 @@ jobs:
           mkdir -p "$RUNNER_TEMP/private_keys"
           echo "$APPLE_API_KEY_CONTENT" > "$RUNNER_TEMP/private_keys/AuthKey_${{ secrets.APPLE_API_KEY }}.p8"
 
+      # Extract release notes from CHANGELOG.md for the current version.
+      - name: Extract changelog
+        id: changelog
+        run: |
+          VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
+          # Extract the section between this version's header and the next
+          NOTES=$(awk "/^## \\[$VERSION\\]/{found=1; next} /^## \\[/{if(found) exit} found{print}" CHANGELOG.md)
+          if [ -z "$NOTES" ]; then
+            NOTES="See the assets to download this version and install."
+          fi
+          # Use GitHub Actions delimiter for multiline output
+          echo "notes<<CHANGELOG_EOF" >> "$GITHUB_OUTPUT"
+          echo "$NOTES" >> "$GITHUB_OUTPUT"
+          echo "CHANGELOG_EOF" >> "$GITHUB_OUTPUT"
+
       # Build thin DMG: exclude rootfs from bundle (downloaded on first launch).
       # The TAURI_CONFIG override ensures only vmlinuz, initrd.img, and B3SUMS
       # are bundled, keeping the DMG under ~25 MB.
@@ -199,7 +214,7 @@ jobs:
         with:
           tagName: v__VERSION__
           releaseName: 'Clawcage v__VERSION__'
-          releaseBody: 'See the assets to download this version and install.'
+          releaseBody: ${{ steps.changelog.outputs.notes }}
           releaseDraft: true
           prerelease: false
           projectPath: crates/clawcage-app
