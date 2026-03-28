@@ -756,6 +756,19 @@ pub fn settings_to_domain_policy(resolved: &[ResolvedSetting]) -> DomainPolicy {
         }
     }
 
+    // If "allow all domains" is enabled, skip all filtering and allow everything.
+    let allow_all = resolved
+        .iter()
+        .find(|s| s.id == "network.allow_all_domains")
+        .and_then(|s| match &s.effective_value {
+            SettingValue::Bool(b) => Some(*b),
+            _ => None,
+        })
+        .unwrap_or(false);
+    if allow_all {
+        return DomainPolicy::new(&[], &[], Action::Allow);
+    }
+
     // Custom allow/block lists from network.custom_allow / network.custom_block.
     // Block takes priority over allow for overlapping domains.
     let custom_allow = resolved

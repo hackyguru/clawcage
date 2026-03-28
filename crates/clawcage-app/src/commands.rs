@@ -704,10 +704,10 @@ async fn port_forward_accept_loop(
         let _ = tcp_stream.set_nodelay(true);
         tracing::debug!("port-forward({guest_port}): client from {peer}");
 
-        // Take a relay vsock fd from the guest (wait up to 5s).
+        // Take a relay vsock fd from the guest (wait up to 10s).
         let relay_fd = {
             let mut rx = port_state.relay_rx.lock().await;
-            match tokio::time::timeout(std::time::Duration::from_secs(5), rx.recv()).await {
+            match tokio::time::timeout(std::time::Duration::from_secs(10), rx.recv()).await {
                 Ok(Some(fd)) => fd,
                 Ok(None) => {
                     tracing::warn!("port-forward({guest_port}): relay channel closed");

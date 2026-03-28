@@ -378,8 +378,10 @@ fn run_watcher() {
 // ── Port-forwarding relay (Linux only) ────────────────────────────────
 
 /// Number of relay threads that continuously offer bridge connections.
+/// A browser loading a single page can open 6-10 concurrent connections,
+/// so we need enough idle workers to avoid relay timeouts.
 #[cfg(target_os = "linux")]
-const RELAY_THREAD_COUNT: usize = 4;
+const RELAY_THREAD_COUNT: usize = 16;
 
 /// Run a single relay worker: connect to host vsock port 5007, read
 /// a 2-byte BE target port, connect to localhost:port in the guest,
@@ -411,8 +413,11 @@ fn relay_worker(id: usize) {
         let target_port = u16::from_be_bytes(port_buf);
         eprintln!("[relay-{id}] forwarding to localhost:{target_port}");
 
-        // Connect to the target port inside the guest.
-        let mut tcp_stream = match TcpStream::connect(("127.0.0.1", target_port)) {
+        // Connect to the target port inside the guest (5s timeout to avoid stuck workers).
+        let mut tcp_stream = match TcpStream::connect_timeout(
+            &std::net::SocketAddr::from(([127, 0, 0, 1], target_port)),
+            std::time::Duration::from_secs(5),
+        ) {
             Ok(s) => s,
             Err(e) => {
                 eprintln!("[relay-{id}] TCP connect to localhost:{target_port} failed: {e}");
@@ -450,7 +455,8 @@ fn relay_worker(id: usize) {
                     Err(_) => break,
                 }
             }
-            let _ = tcp.shutdown(std::net::Shutdown::Write);
+            // Shut down both TCP directions so the other thread wakes up too.
+            let _ = tcp.shutdown(std::net::Shutdown::Both);
         });
 
         // TCP -> vsock direction (this thread)
@@ -470,6 +476,9 @@ fn relay_worker(id: usize) {
             }
         }
 
+        // Shut down the vsock fd so Thread 1's read() returns immediately
+        // instead of blocking forever when the browser drops the connection.
+        unsafe { nix::libc::shutdown(vsock_fd, nix::libc::SHUT_RDWR); }
         let _ = join_v2t.join();
         unsafe { nix::libc::close(vsock_fd); }
     }

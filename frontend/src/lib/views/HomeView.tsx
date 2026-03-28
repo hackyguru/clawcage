@@ -335,6 +335,8 @@ export default function HomeView() {
   const [hwRam, setHwRam] = useState(HW_DEFAULTS.ram);
   const [hwDisk, setHwDisk] = useState(HW_DEFAULTS.disk);
   const [apiKeys, setApiKeys] = useState<Record<string, string>>({});
+  const [allowAllDomains, setAllowAllDomains] = useState(false);
+  const [mitmEnabled, setMitmEnabled] = useState(true);
   const [deleteTarget, setDeleteTarget] = useState<VenvInfo | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -355,6 +357,8 @@ export default function HomeView() {
     setNewName('');
     setSelectedTemplate(TEMPLATES[0]);
     setNewEphemeral(TEMPLATES[0].defaultEphemeral);
+    setAllowAllDomains(false);
+    setMitmEnabled(true);
     setHwCpu(HW_DEFAULTS.cpu);
     setHwRam(HW_DEFAULTS.ram);
     setHwDisk(HW_DEFAULTS.disk);
@@ -372,6 +376,9 @@ export default function HomeView() {
         if (hwCpu !== HW_DEFAULTS.cpu) updateSetting('vm.cpu_count', hwCpu, venv.id);
         if (hwRam !== HW_DEFAULTS.ram) updateSetting('vm.ram_gb', hwRam, venv.id);
         if (hwDisk !== HW_DEFAULTS.disk) updateSetting('vm.scratch_disk_size_gb', hwDisk, venv.id);
+        // Save network settings if changed from defaults.
+        if (allowAllDomains) await updateSetting('network.allow_all_domains', true, venv.id);
+        if (!mitmEnabled) await updateSetting('network.proxy_enabled', false, venv.id);
         // Save per-venv API keys and auto-enable the provider.
         for (const provider of PROVIDERS) {
           const key = apiKeys[provider.id]?.trim();
@@ -386,7 +393,7 @@ export default function HomeView() {
     } finally {
       setSubmitting(false);
     }
-  }, [newName, newEphemeral, selectedTemplate, hwCpu, hwRam, hwDisk, apiKeys, resetForm, submitting]);
+  }, [newName, newEphemeral, allowAllDomains, mitmEnabled, selectedTemplate, hwCpu, hwRam, hwDisk, apiKeys, resetForm, submitting]);
 
   const handleCloseCreate = useCallback(() => {
     setCreating(false);
@@ -449,6 +456,30 @@ export default function HomeView() {
               <span className="text-sm">Ephemeral</span>
               <span className="text-[11px] text-content/40">
                 {newEphemeral ? 'Files are wiped on every restart' : 'Files persist across restarts'}
+              </span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                className="toggle-switch"
+                checked={allowAllDomains}
+                onChange={(e) => setAllowAllDomains(e.target.checked)}
+              />
+              <span className="text-sm">Allow all domains</span>
+              <span className="text-[11px] text-content/40">
+                {allowAllDomains ? 'Unrestricted internet access' : 'Only allowed domains'}
+              </span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                className="toggle-switch"
+                checked={mitmEnabled}
+                onChange={(e) => setMitmEnabled(e.target.checked)}
+              />
+              <span className="text-sm">MITM Proxy</span>
+              <span className="text-[11px] text-content/40">
+                {mitmEnabled ? 'TLS traffic is inspected' : 'Traffic passes through transparently'}
               </span>
             </label>
             <HardwareSection

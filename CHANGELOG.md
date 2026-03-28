@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.5] - 2026-03-28
+
+### Added
+- "Allow all domains" toggle in environment creation and Settings > Network — bypasses domain allow/block lists for unrestricted internet access
+- "MITM Proxy" toggle in environment creation — disable TLS inspection per-venv at create time
+
+### Fixed
+- Port forwarding relay workers no longer get permanently stuck when the browser drops a connection (e.g. page refresh) — vsock fd is now shut down to wake blocked readers
+- Increased port forwarding relay workers from 4 to 16 to handle concurrent browser connections (dashboards, SPAs)
+- Increased host relay timeout from 5s to 10s and added 5s TCP connect timeout on guest side to prevent stuck workers
+
 ## [0.9.4] - 2026-03-25
 
 ### Fixed

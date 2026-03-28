@@ -405,6 +405,12 @@ default = "deny"
 [settings.network.default_action.meta]
 choices = ["allow", "deny"]
 
+[settings.network.allow_all_domains]
+name = "Allow all domains"
+description = "When enabled, all outbound traffic is permitted regardless of domain allow/block lists. Use for environments that need unrestricted internet access."
+type = "bool"
+default = false
+
 [settings.network.proxy_enabled]
 name = "Enable MITM proxy"
 description = "When enabled, the proxy terminates TLS and inspects HTTP traffic for telemetry and policy enforcement. When disabled, traffic is tunneled transparently (domain-level allow/deny still applies via SNI)."
