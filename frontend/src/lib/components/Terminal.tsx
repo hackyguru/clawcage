@@ -4,6 +4,8 @@ import type { ClawcageTerminal as ClawcageTerminalElement } from '../../componen
 import { serialInput, terminalResize, terminalPoll, onTerminalSourceChanged, vmStatus } from '../api';
 import { getTheme } from '../stores/theme';
 import { setTerminalRenderer } from '../stores/vm';
+import { getActiveVenv } from '../stores/venvs';
+import { getTemplate } from '../templates';
 
 // Side-effect: register the web component
 import '../../components/clawcage-terminal';
@@ -19,6 +21,9 @@ export default function Terminal({ sessionId = 0 }: TerminalProps) {
   const inputTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isMock, setIsMock] = useState(false);
   const [booting, setBooting] = useState(true);
+  const [settingUp, setSettingUp] = useState(false);
+  const settingUpRef = useRef(false);
+  const [setupName, setSetupName] = useState('');
   const [disconnected, setDisconnected] = useState(false);
   const failCountRef = useRef(0);
   const DISCONNECT_THRESHOLD = 8; // ~2s of consecutive failures
@@ -98,6 +103,10 @@ export default function Terminal({ sessionId = 0 }: TerminalProps) {
     // and switch to direct pass-through.  This works regardless of whether
     // the clear-screen arrives before or after the vsock event.
     const CLEAR_SEQ = [0x1b, 0x5b, 0x32, 0x4a]; // \x1b[2J
+    // OSC markers for template setup: \x1b]777;clawcage-setup;start\x1b\\ and ;done
+    const SETUP_START = 'clawcage-setup;start';
+    const SETUP_DONE = 'clawcage-setup;done';
+    const decoder = new TextDecoder();
 
     function scanForClearScreen(data: number[]): number {
       for (let i = 0; i <= data.length - CLEAR_SEQ.length; i++) {
@@ -139,11 +148,43 @@ export default function Terminal({ sessionId = 0 }: TerminalProps) {
             if (data.length === 0) continue;
 
             if (phaseRef.current === 'ready') {
-              termEl.write(new Uint8Array(data));
+              // Scan for setup markers in the stream
+              const text = decoder.decode(new Uint8Array(data), { stream: true });
+              if (text.includes(SETUP_START)) {
+                const venv = getActiveVenv();
+                const tpl = venv ? getTemplate(venv.template) : null;
+                setSetupName(tpl?.name ?? 'Template');
+                settingUpRef.current = true;
+                setSettingUp(true);
+              }
+              if (text.includes(SETUP_DONE)) {
+                settingUpRef.current = false;
+                setSettingUp(false);
+                // Clear and show fresh prompt
+                termEl.clear();
+                termEl.fit();
+                serialInput('\n', sessionId).catch(() => {});
+              }
+              // Don't write setup output to terminal — show overlay instead
+              if (!settingUpRef.current && !text.includes(SETUP_START)) {
+                termEl.write(new Uint8Array(data));
+              }
               await new Promise((r) => requestAnimationFrame(r));
             } else {
               // Both 'booting' and 'buffering': accumulate and scan
               postBootBuf.current.push(...data);
+
+              // Check for setup start marker in the buffered data
+              const bufText = decoder.decode(new Uint8Array(postBootBuf.current), { stream: true });
+              if (bufText.includes(SETUP_START) && !settingUpRef.current) {
+                const venv = getActiveVenv();
+                const tpl = venv ? getTemplate(venv.template) : null;
+                setSetupName(tpl?.name ?? 'Template');
+                settingUpRef.current = true;
+                setSettingUp(true);
+                setBooting(false);
+              }
+
               const clearIdx = scanForClearScreen(postBootBuf.current);
               if (clearIdx >= 0) {
                 // Found clear-screen — write from that byte onwards
@@ -153,7 +194,10 @@ export default function Terminal({ sessionId = 0 }: TerminalProps) {
                 postBootBuf.current = [];
                 termEl.clear();
                 termEl.fit();
-                termEl.write(fromClear);
+                // Don't write if we're in setup mode
+                if (!settingUpRef.current) {
+                  termEl.write(fromClear);
+                }
               } else if (postBootBuf.current.length > 256 * 1024) {
                 // Cap buffer at 256KB to prevent unbounded growth
                 postBootBuf.current = postBootBuf.current.slice(-CLEAR_SEQ.length);
@@ -230,10 +274,17 @@ export default function Terminal({ sessionId = 0 }: TerminalProps) {
         ref={termRef as any}
         class="block h-full w-full"
       />
-      {booting && !isMock && (
+      {booting && !settingUp && !isMock && (
         <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-base-300">
           <span className="spinner w-6 h-6 text-interactive mb-3" />
           <span className="text-sm text-content/50">Starting environment...</span>
+        </div>
+      )}
+      {settingUp && (
+        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-base-300">
+          <span className="spinner w-6 h-6 text-interactive mb-3" />
+          <span className="text-sm text-content/50">Setting up {setupName}...</span>
+          <span className="text-xs text-content/30 mt-1">This may take a minute</span>
         </div>
       )}
       {disconnected && !booting && (

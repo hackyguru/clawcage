@@ -2,11 +2,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useVenvs, loadVenvs, createVenvAction, deleteVenvAction, startVenvAction, stopVenvAction, openVenv } from '../stores/venvs';
 import { useSidebar } from '../stores/sidebar';
-import { updateSetting } from '../api';
+import { updateSetting, saveVenvFile } from '../api';
 import { PlusIcon, PlayIcon, StopIcon, TrashIcon, TerminalIcon, ChevronRight, ChevronDown } from '../icons/Icons';
 import Dialog, { ConfirmDialog } from '../components/Dialog';
 import { TEMPLATES, getTemplate } from '../templates';
-import type { VenvInfo, VenvTemplate } from '../types';
+import type { VenvInfo, VenvTemplate, TemplateFormField } from '../types';
 
 // Hardware defaults (must match config/defaults.toml)
 const HW_DEFAULTS = { cpu: 4, ram: 4, disk: 16 };
@@ -187,6 +187,116 @@ function ApiKeysSection({ keys, onKey }: {
   );
 }
 
+/** Renders a single template form field. */
+function TemplateField({ field, value, onChange, formValues }: {
+  field: TemplateFormField;
+  value: string | boolean;
+  onChange: (value: string | boolean) => void;
+  formValues: Record<string, string | boolean>;
+}) {
+  // Conditional visibility: hide if the condition's field does NOT equal the target.
+  // (inverted: show when the condition field is NOT 'skip')
+  if (field.condition) {
+    const depVal = formValues[field.condition.field];
+    if (field.condition.equals === 'skip') {
+      // Special: "show when NOT skip"
+      if (depVal === 'skip' || depVal === undefined) return null;
+    } else if (depVal !== field.condition.equals) {
+      return null;
+    }
+  }
+
+  if (field.type === 'checkbox') {
+    return (
+      <label className="flex items-center gap-2 cursor-pointer select-none">
+        <input
+          type="checkbox"
+          className="toggle-switch"
+          checked={!!value}
+          onChange={(e) => onChange(e.target.checked)}
+        />
+        <span className="text-sm">{field.label}</span>
+        {field.description && <span className="text-[11px] text-content/40">{field.description}</span>}
+      </label>
+    );
+  }
+
+  if (field.type === 'select') {
+    return (
+      <div>
+        <label className="text-xs text-content/50 mb-1 block">{field.label}</label>
+        <select
+          className="w-full px-2.5 py-1.5 text-sm border border-edge rounded-md bg-surface focus:outline-none focus:ring-2 focus:ring-interactive/40"
+          value={String(value)}
+          onChange={(e) => onChange(e.target.value)}
+        >
+          {field.options?.map((opt) => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+      </div>
+    );
+  }
+
+  // text / password
+  return (
+    <div>
+      <label className="text-xs text-content/50 mb-1 block">{field.label}</label>
+      <input
+        type={field.type === 'password' ? 'password' : 'text'}
+        className="w-full font-mono text-xs px-2.5 py-1.5 border border-edge rounded-md bg-surface focus:outline-none focus:ring-2 focus:ring-interactive/40"
+        placeholder={field.description ?? ''}
+        value={String(value ?? '')}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    </div>
+  );
+}
+
+/** Collapsible template configuration section. */
+function TemplateFormSection({ fields, values, onValue }: {
+  fields: TemplateFormField[];
+  values: Record<string, string | boolean>;
+  onValue: (id: string, value: string | boolean) => void;
+}) {
+  const [open, setOpen] = useState(true);
+  const filled = fields.filter((f) => {
+    const v = values[f.id];
+    return v !== undefined && v !== '' && v !== false && v !== f.default;
+  }).length;
+
+  return (
+    <div className="border border-edge rounded-lg overflow-hidden">
+      <button
+        type="button"
+        className="flex items-center gap-2 w-full px-3 py-2 text-left hover:bg-surface-alt transition-colors"
+        onClick={() => setOpen(!open)}
+      >
+        {open ? <ChevronDown className="size-3 text-content/40" /> : <ChevronRight className="size-3 text-content/40" />}
+        <span className="text-xs font-medium text-content/60">Setup</span>
+        {!open && (
+          <span className="text-[10px] text-content/30 ml-auto">
+            {filled > 0 ? `${filled} configured` : 'defaults'}
+          </span>
+        )}
+      </button>
+      {open && (
+        <div className="flex flex-col gap-2.5 px-3 pb-3 pt-1">
+          {fields.map((field) => (
+            <TemplateField
+              key={field.id}
+              field={field}
+              value={values[field.id] ?? field.default ?? ''}
+              onChange={(v) => onValue(field.id, v)}
+              formValues={values}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** Collapsible hardware settings section. */
 function HardwareSection({ cpu, ram, disk, onCpu, onRam, onDisk }: {
   cpu: number; ram: number; disk: number;
@@ -335,6 +445,7 @@ export default function HomeView() {
   const [hwRam, setHwRam] = useState(HW_DEFAULTS.ram);
   const [hwDisk, setHwDisk] = useState(HW_DEFAULTS.disk);
   const [apiKeys, setApiKeys] = useState<Record<string, string>>({});
+  const [formValues, setFormValues] = useState<Record<string, string | boolean>>({});
   const [allowAllDomains, setAllowAllDomains] = useState(false);
   const [mitmEnabled, setMitmEnabled] = useState(true);
   const [deleteTarget, setDeleteTarget] = useState<VenvInfo | null>(null);
@@ -347,6 +458,15 @@ export default function HomeView() {
   const handleSelectTemplate = useCallback((t: VenvTemplate) => {
     setSelectedTemplate(t);
     setNewEphemeral(t.defaultEphemeral);
+    // Init form values from template field defaults
+    const defaults: Record<string, string | boolean> = {};
+    for (const f of t.setupForm ?? []) {
+      if (f.default !== undefined) defaults[f.id] = f.default;
+    }
+    setFormValues(defaults);
+    // Apply template network defaults
+    setAllowAllDomains(t.defaultSettings?.['network.allow_all_domains'] === true);
+    setMitmEnabled(t.defaultSettings?.['network.proxy_enabled'] !== false);
   }, []);
 
   const setApiKey = useCallback((id: string, value: string) => {
@@ -357,6 +477,7 @@ export default function HomeView() {
     setNewName('');
     setSelectedTemplate(TEMPLATES[0]);
     setNewEphemeral(TEMPLATES[0].defaultEphemeral);
+    setFormValues({});
     setAllowAllDomains(false);
     setMitmEnabled(true);
     setHwCpu(HW_DEFAULTS.cpu);
@@ -376,9 +497,29 @@ export default function HomeView() {
         if (hwCpu !== HW_DEFAULTS.cpu) updateSetting('vm.cpu_count', hwCpu, venv.id);
         if (hwRam !== HW_DEFAULTS.ram) updateSetting('vm.ram_gb', hwRam, venv.id);
         if (hwDisk !== HW_DEFAULTS.disk) updateSetting('vm.scratch_disk_size_gb', hwDisk, venv.id);
-        // Save network settings if changed from defaults.
+        // Save template default settings + network toggles.
+        if (selectedTemplate.defaultSettings) {
+          for (const [key, val] of Object.entries(selectedTemplate.defaultSettings)) {
+            await updateSetting(key, val, venv.id);
+          }
+        }
         if (allowAllDomains) await updateSetting('network.allow_all_domains', true, venv.id);
         if (!mitmEnabled) await updateSetting('network.proxy_enabled', false, venv.id);
+        // Auto-allow domains required by the template.
+        if (selectedTemplate.requiredDomains?.length) {
+          await updateSetting('network.custom_allow', selectedTemplate.requiredDomains.join(', '), venv.id);
+        }
+        // Save template setup script + form values for boot-time execution.
+        if (selectedTemplate.setupScript) {
+          await saveVenvFile(venv.id, 'setup.sh', selectedTemplate.setupScript);
+          // Save form values as env file (KEY=VALUE lines) for the agent to source.
+          const envLines = Object.entries(formValues)
+            .filter(([, v]) => v !== '' && v !== undefined)
+            .map(([k, v]) => `CLAWCAGE_FORM_${k}=${String(v)}`);
+          if (envLines.length > 0) {
+            await saveVenvFile(venv.id, 'setup.env', envLines.join('\n'));
+          }
+        }
         // Save per-venv API keys and auto-enable the provider.
         for (const provider of PROVIDERS) {
           const key = apiKeys[provider.id]?.trim();
@@ -393,7 +534,7 @@ export default function HomeView() {
     } finally {
       setSubmitting(false);
     }
-  }, [newName, newEphemeral, allowAllDomains, mitmEnabled, selectedTemplate, hwCpu, hwRam, hwDisk, apiKeys, resetForm, submitting]);
+  }, [newName, newEphemeral, allowAllDomains, mitmEnabled, selectedTemplate, hwCpu, hwRam, hwDisk, apiKeys, formValues, resetForm, submitting]);
 
   const handleCloseCreate = useCallback(() => {
     setCreating(false);
@@ -458,6 +599,13 @@ export default function HomeView() {
                 {newEphemeral ? 'Files are wiped on every restart' : 'Files persist across restarts'}
               </span>
             </label>
+            {selectedTemplate.setupForm && selectedTemplate.setupForm.length > 0 && (
+              <TemplateFormSection
+                fields={selectedTemplate.setupForm}
+                values={formValues}
+                onValue={(id, v) => setFormValues((prev) => ({ ...prev, [id]: v }))}
+              />
+            )}
             <label className="flex items-center gap-2 cursor-pointer select-none">
               <input
                 type="checkbox"

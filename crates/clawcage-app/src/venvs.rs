@@ -115,6 +115,23 @@ pub async fn create_venv(name: String, ephemeral: bool, template: Option<String>
     .map_err(|e| format!("spawn_blocking: {e}"))?
 }
 
+/// Save a file into a venv's host-side data directory (~/.clawcage/venvs/<id>/).
+#[tauri::command]
+pub async fn save_venv_file(id: String, filename: String, content: String) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || {
+        let home = std::env::var("HOME").map_err(|_| "HOME not set".to_string())?;
+        let dir = std::path::PathBuf::from(home)
+            .join(".clawcage")
+            .join("venvs")
+            .join(&id);
+        std::fs::create_dir_all(&dir).map_err(|e| format!("create dir: {e}"))?;
+        std::fs::write(dir.join(filename), content).map_err(|e| format!("write file: {e}"))?;
+        Ok(())
+    })
+    .await
+    .map_err(|e| format!("spawn_blocking: {e}"))?
+}
+
 #[tauri::command]
 pub async fn delete_venv(id: String, app_handle: tauri::AppHandle) -> Result<(), String> {
     // If this venv is currently running, stop it on the main thread first.

@@ -126,6 +126,19 @@ export interface FileDownloadProgress {
   total: number;
 }
 
+/** A form field in a template's setup configuration. */
+export interface TemplateFormField {
+  id: string;
+  label: string;
+  description?: string;
+  type: 'checkbox' | 'text' | 'password' | 'select';
+  options?: { value: string; label: string }[];
+  default?: string | boolean;
+  required?: boolean;
+  /** Only show this field when another field matches a value. */
+  condition?: { field: string; equals: string | boolean };
+}
+
 /** A venv creation template. */
 export interface VenvTemplate {
   id: string;
@@ -134,6 +147,24 @@ export interface VenvTemplate {
   icon: string;
   /** Default ephemeral setting for this template. */
   defaultEphemeral: boolean;
+  /** Shell script to run during boot (before bash starts). */
+  setupScript?: string;
+  /** Domains to auto-allow in the venv's network policy. */
+  requiredDomains?: string[];
+  /** Per-venv settings to auto-apply on creation. */
+  defaultSettings?: Record<string, boolean | number | string>;
+  /** Form fields shown in the create dialog for template configuration.
+   *  Values are passed to the setup script as CLAWCAGE_FORM_<id> env vars. */
+  setupForm?: TemplateFormField[];
+}
+
+/** A directory entry from the guest VM. */
+export interface DirEntry {
+  name: string;
+  is_dir: boolean;
+  size: number;
+  mode: number;
+  modified: number;
 }
 
 /** A virtual environment (VM configuration + lifecycle). */

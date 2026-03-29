@@ -16,6 +16,7 @@ async function ensureDeps() {
 import type {
   ConfigIssue,
   DetectedPort,
+  DirEntry,
   DownloadProgress,
   FileDownloadProgress,
   ForwardedPort,
@@ -217,6 +218,10 @@ export function createVenv(name: string, ephemeral: boolean, template: string = 
   return ensureDeps().then(() => isMock ? mockApi.createVenv(name, ephemeral, template) : tauriInvoke<VenvInfo>('create_venv', { name, ephemeral, template }));
 }
 
+export function saveVenvFile(id: string, filename: string, content: string): Promise<void> {
+  return ensureDeps().then(() => isMock ? Promise.resolve() : tauriInvoke<void>('save_venv_file', { id, filename, content }));
+}
+
 export function deleteVenv(id: string): Promise<void> {
   return ensureDeps().then(() => isMock ? mockApi.deleteVenv(id) : tauriInvoke<void>('delete_venv', { id }));
 }
@@ -284,6 +289,11 @@ export function onSystemMetrics(callback: (metrics: SystemMetrics) => void): Pro
 /** Download a file from the guest VM to a host path. */
 export function downloadFile(guestPath: string, hostPath: string): Promise<void> {
   return ensureDeps().then(() => isMock ? mockApi.downloadFile(guestPath, hostPath) : tauriInvoke('download_file', { guestPath, hostPath }));
+}
+
+/** List directory contents in the guest VM. */
+export function listDir(guestPath: string): Promise<DirEntry[]> {
+  return ensureDeps().then(() => isMock ? mockApi.listDir(guestPath) : tauriInvoke<DirEntry[]>('list_dir', { guestPath }));
 }
 
 /** Read a file from the guest VM and return its content as a string. */

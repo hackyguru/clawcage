@@ -925,6 +925,54 @@ pub async fn download_file(
 // File read/save for inline editor
 // ---------------------------------------------------------------------------
 
+/// List directory contents in the guest VM.
+#[tauri::command]
+pub async fn list_dir(
+    guest_path: String,
+    state: State<'_, AppState>,
+) -> Result<Vec<clawcage_core::clawcage_proto::DirEntry>, String> {
+    use std::sync::atomic::Ordering;
+
+    let vm_id = active_vm_id(&state)?;
+
+    let (control_fd, host_state) = {
+        let vms = state.vms.lock().unwrap();
+        let instance = vms.get(&vm_id).ok_or("no VM running")?;
+        let fd = instance.vsock_control_fd.ok_or("vsock control not connected")?;
+        (fd, instance.state_machine.state())
+    };
+
+    let id = state.download_id_counter.fetch_add(1, Ordering::Relaxed);
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    state.pending_downloads.lock().unwrap().insert(id, tx);
+
+    let msg = HostToGuest::ListDir { id, path: guest_path.clone() };
+    validate_host_msg(&msg, host_state)
+        .map_err(|e| format!("{e}"))?;
+    let frame = encode_host_msg(&msg).map_err(|e| format!("{e}"))?;
+
+    let mut file = clone_fd(control_fd)
+        .map_err(|e| format!("clone control fd failed: {e}"))?;
+    tokio::task::spawn_blocking(move || {
+        file.write_all(&frame)
+            .map_err(|e| format!("write ListDir failed: {e}"))
+    })
+    .await
+    .map_err(|e| format!("spawn_blocking: {e}"))??;
+
+    let data = tokio::time::timeout(std::time::Duration::from_secs(10), rx)
+        .await
+        .map_err(|_| {
+            state.pending_downloads.lock().unwrap().remove(&id);
+            "directory listing timed out".to_string()
+        })?
+        .map_err(|_| "list_dir channel closed".to_string())?
+        .map_err(|e| e)?;
+
+    serde_json::from_slice(&data)
+        .map_err(|e| format!("failed to parse dir listing: {e}"))
+}
+
 /// Read a file from the guest VM and return its content as a UTF-8 string.
 ///
 /// Returns the file content for display/editing in the frontend. Limited to

@@ -47,6 +47,19 @@ _DIM='\033[0;90m'
 _BOLD='\033[1;37m'
 _RST='\033[0m'
 
+# One-shot template setup: if present, run BEFORE the banner.
+# The start marker tells the frontend to show a "Setting up..." overlay
+# and suppress all terminal output until the done marker.
+_CLAWCAGE_SETUP=0
+if [ -f /root/.clawcage-setup-rc ]; then
+    _CLAWCAGE_SETUP=1
+    printf '\033]777;clawcage-setup;start\033\\'
+    printf '\033[2J\033[H'
+    bash /root/.clawcage-setup-rc
+    rm -f /root/.clawcage-setup-rc
+    printf '\033]777;clawcage-setup;done\033\\'
+fi
+
 # Clear screen and show welcome banner
 printf '\033[2J\033[H'
 if [ -f /etc/clawcage-banner.txt ]; then
@@ -93,3 +106,4 @@ fi
 unset _BLUE _PURPLE _DIM _BOLD _RST
 echo ""
 ulimit -n 65536
+

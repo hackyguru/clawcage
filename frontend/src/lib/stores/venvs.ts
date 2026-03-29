@@ -137,6 +137,11 @@ export function closeVenv() {
   emit();
 }
 
+/** Imperative access to the active venv (non-hook, no re-renders). */
+export function getActiveVenv(): VenvInfo | null {
+  return snapshot.activeVenv;
+}
+
 export function useVenvs() {
   return useSyncExternalStore(subscribe, () => snapshot);
 }

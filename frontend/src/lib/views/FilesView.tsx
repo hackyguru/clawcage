@@ -1,11 +1,10 @@
-// FilesView -- tree-based file browser with CodeMirror editor
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { queryDb, queryAll } from '../db';
-import { FILE_TREE_SQL, FILE_TREE_SEARCH_SQL } from '../sql';
-import { readFile, saveFile } from '../api';
+// FilesView -- real file browser with lazy directory loading + CodeMirror editor
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { listDir, readFile, saveFile } from '../api';
 import { showToast } from '../stores/toast';
 import { useTheme } from '../stores/theme';
-import { FolderIcon, FileIcon, ChevronRight, ChevronDown, GitBranchIcon } from '../icons/Icons';
+import { FolderIcon, FileIcon, ChevronRight, ChevronDown } from '../icons/Icons';
+import type { DirEntry } from '../types';
 
 // CodeMirror imports
 import { EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter, drawSelection, rectangularSelection } from '@codemirror/view';
@@ -28,39 +27,21 @@ import { yaml } from '@codemirror/lang-yaml';
 import { sql } from '@codemirror/lang-sql';
 import { tags } from '@lezer/highlight';
 
-interface FileEntry {
-  path: string;
-  action: string;
-  size: number | null;
-  timestamp: string;
-}
+// ── Types ─────────────────────────────────────────────────────────
 
-/** A node in the file tree (either a folder or a file). */
 interface TreeNode {
   name: string;
   path: string;
   isDir: boolean;
-  children: TreeNode[];
-  /** Only present for file nodes */
-  entry?: FileEntry;
-  /** True if this directory contains a .git subfolder */
-  hasGit?: boolean;
+  size: number;
+  modified: number;
+  /** Lazily loaded children (null = not yet loaded). */
+  children: TreeNode[] | null;
+  loading?: boolean;
 }
 
-/** Badge classes per action using design system tokens. */
-const ACTION_BADGE: Record<string, string> = {
-  created: 'bg-file-created/15 text-file-created',
-  modified: 'bg-file-modified/15 text-file-modified',
-  deleted: 'bg-file-deleted/15 text-file-deleted',
-};
+// ── Helpers ───────────────────────────────────────────────────────
 
-const ACTION_LABELS: Record<string, string> = {
-  created: 'new',
-  modified: 'mod',
-  deleted: 'del',
-};
-
-/** Detect language extension from file name. */
 function langFromFilename(name: string) {
   const ext = name.split('.').pop()?.toLowerCase();
   switch (ext) {
@@ -79,13 +60,41 @@ function langFromFilename(name: string) {
     case 'xml': case 'svg': case 'plist': return xml();
     case 'yml': case 'yaml': return yaml();
     case 'sql': return sql();
-    case 'toml': return yaml(); // close enough for highlighting
-    case 'sh': case 'bash': case 'zsh': return undefined; // no shell lang yet
+    case 'toml': return yaml();
     default: return undefined;
   }
 }
 
-// ── CodeMirror themes ──────────────────────────────────────────
+function formatSize(bytes: number): string {
+  if (bytes === 0) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function formatTime(epoch: number): string {
+  if (!epoch) return '';
+  const d = new Date(epoch * 1000);
+  const now = new Date();
+  const diff = now.getTime() - d.getTime();
+  if (diff < 60_000) return 'just now';
+  if (diff < 3600_000) return `${Math.floor(diff / 60_000)}m ago`;
+  if (diff < 86400_000) return `${Math.floor(diff / 3600_000)}h ago`;
+  return d.toLocaleDateString();
+}
+
+function entriesToNodes(parentPath: string, entries: DirEntry[]): TreeNode[] {
+  return entries.map((e) => ({
+    name: e.name,
+    path: parentPath === '/' ? `/${e.name}` : `${parentPath}/${e.name}`,
+    isDir: e.is_dir,
+    size: e.size,
+    modified: e.modified,
+    children: e.is_dir ? null : null,
+  }));
+}
+
+// ── CodeMirror themes ─────────────────────────────────────────────
 
 const darkTheme = EditorView.theme({
   '&': { backgroundColor: 'transparent', color: '#c9d1d9', fontSize: '12px' },
@@ -165,79 +174,7 @@ const lightHighlight = HighlightStyle.define([
   { tag: tags.strong, fontWeight: 'bold' },
 ]);
 
-/** Build a tree structure from flat file paths. */
-function buildTree(entries: FileEntry[]): TreeNode[] {
-  const root: TreeNode = { name: '', path: '', isDir: true, children: [] };
-
-  for (const entry of entries) {
-    const parts = entry.path.replace(/^\//, '').split('/');
-    let current = root;
-
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i];
-      const isLast = i === parts.length - 1;
-      const fullPath = '/' + parts.slice(0, i + 1).join('/');
-
-      let child = current.children.find((c) => c.name === part);
-      if (!child) {
-        child = {
-          name: part,
-          path: fullPath,
-          isDir: !isLast,
-          children: [],
-          entry: isLast ? entry : undefined,
-        };
-        current.children.push(child);
-      }
-      if (isLast && !child.entry) {
-        child.entry = entry;
-        child.isDir = false;
-      }
-      current = child;
-    }
-  }
-
-  // Mark directories that contain a .git entry, then remove the .git node.
-  function markGitRepos(nodes: TreeNode[]) {
-    for (const n of nodes) {
-      if (n.isDir) {
-        const gitIdx = n.children.findIndex((c) => c.name === '.git');
-        if (gitIdx !== -1) {
-          n.hasGit = true;
-          n.children.splice(gitIdx, 1);
-        }
-        markGitRepos(n.children);
-      }
-    }
-  }
-  markGitRepos(root.children);
-
-  // Also check root-level .git (repo at /root itself).
-  const rootGitIdx = root.children.findIndex((c) => c.name === '.git');
-  if (rootGitIdx !== -1) {
-    root.hasGit = true;
-    root.children.splice(rootGitIdx, 1);
-  }
-
-  function sortNodes(nodes: TreeNode[]) {
-    nodes.sort((a, b) => {
-      if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
-      return a.name.localeCompare(b.name);
-    });
-    for (const n of nodes) {
-      if (n.children.length > 0) sortNodes(n.children);
-    }
-  }
-  sortNodes(root.children);
-  return root.children;
-}
-
-function formatSize(bytes: number | null): string {
-  if (bytes == null) return '';
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
+// ── Tree row ──────────────────────────────────────────────────────
 
 function TreeRow({
   node,
@@ -246,6 +183,7 @@ function TreeRow({
   onToggle,
   selectedPath,
   onSelect,
+  showDotfiles,
 }: {
   node: TreeNode;
   depth: number;
@@ -253,11 +191,14 @@ function TreeRow({
   onToggle: (path: string) => void;
   selectedPath: string | null;
   onSelect: (node: TreeNode) => void;
+  showDotfiles: boolean;
 }) {
   const isOpen = expanded.has(node.path);
-  const action = node.entry?.action;
   const isSelected = selectedPath === node.path;
-  const canOpen = !node.isDir && action !== 'deleted';
+
+  const visibleChildren = (node.children ?? []).filter(
+    (c) => showDotfiles || !c.name.startsWith('.')
+  );
 
   return (
     <>
@@ -265,22 +206,22 @@ function TreeRow({
         className={`group flex items-center w-full h-7 text-left transition-colors cursor-default select-none ${
           isSelected
             ? 'bg-interactive/10'
-            : canOpen || node.isDir
-              ? 'hover:bg-surface-alt/60'
-              : ''
+            : 'hover:bg-surface-alt/60'
         }`}
         style={{ paddingLeft: `${depth * 16 + 8}px`, paddingRight: 8 }}
         onClick={() => {
           if (node.isDir) onToggle(node.path);
-          else if (canOpen) onSelect(node);
+          else onSelect(node);
         }}
       >
         {/* Chevron */}
         <span className="w-4 shrink-0 flex items-center justify-center">
           {node.isDir ? (
-            isOpen
-              ? <ChevronDown className="size-3 text-content/30" />
-              : <ChevronRight className="size-3 text-content/30" />
+            node.loading
+              ? <span className="spinner w-3 h-3 text-content/30" />
+              : isOpen
+                ? <ChevronDown className="size-3 text-content/30" />
+                : <ChevronRight className="size-3 text-content/30" />
           ) : null}
         </span>
 
@@ -295,34 +236,25 @@ function TreeRow({
 
         {/* Name */}
         <span className={`text-xs truncate flex-1 ${
-          action === 'deleted'
-            ? 'line-through text-content/25'
-            : node.isDir
-              ? 'font-medium text-content/70'
-              : 'text-content/60'
+          node.isDir ? 'font-medium text-content/70' : 'text-content/60'
         }`}>
           {node.name}
         </span>
 
-        {/* Git indicator */}
-        {node.hasGit && (
-          <GitBranchIcon className="size-3 text-content/30 shrink-0 mr-1" />
-        )}
-
-        {/* Badge + size */}
-        {action && (
-          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${ACTION_BADGE[action] ?? 'text-content/40'} shrink-0`}>
-            {ACTION_LABELS[action] ?? action}
+        {/* Size + time */}
+        {!node.isDir && node.size > 0 && (
+          <span className="text-[10px] text-content/25 font-mono ml-2 tabular-nums shrink-0">
+            {formatSize(node.size)}
           </span>
         )}
-        {node.entry && node.entry.size != null && node.entry.size > 0 && (
-          <span className="text-[10px] text-content/25 font-mono ml-2 tabular-nums shrink-0">
-            {formatSize(node.entry.size)}
+        {node.modified > 0 && (
+          <span className="text-[10px] text-content/20 ml-2 shrink-0 hidden group-hover:inline">
+            {formatTime(node.modified)}
           </span>
         )}
       </div>
 
-      {node.isDir && isOpen && node.children.map((child) => (
+      {node.isDir && isOpen && visibleChildren.map((child) => (
         <TreeRow
           key={child.path}
           node={child}
@@ -331,13 +263,15 @@ function TreeRow({
           onToggle={onToggle}
           selectedPath={selectedPath}
           onSelect={onSelect}
+          showDotfiles={showDotfiles}
         />
       ))}
     </>
   );
 }
 
-/** Editor panel -- CodeMirror 6 with syntax highlighting. */
+// ── Editor panel ──────────────────────────────────────────────────
+
 function EditorPanel({
   node,
   onClose,
@@ -345,7 +279,7 @@ function EditorPanel({
   node: TreeNode;
   onClose: () => void;
 }) {
-  const guestPath = node.entry!.path;
+  const guestPath = node.path;
 
   const [content, setContent] = useState<string | null>(null);
   const [original, setOriginal] = useState<string | null>(null);
@@ -358,12 +292,10 @@ function EditorPanel({
   const contentRef = useRef<string | null>(null);
   const { theme } = useTheme();
 
-  // Load file content
   useEffect(() => {
     setContent(null);
     setOriginal(null);
     setLoadError(null);
-
     readFile(guestPath).then((text) => {
       setContent(text);
       setOriginal(text);
@@ -372,10 +304,7 @@ function EditorPanel({
     });
   }, [guestPath]);
 
-  // Keep contentRef in sync for the save handler
-  useEffect(() => {
-    contentRef.current = content;
-  }, [content]);
+  useEffect(() => { contentRef.current = content; }, [content]);
 
   const isDirty = content !== null && content !== original;
 
@@ -394,10 +323,9 @@ function EditorPanel({
     }
   }, [guestPath, original]);
 
-  // Initialize CodeMirror
   useEffect(() => {
     if (content === null || !editorRef.current) return;
-    if (viewRef.current) return; // already initialized
+    if (viewRef.current) return;
 
     const isDark = theme === 'dark';
     const lang = langFromFilename(node.name);
@@ -435,28 +363,15 @@ function EditorPanel({
       syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
       EditorView.lineWrapping,
     ];
-
     if (lang) extensions.push(lang);
 
-    const state = EditorState.create({
-      doc: content,
-      extensions,
-    });
-
-    const view = new EditorView({
-      state,
-      parent: editorRef.current,
-    });
-
+    const state = EditorState.create({ doc: content, extensions });
+    const view = new EditorView({ state, parent: editorRef.current });
     viewRef.current = view;
 
-    return () => {
-      view.destroy();
-      viewRef.current = null;
-    };
-  }, [content !== null]); // only run once when content loads
+    return () => { view.destroy(); viewRef.current = null; };
+  }, [content !== null]);
 
-  // Update theme when it changes
   useEffect(() => {
     if (!viewRef.current) return;
     const isDark = theme === 'dark';
@@ -468,7 +383,6 @@ function EditorPanel({
     });
   }, [theme]);
 
-  // Cmd+S / Ctrl+S to save
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 's') {
@@ -484,7 +398,6 @@ function EditorPanel({
 
   return (
     <div className="flex flex-col h-full border-l border-edge">
-      {/* Editor header */}
       <div className="flex items-center justify-between px-3 h-9 border-b border-edge shrink-0 bg-surface/40">
         <div className="flex items-center gap-2 min-w-0">
           <FileIcon className="size-3.5 text-content/30 shrink-0" />
@@ -504,14 +417,11 @@ function EditorPanel({
           <button
             className="px-1.5 py-0.5 text-xs rounded text-content/40 hover:text-content/70 transition-colors"
             onClick={onClose}
-            aria-label="Close editor"
           >
             &times;
           </button>
         </div>
       </div>
-
-      {/* Editor body */}
       <div className="flex-1 min-h-0 overflow-auto">
         {loadError ? (
           <div className="flex flex-col items-center justify-center h-full text-content/30 text-xs gap-2 px-4">
@@ -525,8 +435,6 @@ function EditorPanel({
           <div ref={editorRef} className="h-full" />
         )}
       </div>
-
-      {/* Status bar */}
       {content !== null && (
         <div className="flex items-center justify-between px-3 h-6 border-t border-edge text-[10px] text-content/30 shrink-0 bg-surface/20">
           <span className="font-mono truncate">{guestPath}</span>
@@ -537,107 +445,125 @@ function EditorPanel({
   );
 }
 
+// ── Main view ─────────────────────────────────────────────────────
+
+const ROOT_PATH = '/root';
+
 export default function FilesView() {
-  const [entries, setEntries] = useState<FileEntry[]>([]);
+  const [rootNodes, setRootNodes] = useState<TreeNode[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
+  const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [selected, setSelected] = useState<TreeNode | null>(null);
   const [showDotfiles, setShowDotfiles] = useState(false);
+  // Store loaded children keyed by dir path for lazy loading.
+  const childrenCache = useRef<Map<string, TreeNode[]>>(new Map());
 
-  const loadData = useCallback(async () => {
+  // Load root directory on mount.
+  const loadRoot = useCallback(async () => {
     try {
-      const res = search
-        ? await queryDb(FILE_TREE_SEARCH_SQL, [`%${search}%`])
-        : await queryDb(FILE_TREE_SQL);
-      setEntries(queryAll<FileEntry>(res));
-    } catch (e) {
-      console.error('FilesView load failed:', e);
-      showToast('Failed to load file data', 'error');
+      const entries = await listDir(ROOT_PATH);
+      const nodes = entriesToNodes(ROOT_PATH, entries);
+      childrenCache.current.set(ROOT_PATH, nodes);
+      setRootNodes(nodes);
+      setError(null);
+    } catch (e: any) {
+      setError(e?.message ?? String(e));
     } finally {
       setLoading(false);
     }
-  }, [search]);
+  }, []);
 
   useEffect(() => {
-    setLoading(true);
-    loadData();
-    const iv = setInterval(loadData, 5000);
-    return () => clearInterval(iv);
-  }, [loadData]);
+    loadRoot();
+  }, [loadRoot]);
 
-  const fullTree = useMemo(() => buildTree(entries), [entries]);
+  // Load children for a directory.
+  const loadChildren = useCallback(async (dirPath: string) => {
+    // Already cached?
+    if (childrenCache.current.has(dirPath)) return;
 
-  const tree = useMemo(() => {
-    if (showDotfiles) return fullTree;
-    function filterDot(nodes: TreeNode[]): TreeNode[] {
-      return nodes
-        .filter((n) => !n.name.startsWith('.'))
-        .map((n) => n.isDir ? { ...n, children: filterDot(n.children) } : n);
+    // Mark as loading.
+    updateNode(dirPath, (n) => ({ ...n, loading: true }));
+
+    try {
+      const entries = await listDir(dirPath);
+      const children = entriesToNodes(dirPath, entries);
+      childrenCache.current.set(dirPath, children);
+      updateNode(dirPath, (n) => ({ ...n, children, loading: false }));
+    } catch {
+      updateNode(dirPath, (n) => ({ ...n, children: [], loading: false }));
     }
-    return filterDot(fullTree);
-  }, [fullTree, showDotfiles]);
+  }, []);
 
-  const toggleExpand = useCallback((path: string) => {
+  // Update a node in the tree by path.
+  function updateNode(path: string, updater: (n: TreeNode) => TreeNode) {
+    setRootNodes((prev) => deepUpdate(prev, path, updater));
+  }
+
+  function deepUpdate(nodes: TreeNode[], path: string, updater: (n: TreeNode) => TreeNode): TreeNode[] {
+    return nodes.map((n) => {
+      if (n.path === path) return updater(n);
+      if (path.startsWith(n.path + '/') && n.children) {
+        return { ...n, children: deepUpdate(n.children, path, updater) };
+      }
+      return n;
+    });
+  }
+
+  const toggleExpand = useCallback(async (path: string) => {
     setExpanded((prev) => {
       const next = new Set(prev);
-      if (next.has(path)) next.delete(path);
-      else next.add(path);
+      if (next.has(path)) {
+        next.delete(path);
+      } else {
+        next.add(path);
+        // Lazy load children when expanding for the first time.
+        if (!childrenCache.current.has(path)) {
+          loadChildren(path);
+        }
+      }
       return next;
     });
-  }, []);
+  }, [loadChildren]);
 
-  const expandAll = useCallback(() => {
-    const allDirs = new Set<string>();
-    function walk(nodes: TreeNode[]) {
-      for (const n of nodes) {
-        if (n.isDir) { allDirs.add(n.path); walk(n.children); }
-      }
+  const refresh = useCallback(async () => {
+    childrenCache.current.clear();
+    setLoading(true);
+    await loadRoot();
+    // Re-expand all previously expanded dirs.
+    for (const dir of expanded) {
+      if (dir !== ROOT_PATH) loadChildren(dir);
     }
-    walk(tree);
-    setExpanded(allDirs);
-  }, [tree]);
+  }, [loadRoot, expanded, loadChildren]);
 
-  const collapseAll = useCallback(() => {
-    setExpanded(new Set());
-  }, []);
+  const visibleNodes = showDotfiles
+    ? rootNodes
+    : rootNodes.filter((n) => !n.name.startsWith('.'));
 
-  const fileCount = entries.filter((e) => e.action !== 'deleted').length;
-  const deletedCount = entries.filter((e) => e.action === 'deleted').length;
+  const fileCount = rootNodes.filter((n) => !n.isDir).length;
+  const dirCount = rootNodes.filter((n) => n.isDir).length;
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* Header -- matches PortsView pattern */}
+      {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-edge shrink-0">
         <div>
           <h2 className="text-sm font-semibold">Files</h2>
           <p className="text-xs text-content/50 mt-0.5">
-            Files created and modified during this session
+            Browse files in the virtual environment
           </p>
         </div>
-        {entries.length > 0 && (
+        {rootNodes.length > 0 && (
           <span className="text-xs text-content/40 tabular-nums">
-            {fileCount} file{fileCount !== 1 ? 's' : ''}
-            {deletedCount > 0 && `, ${deletedCount} deleted`}
+            {dirCount} folder{dirCount !== 1 ? 's' : ''}, {fileCount} file{fileCount !== 1 ? 's' : ''}
           </span>
         )}
       </div>
 
       {/* Toolbar */}
       <div className="flex items-center gap-3 px-4 h-9 border-b border-edge shrink-0">
-        <input
-          type="text"
-          placeholder="Search files..."
-          className="w-44 rounded-md border border-edge bg-surface-alt px-2 py-1 text-xs text-content/80 placeholder:text-content/20 focus:outline-none focus:ring-1 focus:ring-interactive/40"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          aria-label="Search files"
-        />
-        {search && (
-          <span className="text-[11px] text-content/30 tabular-nums">
-            {entries.length} result{entries.length !== 1 ? 's' : ''}
-          </span>
-        )}
+        <span className="text-[11px] text-content/40 font-mono">{ROOT_PATH}</span>
         <span className="flex-1" />
         <label className="flex items-center gap-1.5 cursor-pointer select-none">
           <input
@@ -646,22 +572,14 @@ export default function FilesView() {
             checked={showDotfiles}
             onChange={(e) => setShowDotfiles(e.target.checked)}
           />
-          <span className="text-[11px] text-content/50">Show dotfiles</span>
+          <span className="text-[11px] text-content/50">Dotfiles</span>
         </label>
-        <div className="flex items-center gap-1 border-l border-edge/40 pl-3">
-          <button
-            className="px-1.5 py-0.5 text-[11px] rounded text-content/40 hover:text-content/70 transition-colors"
-            onClick={expandAll}
-          >
-            Expand all
-          </button>
-          <button
-            className="px-1.5 py-0.5 text-[11px] rounded text-content/40 hover:text-content/70 transition-colors"
-            onClick={collapseAll}
-          >
-            Collapse all
-          </button>
-        </div>
+        <button
+          className="px-1.5 py-0.5 text-[11px] rounded text-content/40 hover:text-content/70 transition-colors"
+          onClick={refresh}
+        >
+          Refresh
+        </button>
       </div>
 
       {/* Content: tree + editor split */}
@@ -672,17 +590,25 @@ export default function FilesView() {
             <div className="flex items-center justify-center h-full">
               <span className="spinner w-5 h-5 text-content/30" />
             </div>
-          ) : entries.length === 0 ? (
+          ) : error ? (
+            <div className="flex flex-col items-center justify-center h-full text-content/30 text-sm gap-2 px-4">
+              <FolderIcon className="size-8 opacity-30" />
+              <p className="text-center text-xs">{error}</p>
+              <button
+                className="text-xs text-interactive hover:underline"
+                onClick={refresh}
+              >
+                Retry
+              </button>
+            </div>
+          ) : visibleNodes.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-content/30 text-sm gap-2">
               <FolderIcon className="size-8 opacity-30" />
-              <p>No file activity yet</p>
-              <p className="text-xs text-content/20">
-                Files created or modified in the VM will appear here
-              </p>
+              <p>Empty directory</p>
             </div>
           ) : (
             <div className="py-0.5">
-              {tree.map((node) => (
+              {visibleNodes.map((node) => (
                 <TreeRow
                   key={node.path}
                   node={node}
@@ -691,6 +617,7 @@ export default function FilesView() {
                   onToggle={toggleExpand}
                   selectedPath={selected?.path ?? null}
                   onSelect={setSelected}
+                  showDotfiles={showDotfiles}
                 />
               ))}
             </div>
@@ -698,7 +625,7 @@ export default function FilesView() {
         </div>
 
         {/* Editor panel */}
-        {selected && (
+        {selected && !selected.isDir && (
           <div className="flex-1 min-w-0">
             <EditorPanel
               key={selected.path}

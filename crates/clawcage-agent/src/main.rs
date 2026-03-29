@@ -399,6 +399,26 @@ fn main() {
         }
     }
 
+    // Step 4b: If a template setup script was delivered, inject a one-shot
+    // runner into /root/.clawcage-setup-rc. The bashrc sources this file,
+    // so the install runs in the user's real TTY on first shell start.
+    // This avoids hanging on interactive prompts (curl|bash scripts that
+    // read /dev/tty won't work without a real terminal).
+    const SETUP_SCRIPT: &str = "/tmp/.clawcage-template-setup.sh";
+    if std::path::Path::new(SETUP_SCRIPT).exists() {
+        eprintln!("[clawcage-agent] template setup script found, injecting into shell rc");
+        blog_line(&mut blog, "injecting template setup into shell rc");
+        let rc_path = "/root/.clawcage-setup-rc";
+        let _ = std::fs::copy(SETUP_SCRIPT, rc_path);
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = std::fs::set_permissions(rc_path, std::fs::Permissions::from_mode(0o755));
+        }
+        let _ = std::fs::remove_file(SETUP_SCRIPT);
+        // Also remove env file if present (not needed for rc approach)
+        let _ = std::fs::remove_file("/tmp/.clawcage-template-setup.env");
+    }
+
     // Step 5: Spawn default shell (session 0).
     // Ignore SIGHUP so we don't die when child shells exit.
     unsafe { signal(Signal::SIGHUP, SigHandler::SigIgn) }.ok();
@@ -979,6 +999,56 @@ fn control_loop(
                         let _ = send_guest_msg(control_fd, &GuestToHost::FileError {
                             id,
                             error: format!("write error: {e}"),
+                        });
+                    }
+                }
+            }
+            Ok(HostToGuest::ListDir { id, path }) => {
+                eprintln!("[clawcage-agent] ListDir[{id}]: {path}");
+                if let Err(e) = clawcage_proto::validate_file_path(&path) {
+                    let _ = send_guest_msg(control_fd, &GuestToHost::FileError {
+                        id,
+                        error: format!("invalid path: {e}"),
+                    });
+                    continue;
+                }
+                match std::fs::read_dir(&path) {
+                    Ok(rd) => {
+                        let mut entries = Vec::new();
+                        for entry in rd.flatten() {
+                            let name = entry.file_name().to_string_lossy().to_string();
+                            let meta = entry.metadata().ok();
+                            let is_dir = meta.as_ref().map(|m| m.is_dir()).unwrap_or(false);
+                            let size = meta.as_ref().map(|m| m.len()).unwrap_or(0);
+                            let mode = {
+                                #[cfg(unix)]
+                                { meta.as_ref().map(|m| {
+                                    use std::os::unix::fs::PermissionsExt;
+                                    m.permissions().mode()
+                                }).unwrap_or(0) }
+                                #[cfg(not(unix))]
+                                { 0u32 }
+                            };
+                            let modified = meta.as_ref()
+                                .and_then(|m| m.modified().ok())
+                                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                                .map(|d| d.as_secs())
+                                .unwrap_or(0);
+                            entries.push(clawcage_proto::DirEntry {
+                                name, is_dir, size, mode, modified,
+                            });
+                        }
+                        entries.sort_by(|a, b| {
+                            b.is_dir.cmp(&a.is_dir).then_with(|| a.name.cmp(&b.name))
+                        });
+                        let _ = send_guest_msg(control_fd, &GuestToHost::DirListing {
+                            id, path, entries,
+                        });
+                    }
+                    Err(e) => {
+                        let _ = send_guest_msg(control_fd, &GuestToHost::FileError {
+                            id,
+                            error: format!("readdir failed: {e}"),
                         });
                     }
                 }

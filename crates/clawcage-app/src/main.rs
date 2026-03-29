@@ -774,6 +774,16 @@ async fn vsock_control_handler(app_handle: tauri::AppHandle, control_fd: RawFd) 
                     let _ = tx.send(Ok(data));
                 }
             }
+            GuestToHost::DirListing { id, path, entries } => {
+                info!("vsock: dir listing (id={id}, path={path}, {} entries)", entries.len());
+                let state = app_handle.state::<AppState>();
+                let tx = state.pending_downloads.lock().unwrap().remove(&id);
+                if let Some(tx) = tx {
+                    // Serialize entries as JSON and send through the download channel.
+                    let json = serde_json::to_vec(&entries).unwrap_or_default();
+                    let _ = tx.send(Ok(json));
+                }
+            }
             GuestToHost::FileError { id, error } => {
                 info!("vsock: file error (id={id}): {error}");
                 let state = app_handle.state::<AppState>();
@@ -962,7 +972,7 @@ async fn setup_vsock(
     info!("vsock: boot handshake complete, stopping serial forwarding");
 
     // Store vsock fds and transition to Running.
-    let (mitm_config, mcp_config) = {
+    let (mitm_config, mcp_config, session_db) = {
         let state = app_handle.state::<AppState>();
         let vm_id = state.active_session_id.lock().unwrap().clone();
         let mut vms = state.vms.lock().unwrap();
@@ -983,9 +993,12 @@ async fn setup_vsock(
                 build_mitm_config(ns, vpn_manager, active_venv.as_deref())
             });
             let mcp = instance.mcp_state.clone();
-            (mitm, mcp)
+            // Extract session DB independently of MITM config so fs-watch/port-watch
+            // work even when the MITM proxy is disabled.
+            let db = instance.net_state.as_ref().map(|ns| Arc::clone(&ns.db));
+            (mitm, mcp, db)
         } else {
-            (None, None)
+            (None, None, None)
         }
     };
 
@@ -1161,15 +1174,15 @@ async fn setup_vsock(
             }
             Some(conn) if conn.port == VSOCK_PORT_FS_WATCH => {
                 info!("vsock: fs-watch connected (fd={})", conn.fd);
-                if let Some(ref config) = mitm_config {
-                    let db = Arc::clone(&config.db);
+                if let Some(ref db) = session_db {
+                    let db = Arc::clone(db);
                     let fd = conn.fd;
                     tokio::spawn(async move {
                         let _conn = conn;
                         handle_fs_watch(fd, db).await;
                     });
                 } else {
-                    warn!("vsock: fs-watch connection rejected (no db config)");
+                    warn!("vsock: fs-watch connection rejected (no session db)");
                 }
             }
             Some(conn) if conn.port == VSOCK_PORT_MCP_GATEWAY => {
@@ -1807,7 +1820,42 @@ fn send_boot_config_for_venv(file: &mut std::fs::File, cli_env: &[(String, Strin
         )?;
     }
 
-    // 5. Signal done.
+    // 5. Deliver template setup script + env file (if the venv has them).
+    if let Some(vid) = venv_id {
+        if let Some(dir) = venv_scratch_dir(vid) {
+            let setup_path = dir.join("setup.sh");
+            if setup_path.exists() {
+                if let Ok(script) = std::fs::read_to_string(&setup_path) {
+                    let data = script.into_bytes();
+                    info!(venv_id = vid, bytes = data.len(), "delivering template setup script");
+                    write_control_msg(
+                        file,
+                        &HostToGuest::FileWrite {
+                            path: "/tmp/.clawcage-template-setup.sh".to_string(),
+                            data,
+                            mode: 0o755,
+                        },
+                    )?;
+                }
+            }
+            let env_path = dir.join("setup.env");
+            if env_path.exists() {
+                if let Ok(env_data) = std::fs::read_to_string(&env_path) {
+                    info!(venv_id = vid, "delivering template setup env");
+                    write_control_msg(
+                        file,
+                        &HostToGuest::FileWrite {
+                            path: "/tmp/.clawcage-template-setup.env".to_string(),
+                            data: env_data.into_bytes(),
+                            mode: 0o600,
+                        },
+                    )?;
+                }
+            }
+        }
+    }
+
+    // 6. Signal done.
     write_control_msg(file, &HostToGuest::BootConfigDone)?;
 
     Ok(())
@@ -2979,6 +3027,7 @@ fn main() {
             commands::kill_process,
             commands::system_metrics,
             commands::download_file,
+            commands::list_dir,
             commands::read_file,
             commands::save_file,
             commands::get_session_info,
@@ -2988,6 +3037,7 @@ fn main() {
             commands::vpn_status,
             venvs::list_venvs,
             venvs::create_venv,
+            venvs::save_venv_file,
             venvs::delete_venv,
             venvs::start_venv,
             venvs::stop_venv,

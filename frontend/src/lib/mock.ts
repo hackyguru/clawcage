@@ -693,6 +693,11 @@ export const mockApi = {
   },
 
   // File operations (mock)
+  listDir: async (_guestPath: string) => [
+    { name: 'project', is_dir: true, size: 4096, mode: 0o755, modified: Date.now() / 1000 },
+    { name: '.bashrc', is_dir: false, size: 220, mode: 0o644, modified: Date.now() / 1000 },
+    { name: 'notes.md', is_dir: false, size: 1024, mode: 0o644, modified: Date.now() / 1000 },
+  ],
   downloadFile: async (_guestPath: string, _hostPath: string) => {},
   readFile: async (guestPath: string): Promise<string> => {
     return `# Mock file content for ${guestPath}\n\nThis is placeholder content shown in mock mode.\nEdit and save will not persist without a running VM.\n`;

@@ -87,6 +87,18 @@ pub struct ProcessEntry {
     pub port: Option<u16>,
 }
 
+/// A directory entry returned by ListDir.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct DirEntry {
+    pub name: String,
+    pub is_dir: bool,
+    pub size: u64,
+    /// Unix mode bits (e.g. 0o755).
+    pub mode: u32,
+    /// Last modified time as epoch seconds.
+    pub modified: u64,
+}
+
 // ---------------------------------------------------------------------------
 // Message types
 // ---------------------------------------------------------------------------
@@ -123,6 +135,8 @@ pub enum HostToGuest {
     FileSave { id: u64, path: String, data: Vec<u8> },
     /// Delete file in guest workspace.
     FileDelete { path: String },
+    /// List directory contents in guest.
+    ListDir { id: u64, path: String },
     // -- Multi-shell --
     /// Spawn a new shell session in the guest.
     SpawnShell { session_id: u32 },
@@ -178,6 +192,12 @@ pub enum GuestToHost {
         offset: u64,
         data: Vec<u8>,
         total_size: u64,
+    },
+    /// Response to ListDir (success).
+    DirListing {
+        id: u64,
+        path: String,
+        entries: Vec<DirEntry>,
     },
     // -- Multi-shell --
     /// Shell session is ready (response to SpawnShell).
