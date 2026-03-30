@@ -47,15 +47,15 @@ _DIM='\033[0;90m'
 _BOLD='\033[1;37m'
 _RST='\033[0m'
 
-# One-shot template setup: if present, run BEFORE the banner.
-# The start marker tells the frontend to show a "Setting up..." overlay
-# and suppress all terminal output until the done marker.
-_CLAWCAGE_SETUP=0
-if [ -f /root/.clawcage-setup-rc ]; then
-    _CLAWCAGE_SETUP=1
+# One-shot template setup: runs on first boot only.
+# /root/.clawcage-setup-done is the authoritative marker — if it exists, setup
+# already succeeded and we skip everything (no overlay, no script execution).
+if [ -f /root/.clawcage-setup-rc ] && [ ! -f /root/.clawcage-setup-done ]; then
     printf '\033]777;clawcage-setup;start\033\\'
     printf '\033[2J\033[H'
-    bash /root/.clawcage-setup-rc
+    if bash /root/.clawcage-setup-rc; then
+        touch /root/.clawcage-setup-done
+    fi
     rm -f /root/.clawcage-setup-rc
     printf '\033]777;clawcage-setup;done\033\\'
 fi

@@ -382,7 +382,7 @@ export default function SettingsSection({ sectionName }: Props) {
   if (!group) return <div className="p-6 text-content/30 text-sm">Section &ldquo;{sectionName}&rdquo; not found</div>;
 
   return (
-    <div className="p-4 overflow-auto h-full">
+    <div className="p-4">
       <div>
         {group.kind === 'group' ? (
           <div className="space-y-1">

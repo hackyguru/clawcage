@@ -3026,6 +3026,7 @@ fn main() {
             commands::get_processes,
             commands::kill_process,
             commands::system_metrics,
+            commands::host_disk_free,
             commands::download_file,
             commands::list_dir,
             commands::read_file,

@@ -28,6 +28,13 @@ function relativeTime(iso: string | null): string {
   return `${days}d ago`;
 }
 
+function formatDiskSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+}
+
 function statusDot(status: VenvInfo['status']): string {
   switch (status) {
     case 'running': return 'bg-allowed';
@@ -46,8 +53,11 @@ function statusText(status: VenvInfo['status']): string {
   }
 }
 
-/** Icon for a template card. Maps template.icon string to JSX. */
-function TemplateIcon({ icon, className = 'size-5' }: { icon: string; className?: string }) {
+/** Icon for a template card. Uses logo image if available, otherwise SVG icon. */
+function TemplateIcon({ icon, logo, className = 'size-5' }: { icon: string; logo?: string; className?: string }) {
+  if (logo) {
+    return <img src={logo} alt="" className={`${className} rounded object-contain`} />;
+  }
   switch (icon) {
     case 'bot':
       return (
@@ -84,7 +94,7 @@ function TemplatePicker({ selected, onSelect }: { selected: string; onSelect: (t
             <div className={`flex items-center justify-center w-8 h-8 rounded-md shrink-0 ${
               selected === t.id ? 'bg-interactive/20 text-interactive' : 'bg-content/5 text-content/40'
             }`}>
-              <TemplateIcon icon={t.icon} className="size-4" />
+              <TemplateIcon icon={t.icon} logo={t.logo} className="size-4" />
             </div>
             <div className="min-w-0">
               <div className="text-sm font-medium truncate">{t.name}</div>
@@ -396,7 +406,7 @@ function VenvCard({ venv, onDelete }: { venv: VenvInfo; onDelete: (v: VenvInfo) 
           <div className={`flex items-center justify-center w-10 h-10 rounded-xl shrink-0 ${
             isRunning ? 'bg-allowed/10 text-allowed' : 'bg-interactive/10 text-interactive'
           }`}>
-            <TemplateIcon icon={tmpl.icon} className="size-5" />
+            <TemplateIcon icon={tmpl.icon} logo={tmpl.logo} className="size-5" />
           </div>
           <div className="min-w-0 flex-1">
             <h3 className="text-sm font-semibold truncate">{venv.name}</h3>
@@ -418,7 +428,12 @@ function VenvCard({ venv, onDelete }: { venv: VenvInfo; onDelete: (v: VenvInfo) 
         {/* Footer */}
         <div className="flex items-center justify-between text-[11px] text-content/30 pt-2 border-t border-edge/30">
           <span>{relativeTime(venv.last_used)}</span>
-          <span>{new Date(venv.created_at).toLocaleDateString()}</span>
+          <div className="flex items-center gap-2">
+            {venv.disk_usage_bytes != null && venv.disk_usage_bytes > 0 && (
+              <span className="tabular-nums">{formatDiskSize(venv.disk_usage_bytes)}</span>
+            )}
+            <span>{new Date(venv.created_at).toLocaleDateString()}</span>
+          </div>
         </div>
       </div>
 
@@ -438,6 +453,7 @@ function VenvCard({ venv, onDelete }: { venv: VenvInfo; onDelete: (v: VenvInfo) 
 export default function HomeView() {
   const { venvs, loading } = useVenvs();
   const [creating, setCreating] = useState(false);
+  const [step, setStep] = useState(0);
   const [newName, setNewName] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState(TEMPLATES[0]);
   const [newEphemeral, setNewEphemeral] = useState(TEMPLATES[0].defaultEphemeral);
@@ -474,6 +490,7 @@ export default function HomeView() {
   }, []);
 
   const resetForm = useCallback(() => {
+    setStep(0);
     setNewName('');
     setSelectedTemplate(TEMPLATES[0]);
     setNewEphemeral(TEMPLATES[0].defaultEphemeral);
@@ -572,84 +589,158 @@ export default function HomeView() {
       <div className="max-w-5xl w-full mx-auto px-6 py-6">
 
         {/* Create dialog */}
-        <Dialog open={creating} onClose={handleCloseCreate} title="New Environment">
-          <div className="flex flex-col gap-3">
-            <TemplatePicker selected={selectedTemplate.id} onSelect={handleSelectTemplate} />
-            <div>
-              <label className="text-xs text-content/50 mb-1 block">Name</label>
-              <input
-                type="text"
-                className="w-full px-2.5 py-1.5 text-sm border border-edge rounded-md bg-surface focus:outline-none focus:ring-2 focus:ring-interactive/40"
-                placeholder="my-project"
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') handleCreate(); }}
-                autoFocus
-              />
+        <Dialog open={creating} onClose={handleCloseCreate} title="New Environment" width="max-w-lg">
+          <div className="flex flex-col gap-3 min-h-80">
+            {/* Step indicator */}
+            <div className="flex items-center gap-1.5 mb-1">
+              {['Template', 'Configure', 'Advanced'].map((label, i) => (
+                <button
+                  key={label}
+                  className={`text-[11px] px-2 py-0.5 rounded-full transition-colors ${
+                    step === i
+                      ? 'bg-interactive/15 text-interactive font-medium'
+                      : step > i
+                        ? 'text-content/50 cursor-pointer hover:text-content/70'
+                        : 'text-content/20'
+                  }`}
+                  onClick={() => { if (i < step) setStep(i); }}
+                  disabled={i > step}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
-            <label className="flex items-center gap-2 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                className="toggle-switch"
-                checked={newEphemeral}
-                onChange={(e) => setNewEphemeral(e.target.checked)}
-              />
-              <span className="text-sm">Ephemeral</span>
-              <span className="text-[11px] text-content/40">
-                {newEphemeral ? 'Files are wiped on every restart' : 'Files persist across restarts'}
-              </span>
-            </label>
-            {selectedTemplate.setupForm && selectedTemplate.setupForm.length > 0 && (
-              <TemplateFormSection
-                fields={selectedTemplate.setupForm}
-                values={formValues}
-                onValue={(id, v) => setFormValues((prev) => ({ ...prev, [id]: v }))}
-              />
+
+            {/* Step 0: Template */}
+            {step === 0 && (
+              <>
+                <TemplatePicker selected={selectedTemplate.id} onSelect={handleSelectTemplate} />
+              </>
             )}
-            <label className="flex items-center gap-2 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                className="toggle-switch"
-                checked={allowAllDomains}
-                onChange={(e) => setAllowAllDomains(e.target.checked)}
-              />
-              <span className="text-sm">Allow all domains</span>
-              <span className="text-[11px] text-content/40">
-                {allowAllDomains ? 'Unrestricted internet access' : 'Only allowed domains'}
-              </span>
-            </label>
-            <label className="flex items-center gap-2 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                className="toggle-switch"
-                checked={mitmEnabled}
-                onChange={(e) => setMitmEnabled(e.target.checked)}
-              />
-              <span className="text-sm">MITM Proxy</span>
-              <span className="text-[11px] text-content/40">
-                {mitmEnabled ? 'TLS traffic is inspected' : 'Traffic passes through transparently'}
-              </span>
-            </label>
-            <HardwareSection
-              cpu={hwCpu} ram={hwRam} disk={hwDisk}
-              onCpu={setHwCpu} onRam={setHwRam} onDisk={setHwDisk}
-            />
-            <ApiKeysSection keys={apiKeys} onKey={setApiKey} />
-            <div className="flex items-center justify-end gap-2 pt-1">
-              <button
-                className="px-3 py-1.5 text-sm rounded-lg hover:bg-surface-alt transition-colors"
-                onClick={handleCloseCreate}
-              >
-                Cancel
-              </button>
-              <button
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-interactive text-on-interactive hover:opacity-90 transition font-medium disabled:opacity-40"
-                onClick={handleCreate}
-                disabled={!newName.trim() || submitting}
-              >
-                {submitting && <span className="spinner w-3.5 h-3.5" />}
-                {submitting ? 'Creating...' : 'Create'}
-              </button>
+
+            {/* Step 1: Configure */}
+            {step === 1 && (
+              <>
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="flex items-center justify-center w-7 h-7 rounded-md bg-interactive/10">
+                    <TemplateIcon icon={selectedTemplate.icon} logo={selectedTemplate.logo} className="size-4" />
+                  </div>
+                  <span className="text-xs text-content/50">{selectedTemplate.name}</span>
+                </div>
+                <div>
+                  <label className="text-xs text-content/50 mb-1 block">Name</label>
+                  <input
+                    type="text"
+                    className="w-full px-2.5 py-1.5 text-sm border border-edge rounded-md bg-surface focus:outline-none focus:ring-2 focus:ring-interactive/40"
+                    placeholder="my-project"
+                    value={newName}
+                    onChange={(e) => setNewName(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' && newName.trim()) setStep(2); }}
+                    autoFocus
+                  />
+                </div>
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    className="toggle-switch"
+                    checked={newEphemeral}
+                    onChange={(e) => setNewEphemeral(e.target.checked)}
+                  />
+                  <span className="text-sm">Ephemeral</span>
+                  <span className="text-[11px] text-content/40">
+                    {newEphemeral ? 'Files are wiped on every restart' : 'Files persist across restarts'}
+                  </span>
+                </label>
+                {selectedTemplate.setupForm && selectedTemplate.setupForm.length > 0 && (
+                  <TemplateFormSection
+                    fields={selectedTemplate.setupForm}
+                    values={formValues}
+                    onValue={(id, v) => setFormValues((prev) => ({ ...prev, [id]: v }))}
+                  />
+                )}
+              </>
+            )}
+
+            {/* Step 2: Advanced */}
+            {step === 2 && (
+              <>
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="flex items-center justify-center w-7 h-7 rounded-md bg-interactive/10">
+                    <TemplateIcon icon={selectedTemplate.icon} logo={selectedTemplate.logo} className="size-4" />
+                  </div>
+                  <span className="text-xs font-medium text-content/70">{newName}</span>
+                  <span className="text-[10px] text-content/30">{selectedTemplate.name}</span>
+                </div>
+                <HardwareSection
+                  cpu={hwCpu} ram={hwRam} disk={hwDisk}
+                  onCpu={setHwCpu} onRam={setHwRam} onDisk={setHwDisk}
+                />
+                <ApiKeysSection keys={apiKeys} onKey={setApiKey} />
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    className="toggle-switch"
+                    checked={allowAllDomains}
+                    onChange={(e) => setAllowAllDomains(e.target.checked)}
+                  />
+                  <span className="text-sm">Allow all domains</span>
+                  <span className="text-[11px] text-content/40">
+                    {allowAllDomains ? 'Unrestricted internet access' : 'Only allowed domains'}
+                  </span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    className="toggle-switch"
+                    checked={mitmEnabled}
+                    onChange={(e) => setMitmEnabled(e.target.checked)}
+                  />
+                  <span className="text-sm">MITM Proxy</span>
+                  <span className="text-[11px] text-content/40">
+                    {mitmEnabled ? 'TLS traffic is inspected' : 'Traffic passes through transparently'}
+                  </span>
+                </label>
+              </>
+            )}
+
+            {/* Navigation buttons */}
+            <div className="flex items-center justify-between pt-1 mt-auto">
+              <div>
+                {step > 0 && (
+                  <button
+                    className="px-3 py-1.5 text-sm rounded-lg hover:bg-surface-alt transition-colors text-content/60"
+                    onClick={() => setStep(step - 1)}
+                  >
+                    Back
+                  </button>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  className="px-3 py-1.5 text-sm rounded-lg hover:bg-surface-alt transition-colors"
+                  onClick={handleCloseCreate}
+                >
+                  Cancel
+                </button>
+                {step < 2 ? (
+                  <button
+                    className="px-3 py-1.5 text-sm rounded-lg bg-interactive text-on-interactive hover:opacity-90 transition font-medium disabled:opacity-40"
+                    onClick={() => setStep(step + 1)}
+                    disabled={step === 1 && !newName.trim()}
+                  >
+                    Next
+                  </button>
+                ) : (
+                  <button
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-interactive text-on-interactive hover:opacity-90 transition font-medium disabled:opacity-40"
+                    onClick={handleCreate}
+                    disabled={!newName.trim() || submitting}
+                  >
+                    {submitting && <span className="spinner w-3.5 h-3.5" />}
+                    {submitting ? 'Creating...' : 'Create'}
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </Dialog>

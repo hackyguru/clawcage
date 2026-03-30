@@ -145,6 +145,8 @@ export interface VenvTemplate {
   name: string;
   description: string;
   icon: string;
+  /** Path to a logo image in /public (e.g. '/openclaw.png'). Overrides icon. */
+  logo?: string;
   /** Default ephemeral setting for this template. */
   defaultEphemeral: boolean;
   /** Shell script to run during boot (before bash starts). */
@@ -177,6 +179,8 @@ export interface VenvInfo {
   ephemeral: boolean;
   /** Template ID used when this venv was created. */
   template: string;
+  /** Total disk usage of the venv directory in bytes. */
+  disk_usage_bytes?: number;
 }
 
 /** Sidebar view names. */

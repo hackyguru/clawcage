@@ -405,17 +405,22 @@ fn main() {
     // This avoids hanging on interactive prompts (curl|bash scripts that
     // read /dev/tty won't work without a real terminal).
     const SETUP_SCRIPT: &str = "/tmp/.clawcage-template-setup.sh";
+    const SETUP_DONE: &str = "/root/.clawcage-setup-done";
     if std::path::Path::new(SETUP_SCRIPT).exists() {
-        eprintln!("[clawcage-agent] template setup script found, injecting into shell rc");
-        blog_line(&mut blog, "injecting template setup into shell rc");
-        let rc_path = "/root/.clawcage-setup-rc";
-        let _ = std::fs::copy(SETUP_SCRIPT, rc_path);
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let _ = std::fs::set_permissions(rc_path, std::fs::Permissions::from_mode(0o755));
+        if std::path::Path::new(SETUP_DONE).exists() {
+            eprintln!("[clawcage-agent] template already set up, skipping");
+            blog_line(&mut blog, "template already set up, skipping");
+        } else {
+            eprintln!("[clawcage-agent] injecting template setup into shell rc");
+            blog_line(&mut blog, "injecting template setup into shell rc");
+            let rc_path = "/root/.clawcage-setup-rc";
+            let _ = std::fs::copy(SETUP_SCRIPT, rc_path);
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let _ = std::fs::set_permissions(rc_path, std::fs::Permissions::from_mode(0o755));
+            }
         }
         let _ = std::fs::remove_file(SETUP_SCRIPT);
-        // Also remove env file if present (not needed for rc approach)
         let _ = std::fs::remove_file("/tmp/.clawcage-template-setup.env");
     }
 

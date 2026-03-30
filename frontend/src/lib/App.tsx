@@ -7,6 +7,7 @@ import { loadSettings } from './stores/settings';
 import { initTheme } from './stores/theme';
 import ToastContainer from './components/ToastContainer';
 import { showToast } from './stores/toast';
+import { hostDiskFree } from './api';
 import { startPorts } from './stores/ports';
 import { startProcesses } from './stores/processes';
 import type { ViewName } from './types';
@@ -85,6 +86,24 @@ function AppInner() {
     loadVenvs().catch((e) => showToast('Failed to load environments: ' + String(e), 'error'));
     startPorts();
     startProcesses();
+
+    // Periodic host disk space check (every 30s).
+    const LOW_DISK_THRESHOLD = 2 * 1024 * 1024 * 1024; // 2 GB
+    let warned = false;
+    const checkDisk = () => {
+      hostDiskFree().then((free) => {
+        if (free < LOW_DISK_THRESHOLD && !warned) {
+          warned = true;
+          const gb = (free / (1024 * 1024 * 1024)).toFixed(1);
+          showToast(`Low disk space: ${gb} GB free. VMs may experience I/O errors.`, 'warning', 10000);
+        } else if (free >= LOW_DISK_THRESHOLD) {
+          warned = false;
+        }
+      }).catch(() => {});
+    };
+    checkDisk();
+    const diskIv = setInterval(checkDisk, 30000);
+    return () => clearInterval(diskIv);
   }, []);
 
   const currentView = activeView;

@@ -291,6 +291,11 @@ export function downloadFile(guestPath: string, hostPath: string): Promise<void>
   return ensureDeps().then(() => isMock ? mockApi.downloadFile(guestPath, hostPath) : tauriInvoke('download_file', { guestPath, hostPath }));
 }
 
+/** Returns available host disk space in bytes. */
+export function hostDiskFree(): Promise<number> {
+  return ensureDeps().then(() => isMock ? Promise.resolve(100 * 1024 * 1024 * 1024) : tauriInvoke<number>('host_disk_free'));
+}
+
 /** List directory contents in the guest VM. */
 export function listDir(guestPath: string): Promise<DirEntry[]> {
   return ensureDeps().then(() => isMock ? mockApi.listDir(guestPath) : tauriInvoke<DirEntry[]>('list_dir', { guestPath }));

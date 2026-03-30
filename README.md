@@ -137,6 +137,53 @@ Clawcage assumes the AI agent inside the VM is **adversarial**:
 - **Boot asset integrity** — BLAKE3 hashes verified before VM boots
 - **No systemd, no services** — PID 1 is a minimal init script
 
+## Templates
+
+Templates let users spin up pre-configured environments with one click. Clawcage ships with **Blank**, **OpenClaw**, and **Hermes** templates.
+
+### Adding a Template
+
+Templates are defined in a single file: [`frontend/src/lib/templates.ts`](frontend/src/lib/templates.ts). Add an entry to the `TEMPLATES` array and the UI picks it up automatically. No other code changes needed.
+
+```typescript
+{
+  id: 'my-tool',
+  name: 'My Tool',
+  description: 'One-line description.',
+  icon: 'bot',                    // 'terminal' or 'bot'
+  defaultEphemeral: false,
+  requiredDomains: [              // auto-added to the venv's network allow list
+    'example.com',
+    '*.example.com',
+  ],
+  defaultSettings: {              // per-venv settings applied on creation
+    'network.proxy_enabled': false,
+    'network.allow_all_domains': true,
+  },
+  setupScript: [                  // runs in the terminal on first boot
+    '#!/bin/bash',
+    'if [ -d /root/.my-tool ]; then exit 0; fi',
+    'curl -fsSL https://my-tool.dev/install | bash',
+  ].join('\n'),
+},
+```
+
+**How it works:**
+
+1. User picks a template in the "New Environment" dialog
+2. On create, Clawcage saves the setup script and configures network domains/settings
+3. On first boot, the script runs in the user's terminal before the prompt appears
+4. A "Setting up..." overlay is shown while the script runs
+5. Subsequent boots skip the setup (idempotency check)
+
+**Setup script tips:**
+
+- Always include an idempotency guard (`if [ -d /root/.my-tool ]; then exit 0; fi`)
+- Use `--non-interactive` / `--skip-setup` / `--no-onboard` flags to prevent the installer from blocking on prompts
+- The VM rootfs includes: node, npm, python3, pip, git, curl, vim, uv
+- npm global bin is at `/root/.npm-global/bin` (already on PATH)
+- pip installs go to `/root/.venv/` (already activated)
+
 ## Auto-Update
 
 The app includes Tauri's updater plugin. When a new version is published to GitHub Releases, the app offers to download and install the update automatically.

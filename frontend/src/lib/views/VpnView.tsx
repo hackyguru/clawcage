@@ -347,18 +347,6 @@ AllowedIPs = 0.0.0.0/0`}
             </div>
           </div>
 
-          {/* Info box */}
-          <div className="rounded-lg border border-edge/50 bg-surface-alt/30 px-4 py-3">
-            <h4 className="text-xs font-medium text-content/60 mb-1.5">How it works</h4>
-            <ul className="text-[11px] text-content/40 space-y-1 list-disc list-inside">
-              <li>VPN routes upstream MITM proxy connections through a WireGuard tunnel</li>
-              <li>Each environment gets its own isolated tunnel -- host network is unaffected</li>
-              <li>Multiple environments can connect to different VPN servers simultaneously</li>
-              <li>The kill switch blocks all traffic if the tunnel drops, preventing leaks</li>
-              <li>Uses userspace WireGuard (boringtun) -- no kernel modules or root required</li>
-            </ul>
-          </div>
-
         </div>
       </div>
     </div>

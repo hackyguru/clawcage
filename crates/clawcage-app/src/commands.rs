@@ -850,6 +850,26 @@ pub fn system_metrics(state: State<'_, AppState>) -> Result<crate::state::System
     Ok(metrics)
 }
 
+/// Returns available disk space on the host in bytes.
+#[tauri::command]
+pub fn host_disk_free() -> Result<u64, String> {
+    // Use `df` to get available space on the home partition (no libc dep needed).
+    let home = std::env::var("HOME").unwrap_or_else(|_| "/".to_string());
+    let output = std::process::Command::new("df")
+        .args(["-k", &home])
+        .output()
+        .map_err(|e| format!("df failed: {e}"))?;
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    // Parse second line: Filesystem 1K-blocks Used Available Use% Mounted
+    let line = stdout.lines().nth(1).ok_or("df: no output")?;
+    let avail_kb: u64 = line.split_whitespace()
+        .nth(3)
+        .ok_or("df: missing available field")?
+        .parse()
+        .map_err(|e| format!("df: parse error: {e}"))?;
+    Ok(avail_kb * 1024)
+}
+
 // ---------------------------------------------------------------------------
 // File download from guest VM
 // ---------------------------------------------------------------------------

@@ -36,6 +36,33 @@ fn default_template() -> String {
     "blank".to_string()
 }
 
+/// Venv info enriched with computed fields for the frontend.
+#[derive(Debug, Clone, Serialize)]
+pub struct VenvInfoResponse {
+    #[serde(flatten)]
+    pub info: VenvInfo,
+    /// Total disk usage of the venv directory in bytes (scratch.img + session DBs + config).
+    pub disk_usage_bytes: u64,
+}
+
+/// Get the guest-reported disk usage for a venv (saved on stop).
+/// Returns bytes. Falls back to 0 if no data available yet.
+fn venv_disk_usage(venv_id: &str) -> u64 {
+    let home = match std::env::var("HOME") {
+        Ok(h) => h,
+        Err(_) => return 0,
+    };
+    let path = std::path::PathBuf::from(home)
+        .join(".clawcage")
+        .join("venvs")
+        .join(venv_id)
+        .join("disk_used_kb");
+    match std::fs::read_to_string(&path) {
+        Ok(s) => s.trim().parse::<u64>().unwrap_or(0) * 1024,
+        Err(_) => 0,
+    }
+}
+
 /// Returns the path to `~/.clawcage/venvs.json`.
 fn venvs_path() -> Result<PathBuf, String> {
     let home = std::env::var("HOME").map_err(|_| "HOME not set".to_string())?;
@@ -88,10 +115,16 @@ fn gen_id() -> String {
 // ---------------------------------------------------------------------------
 
 #[tauri::command]
-pub async fn list_venvs() -> Result<Vec<VenvInfo>, String> {
-    tokio::task::spawn_blocking(load_venvs)
-        .await
-        .map_err(|e| format!("spawn_blocking: {e}"))?
+pub async fn list_venvs() -> Result<Vec<VenvInfoResponse>, String> {
+    tokio::task::spawn_blocking(|| {
+        let venvs = load_venvs()?;
+        Ok(venvs.into_iter().map(|v| {
+            let disk = venv_disk_usage(&v.id);
+            VenvInfoResponse { info: v, disk_usage_bytes: disk }
+        }).collect())
+    })
+    .await
+    .map_err(|e| format!("spawn_blocking: {e}"))?
 }
 
 #[tauri::command]
@@ -235,14 +268,23 @@ pub async fn start_venv(id: String, app_handle: tauri::AppHandle) -> Result<(), 
 
 #[tauri::command]
 pub async fn stop_venv(id: String, app_handle: tauri::AppHandle) -> Result<(), String> {
-    // Verify this venv is actually active.
-    {
+    // Verify this venv is actually active and snapshot disk usage before stopping.
+    let disk_used_kb = {
         let app_state = app_handle.state::<AppState>();
         let active = app_state.active_venv_id.lock().unwrap().clone();
         if active.as_deref() != Some(&id) {
             return Err("this venv is not running".to_string());
         }
-    }
+        // Read last known guest disk usage from system metrics.
+        let vm_id = app_state.active_session_id.lock().unwrap().clone();
+        vm_id.and_then(|vid| {
+            let vms = app_state.vms.lock().unwrap();
+            vms.get(&vid).map(|i| {
+                let m = i.sys_metrics.latest.read().unwrap();
+                m.disk_used_kb
+            })
+        }).unwrap_or(0)
+    };
 
     // Stop the VM on the main thread.
     let h = app_handle.clone();
@@ -255,8 +297,17 @@ pub async fn stop_venv(id: String, app_handle: tauri::AppHandle) -> Result<(), S
 
     rx.await.map_err(|_| "stop channel closed".to_string())??;
 
-    // Update metadata.
-    tokio::task::spawn_blocking(move || update_venv_status(&id, "stopped"))
-        .await
-        .map_err(|e| format!("spawn_blocking: {e}"))?
+    // Save last known disk usage and update status.
+    let id_clone = id.clone();
+    tokio::task::spawn_blocking(move || {
+        // Persist guest disk usage for display when stopped.
+        if disk_used_kb > 0 {
+            if let Some(dir) = crate::venv_scratch_dir(&id_clone) {
+                let _ = std::fs::write(dir.join("disk_used_kb"), disk_used_kb.to_string());
+            }
+        }
+        update_venv_status(&id_clone, "stopped")
+    })
+    .await
+    .map_err(|e| format!("spawn_blocking: {e}"))?
 }
