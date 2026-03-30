@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.6] - 2026-03-30
+
+### Added
+- Environment templates: OpenClaw and Hermes templates with one-click setup, auto-domain configuration, and branded logos
+- Template setup wizard: multi-step create dialog (Template, Configure, Advanced) with form fields, network toggles, and hardware settings
+- File browser: real directory listing via guest agent ListDir protocol, replacing the event-log-based file tree with lazy-loaded live filesystem browsing
+- Host disk space monitoring: periodic check warns when free space drops below 2 GB to prevent VM I/O errors
+- Disk usage per environment: venv cards show actual guest data usage (saved on stop, read on list)
+
+### Changed
+- Replaced emoji characters with SVG icons throughout the UI (clipboard, lightning bolt)
+- Removed "How it works" info box from VPN view
+- Fixed double scrollbar in Settings pages
+
+### Fixed
+- Port forwarding relay workers permanently stuck on browser refresh (vsock fd shutdown wakes blocked readers)
+- Increased relay workers from 4 to 16 for concurrent browser connections
+- Host relay timeout increased from 5s to 10s, guest TCP connect timeout added (5s)
+- Template setup no longer re-runs on subsequent boots (marker file `/root/.clawcage-setup-done`)
+- Filesystem events now recorded even when MITM proxy is disabled (session DB extracted independently)
+
 ## [0.9.5] - 2026-03-28
 
 ### Added
