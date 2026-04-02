@@ -6,6 +6,8 @@ import { consumePendingBrowserPort } from '../stores/sidebar';
 import { showToast } from '../stores/toast';
 import { GlobeIcon, PlusIcon, CloseIcon, RefreshIcon } from '../icons/Icons';
 
+type ColorScheme = 'light' | 'dark';
+
 interface BrowserTab {
   guestPort: number;
   hostPort: number;
@@ -16,6 +18,7 @@ export default function BrowserView() {
   const [tabs, setTabs] = useState<BrowserTab[]>([]);
   const [activeIdx, setActiveIdx] = useState(0);
   const [showPortPicker, setShowPortPicker] = useState(false);
+  const [colorScheme, setColorScheme] = useState<ColorScheme>('light');
   const { detected } = usePorts();
   const iframeRefs = useRef<Map<number, HTMLIFrameElement>>(new Map());
   const mountedRef = useRef(true);
@@ -156,6 +159,17 @@ export default function BrowserView() {
             <span className="text-content/30 mr-1">guest:</span>
             {activeTab.guestPort}
           </div>
+          <button
+            className="p-1 rounded hover:bg-surface-alt text-content/40 hover:text-content/70 transition-colors text-[11px]"
+            onClick={() => setColorScheme((s) => s === 'light' ? 'dark' : 'light')}
+            title={`Switch to ${colorScheme === 'light' ? 'dark' : 'light'} mode`}
+          >
+            {colorScheme === 'light' ? (
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="size-3.5"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+            ) : (
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="size-3.5"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+            )}
+          </button>
         </div>
       )}
 
@@ -184,15 +198,23 @@ export default function BrowserView() {
           </div>
         ) : (
           tabs.map((tab, i) => (
-            <iframe
+            <div
               key={tab.guestPort}
-              ref={(el) => { if (el) iframeRefs.current.set(tab.guestPort, el); }}
-              src={`http://127.0.0.1:${tab.hostPort}`}
-              className="absolute inset-0 w-full h-full border-none"
-              style={{ display: i === activeIdx ? 'block' : 'none' }}
-              title={`Port ${tab.guestPort}`}
-              sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-modals"
-            />
+              className="absolute inset-0"
+              style={{
+                display: i === activeIdx ? 'block' : 'none',
+                colorScheme,
+                background: colorScheme === 'light' ? '#fff' : '#1a1a1a',
+              }}
+            >
+              <iframe
+                ref={(el) => { if (el) iframeRefs.current.set(tab.guestPort, el); }}
+                src={`http://127.0.0.1:${tab.hostPort}`}
+                className="w-full h-full border-none"
+                title={`Port ${tab.guestPort}`}
+                sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-modals"
+              />
+            </div>
           ))
         )}
       </div>
