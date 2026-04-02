@@ -93,8 +93,9 @@ export function useShells() {
     emit();
     try {
       await api.closeShell(sessionId);
-    } catch {
-      // Backend cleanup happens via shell-closed event.
+    } catch (e) {
+      console.warn('closeShell failed:', e);
+      showToast('Failed to close shell: ' + String(e), 'error');
     }
   }, []);
 

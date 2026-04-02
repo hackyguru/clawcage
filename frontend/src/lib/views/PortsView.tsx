@@ -7,9 +7,9 @@ import { showToast } from '../stores/toast';
 import { openInBrowser } from '../stores/sidebar';
 import Dialog from '../components/Dialog';
 
-const BTN = 'w-16 py-1 text-xs rounded-md font-medium text-center transition-colors';
-const BTN_PRIMARY = `${BTN} bg-interactive text-on-interactive hover:opacity-90`;
-const BTN_DANGER = `${BTN} border border-edge hover:bg-denied/10 hover:text-denied hover:border-denied/30`;
+const ICON_BTN = 'p-1.5 rounded-md transition-colors';
+const ICON_BTN_DEFAULT = `${ICON_BTN} text-content/40 hover:text-interactive hover:bg-interactive/10`;
+const ICON_BTN_DANGER = `${ICON_BTN} text-content/40 hover:text-denied hover:bg-denied/10`;
 
 function formatRuntime(secs: number): string {
   if (secs < 60) return `${secs}s`;
@@ -25,8 +25,12 @@ function formatMemory(kb: number): string {
   return `${(kb / 1048576).toFixed(1)} GB`;
 }
 
+// Internal VM ports that should not appear in the user-facing list.
+const HIDDEN_PORTS = new Set([53, 10443]); // dnsmasq, clawcage-net-proxy
+
 export default function PortsView() {
-  const { detected, forwarded, loading, error } = usePorts();
+  const { detected: allDetected, forwarded, loading, error } = usePorts();
+  const detected = allDetected.filter((d) => !HIDDEN_PORTS.has(d.port));
   const { processes } = useProcesses();
   const [showProcesses, setShowProcesses] = useState(false);
   const [forwardDialog, setForwardDialog] = useState<number | null>(null);
@@ -122,8 +126,8 @@ export default function PortsView() {
                 </>
               )}
               <col className="w-20" />
-              <col className="w-40" />
-              <col className="w-36" />
+              <col className="w-32" />
+              <col className="w-24" />
             </colgroup>
             <thead>
               <tr className="border-b border-edge text-xs text-content/50">
@@ -206,16 +210,22 @@ export default function PortsView() {
                         )}
                       </td>
                       <td className="px-4 py-2.5 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button className={`${BTN} border border-edge hover:bg-surface-alt`} onClick={() => openInBrowser(p.port)} title="Open in browser">Preview</button>
+                        <div className="flex items-center justify-end gap-1">
+                          <button className={ICON_BTN_DEFAULT} onClick={() => openInBrowser(p.port)} title="Preview in browser">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="size-3.5"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                          </button>
                           {fwd ? (
-                            <button className={BTN_DANGER} onClick={() => stopForwardAction(p.port)}>Stop</button>
+                            <button className={ICON_BTN_DANGER} onClick={() => stopForwardAction(p.port)} title="Stop forwarding">
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="size-3.5"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>
+                            </button>
                           ) : (
-                            <button className={BTN_PRIMARY} onClick={() => openForwardDialog(p.port)}>Forward</button>
+                            <button className={ICON_BTN_DEFAULT} onClick={() => openForwardDialog(p.port)} title="Forward port to host">
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="size-3.5"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>
+                            </button>
                           )}
-                          {showProcesses && (
-                            <button className={BTN_DANGER} onClick={() => killProcessAction(p.pid)} title="Kill process">Kill</button>
-                          )}
+                          <button className={ICON_BTN_DANGER} onClick={() => killProcessAction(p.pid)} title="Kill process">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="size-3.5"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -270,12 +280,8 @@ export default function PortsView() {
                           <span className="text-xs text-content/20">--</span>
                         </td>
                         <td className="px-4 py-2.5 text-right">
-                          <button
-                            className="px-2 py-1 text-xs rounded-md border border-edge hover:bg-denied/10 hover:text-denied hover:border-denied/30 transition-colors"
-                            onClick={() => killProcessAction(p.pid)}
-                            title="Kill process"
-                          >
-                            Kill
+                          <button className={ICON_BTN_DANGER} onClick={() => killProcessAction(p.pid)} title="Kill process">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="size-3.5"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
                           </button>
                         </td>
                       </tr>

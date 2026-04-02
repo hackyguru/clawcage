@@ -19,6 +19,7 @@
     "process:allow-restart",
     "dialog:default",
     "core:tray:default",
+    "notification:default",
     "core:window:allow-show",
     "core:window:allow-hide"
   ]

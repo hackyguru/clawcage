@@ -37,8 +37,9 @@ import { getActiveVenv } from './venvs';
 export async function initVm() {
   try {
     vmState = (await vmStatus()).toLowerCase();
-  } catch {
+  } catch (e) {
     // No active VM is normal on startup (user picks a venv first).
+    console.warn('vmStatus() init failed (falling back to idle):', e);
     vmState = 'idle';
   }
   emit();

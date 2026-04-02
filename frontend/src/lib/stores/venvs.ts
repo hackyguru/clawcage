@@ -111,7 +111,7 @@ export async function startVenvAction(id: string) {
   try {
     venvs = await listVenvs();
     emit();
-  } catch { /* ignore */ }
+  } catch (e) { console.warn('Failed to reload environments:', e); }
 }
 
 export async function stopVenvAction(id: string) {
@@ -133,7 +133,7 @@ export async function stopVenvAction(id: string) {
   try {
     venvs = await listVenvs();
     emit();
-  } catch { /* ignore */ }
+  } catch (e) { console.warn('Failed to reload environments:', e); }
 }
 
 export function openVenv(id: string) {

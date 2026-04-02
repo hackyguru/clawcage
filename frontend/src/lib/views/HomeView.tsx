@@ -846,10 +846,7 @@ export default function HomeView() {
             <div className="w-16 h-16 rounded-2xl bg-interactive/10 flex items-center justify-center mb-4">
               <TerminalIcon className="size-8 text-interactive" />
             </div>
-            <h2 className="text-lg font-semibold mb-1">No environments yet</h2>
-            <p className="text-sm text-content/50 mb-4 max-w-xs">
-              Create your first sandboxed virtual environment to get started.
-            </p>
+            <h2 className="text-lg font-semibold mb-4">No environments yet</h2>
             <button
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-interactive text-on-interactive hover:opacity-90 transition font-medium"
               onClick={() => setCreating(true)}

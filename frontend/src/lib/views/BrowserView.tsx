@@ -86,8 +86,9 @@ export default function BrowserView() {
   const activeTab = tabs[activeIdx] ?? null;
 
   // Ports available to open (not already in a tab).
+  const HIDDEN_PORTS = new Set([53, 10443]);
   const openPorts = tabs.map((t) => t.guestPort);
-  const availablePorts = detected.filter((d) => !openPorts.includes(d.port));
+  const availablePorts = detected.filter((d) => !openPorts.includes(d.port) && !HIDDEN_PORTS.has(d.port));
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -106,7 +107,7 @@ export default function BrowserView() {
             <GlobeIcon className="size-3 shrink-0" />
             <span className="truncate max-w-24">{tab.label}</span>
             <span
-              className="opacity-0 group-hover:opacity-100 hover:text-denied transition-opacity"
+              className="text-content/30 hover:text-denied transition-colors"
               onClick={(e) => { e.stopPropagation(); closeTab(i); }}
               title="Close tab"
             >
@@ -182,9 +183,9 @@ export default function BrowserView() {
             <p className="text-xs text-content/20">
               Click + to preview a port running in the VM
             </p>
-            {detected.length > 0 && (
+            {availablePorts.length > 0 && (
               <div className="flex flex-wrap gap-1.5 mt-2">
-                {detected.slice(0, 5).map((d) => (
+                {availablePorts.slice(0, 5).map((d) => (
                   <button
                     key={d.port}
                     className="px-2.5 py-1 text-xs rounded-md border border-edge hover:bg-surface-alt hover:border-interactive/30 transition-colors font-mono"

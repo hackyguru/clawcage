@@ -10,6 +10,7 @@ import { showToast } from './stores/toast';
 import { hostDiskFree } from './api';
 import { startPorts } from './stores/ports';
 import { startProcesses } from './stores/processes';
+import { startNotificationHooks } from './stores/notificationHooks';
 import type { ViewName } from './types';
 import WizardView from './views/WizardView';
 
@@ -86,6 +87,7 @@ function AppInner() {
     loadSettings().catch((e) => showToast('Failed to load settings: ' + String(e), 'error'));
     loadVenvs().catch((e) => showToast('Failed to load environments: ' + String(e), 'error'));
     startVenvListener();
+    startNotificationHooks();
     startPorts();
     startProcesses();
 

@@ -3036,6 +3036,7 @@ fn main() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_notification::init())
         .manage(AppState::new(session_index))
         .manage(PendingUpdate(std::sync::Mutex::new(None)))
         .setup(|app| {
@@ -3229,12 +3230,28 @@ fn main() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app_handle, event| {
-            // Re-show window when Dock icon is clicked with no visible windows.
-            if let tauri::RunEvent::Reopen { .. } = event {
-                if let Some(win) = app_handle.get_webview_window("main") {
-                    let _ = win.show();
-                    let _ = win.set_focus();
+            match event {
+                // Re-show window when Dock icon is clicked with no visible windows.
+                tauri::RunEvent::Reopen { .. } => {
+                    if let Some(win) = app_handle.get_webview_window("main") {
+                        let _ = win.show();
+                        let _ = win.set_focus();
+                    }
                 }
+                // Graceful shutdown: stop all VMs before the process exits.
+                tauri::RunEvent::ExitRequested { api, .. } => {
+                    let has_vms = {
+                        let state: tauri::State<'_, AppState> = app_handle.state();
+                        state.has_running_vms()
+                    };
+                    if has_vms {
+                        api.prevent_exit();
+                        info!("graceful shutdown: stopping all VMs before exit");
+                        let _ = stop_all_vms(app_handle);
+                        app_handle.exit(0);
+                    }
+                }
+                _ => {}
             }
         });
 }

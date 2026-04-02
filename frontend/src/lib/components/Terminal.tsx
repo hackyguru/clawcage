@@ -6,6 +6,7 @@ import { getTheme } from '../stores/theme';
 import { setTerminalRenderer } from '../stores/vm';
 import { getActiveVenv } from '../stores/venvs';
 import { getTemplate } from '../templates';
+import { notify } from '../stores/notifications';
 
 // Side-effect: register the web component
 import '../../components/clawcage-terminal';
@@ -162,6 +163,7 @@ export default function Terminal({ sessionId = 0 }: TerminalProps) {
               if (text.includes(SETUP_DONE)) {
                 settingUpRef.current = false;
                 setSettingUp(false);
+                notify('Setup Complete', `${setupName} has been installed`, 'success');
                 // Clear and show fresh prompt
                 termEl.clear();
                 termEl.fit();
