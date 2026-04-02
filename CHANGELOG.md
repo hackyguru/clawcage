@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-04-02
+
+### Added
+- In-app browser: preview guest VM ports directly in the app without forwarding to the host, with tab management, refresh, and light/dark mode toggle
+- Notifications: in-app toasts for port detection, template setup completion, VM state changes; native macOS notifications when the app is in the tray
+- Onboarding wizard: 5-step guided tour covering environments, terminals, network security, and monitoring tools
+- Graceful shutdown: all running VMs are synced and stopped cleanly on app quit (Cmd+Q, tray Quit, window close)
+- "Preview" button in Ports view opens a port directly in the in-app browser
+
+### Changed
+- All toggle switches use a consistent outlined style (green when active, gray when inactive) across the entire app
+- Port action buttons replaced with compact icons: eye (preview), external-link (forward), square (stop), X (kill)
+- Internal VM ports (53/dnsmasq, 10443/net-proxy) hidden from Ports and Browser views
+- Shell close button visible on all tabs including the default shell
+
+### Fixed
+- Agent no longer exits when the default shell closes, allowing new shells to be spawned after closing all tabs
+- Error handling audit: reload failures, init errors, and close-shell failures now surface as warnings or toasts instead of being silently swallowed
+
 ## [0.9.9] - 2026-04-02
 
 ### Changed
