@@ -115,12 +115,27 @@ fn gen_id() -> String {
 // ---------------------------------------------------------------------------
 
 #[tauri::command]
-pub async fn list_venvs() -> Result<Vec<VenvInfoResponse>, String> {
-    tokio::task::spawn_blocking(|| {
+pub async fn list_venvs(app_handle: tauri::AppHandle) -> Result<Vec<VenvInfoResponse>, String> {
+    // Snapshot which venvs are actually running right now.
+    let running: std::collections::HashSet<String> = {
+        let app_state: tauri::State<'_, AppState> = app_handle.state();
+        let guard = app_state.running_venvs.lock().unwrap();
+        guard.keys().cloned().collect()
+    };
+
+    tokio::task::spawn_blocking(move || {
         let venvs = load_venvs()?;
         Ok(venvs.into_iter().map(|v| {
             let disk = venv_disk_usage(&v.id);
-            VenvInfoResponse { info: v, disk_usage_bytes: disk }
+            // Override persisted status with live running state.
+            let mut info = v;
+            if running.contains(&info.id) {
+                info.status = "running".to_string();
+            } else if info.status == "running" || info.status == "booting" {
+                // JSON says running but it's not — stale status.
+                info.status = "stopped".to_string();
+            }
+            VenvInfoResponse { info, disk_usage_bytes: disk }
         }).collect())
     })
     .await
@@ -170,11 +185,12 @@ pub async fn delete_venv(id: String, app_handle: tauri::AppHandle) -> Result<(),
     // If this venv is currently running, stop it on the main thread first.
     {
         let app_state = app_handle.state::<AppState>();
-        let active = app_state.active_venv_id.lock().unwrap().clone();
-        if active.as_deref() == Some(&id) {
+        let is_running = app_state.running_venvs.lock().unwrap().contains_key(&id);
+        if is_running {
             let h = app_handle.clone();
+            let vid = id.clone();
             app_handle.run_on_main_thread(move || {
-                if let Err(e) = crate::stop_active_vm(&h) {
+                if let Err(e) = crate::stop_vm(&h, &vid) {
                     tracing::error!("stop VM for delete failed: {e}");
                 }
             }).map_err(|e| format!("main thread dispatch: {e}"))?;
@@ -207,21 +223,11 @@ pub async fn delete_venv(id: String, app_handle: tauri::AppHandle) -> Result<(),
 
 #[tauri::command]
 pub async fn start_venv(id: String, app_handle: tauri::AppHandle) -> Result<(), String> {
-    // If this venv is already the active one, just return success (no reboot).
+    // If this venv is already running, just return success (no reboot).
     {
         let app_state = app_handle.state::<AppState>();
-        let active = app_state.active_venv_id.lock().unwrap().clone();
-        if active.as_deref() == Some(&id) {
+        if app_state.running_venvs.lock().unwrap().contains_key(&id) {
             return Ok(());
-        }
-    }
-
-    // Mark any previously-running venv as stopped in metadata.
-    {
-        let app_state = app_handle.state::<AppState>();
-        let prev = app_state.active_venv_id.lock().unwrap().clone();
-        if let Some(prev_id) = prev {
-            let _ = tokio::task::spawn_blocking(move || update_venv_status(&prev_id, "stopped")).await;
         }
     }
 
@@ -268,18 +274,17 @@ pub async fn start_venv(id: String, app_handle: tauri::AppHandle) -> Result<(), 
 
 #[tauri::command]
 pub async fn stop_venv(id: String, app_handle: tauri::AppHandle) -> Result<(), String> {
-    // Verify this venv is actually active and snapshot disk usage before stopping.
+    // Verify this venv is actually running and snapshot disk usage before stopping.
     let disk_used_kb = {
         let app_state = app_handle.state::<AppState>();
-        let active = app_state.active_venv_id.lock().unwrap().clone();
-        if active.as_deref() != Some(&id) {
+        let session_id = app_state.running_venvs.lock().unwrap().get(&id).cloned();
+        if session_id.is_none() {
             return Err("this venv is not running".to_string());
         }
         // Read last known guest disk usage from system metrics.
-        let vm_id = app_state.active_session_id.lock().unwrap().clone();
-        vm_id.and_then(|vid| {
+        session_id.and_then(|sid| {
             let vms = app_state.vms.lock().unwrap();
-            vms.get(&vid).map(|i| {
+            vms.get(&sid).map(|i| {
                 let m = i.sys_metrics.latest.read().unwrap();
                 m.disk_used_kb
             })
@@ -288,10 +293,11 @@ pub async fn stop_venv(id: String, app_handle: tauri::AppHandle) -> Result<(), S
 
     // Stop the VM on the main thread.
     let h = app_handle.clone();
+    let vid = id.clone();
     let (tx, rx) = tokio::sync::oneshot::channel::<Result<(), String>>();
 
     app_handle.run_on_main_thread(move || {
-        let result = crate::stop_active_vm(&h);
+        let result = crate::stop_vm(&h, &vid);
         let _ = tx.send(result);
     }).map_err(|e| format!("main thread dispatch: {e}"))?;
 

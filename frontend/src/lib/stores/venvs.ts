@@ -1,7 +1,10 @@
 // Virtual environment store for React
 import { useSyncExternalStore } from 'react';
-import { listVenvs, createVenv as apiCreateVenv, deleteVenv as apiDeleteVenv, startVenv as apiStartVenv, stopVenv as apiStopVenv } from '../api';
+import { listVenvs, createVenv as apiCreateVenv, deleteVenv as apiDeleteVenv, startVenv as apiStartVenv, stopVenv as apiStopVenv, onVmStateChanged, focusVenv as apiFocusVenv } from '../api';
 import { showToast } from './toast';
+import { refreshPorts } from './ports';
+import { refreshProcesses } from './processes';
+import { refreshSystemMetrics } from './system';
 import type { VenvInfo } from '../types';
 
 let venvs: VenvInfo[] = [];
@@ -42,6 +45,17 @@ export async function loadVenvs() {
   emit();
 }
 
+// Auto-reload venvs when VM state changes (covers tray start/stop actions).
+let vmListenerSetup = false;
+export function startVenvListener() {
+  if (vmListenerSetup) return;
+  vmListenerSetup = true;
+  onVmStateChanged((_payload) => {
+    // Debounce: wait a beat for the backend to finish updating venvs.json
+    setTimeout(() => loadVenvs(), 300);
+  }).catch(() => {});
+}
+
 export async function createVenvAction(name: string, ephemeral: boolean = false, template: string = 'blank'): Promise<VenvInfo | null> {
   try {
     const v = await apiCreateVenv(name, ephemeral, template);
@@ -68,13 +82,7 @@ export async function deleteVenvAction(id: string) {
 }
 
 export async function startVenvAction(id: string) {
-  // Mark any currently-running venv as stopped (only one VM can run at a time).
-  for (const v of venvs) {
-    if (v.id !== id && (v.status === 'running' || v.status === 'booting')) {
-      v.status = 'stopped';
-    }
-  }
-
+  // Multiple VMs can run in parallel — don't stop others.
   const target = venvs.find((v) => v.id === id);
   if (target) {
     target.status = 'booting';
@@ -129,11 +137,17 @@ export async function stopVenvAction(id: string) {
 
 export function openVenv(id: string) {
   activeVenvId = id;
+  apiFocusVenv(id).catch(() => {});
+  // Refresh all per-venv stores so they show data for the new venv.
+  refreshPorts();
+  refreshProcesses();
+  refreshSystemMetrics();
   emit();
 }
 
 export function closeVenv() {
   activeVenvId = null;
+  apiFocusVenv(null).catch(() => {});
   emit();
 }
 

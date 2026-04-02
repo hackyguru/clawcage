@@ -152,10 +152,11 @@ export function getSessionInfo(): Promise<SessionInfo> {
 // Event listeners
 // ---------------------------------------------------------------------------
 
-/** vm-state-changed payload is { state: string, trigger: string }. */
-interface VmStateChangedPayload {
+/** vm-state-changed payload is { state: string, trigger: string, venv_id?: string }. */
+export interface VmStateChangedPayload {
   state: string;
   trigger: string;
+  venv_id?: string;
 }
 
 
@@ -167,9 +168,9 @@ export function onSerialOutput(
 
 
 export function onVmStateChanged(
-  callback: (state: string) => void,
+  callback: (payload: VmStateChangedPayload) => void,
 ): Promise<UnlistenFn> {
-  return ensureDeps().then(() => isMock ? mockApi.onVmStateChanged(callback) : tauriListen<VmStateChangedPayload>('vm-state-changed', (payload) => callback(payload.state)));
+  return ensureDeps().then(() => isMock ? mockApi.onVmStateChanged(callback) : tauriListen<VmStateChangedPayload>('vm-state-changed', callback));
 }
 
 
@@ -209,6 +210,11 @@ export function onShellClosed(
 // ---------------------------------------------------------------------------
 // Venv (virtual environment) management
 // ---------------------------------------------------------------------------
+
+/** Tell the backend which venv the user is currently viewing. */
+export function focusVenv(id: string | null): Promise<void> {
+  return ensureDeps().then(() => isMock ? Promise.resolve() : tauriInvoke<void>('focus_venv', { id }));
+}
 
 export function listVenvs(): Promise<VenvInfo[]> {
   return ensureDeps().then(() => isMock ? mockApi.listVenvs() : tauriInvoke<VenvInfo[]>('list_venvs'));

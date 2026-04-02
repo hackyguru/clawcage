@@ -1,9 +1,14 @@
 // PortsView -- shows detected guest VM ports with forwarding controls,
 // plus an optional "Show processes" toggle to reveal all running processes.
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { usePorts, forwardPortAction, stopForwardAction } from '../stores/ports';
 import { useProcesses, killProcessAction } from '../stores/processes';
 import { showToast } from '../stores/toast';
+import Dialog from '../components/Dialog';
+
+const BTN = 'w-16 py-1 text-xs rounded-md font-medium text-center transition-colors';
+const BTN_PRIMARY = `${BTN} bg-interactive text-on-interactive hover:opacity-90`;
+const BTN_DANGER = `${BTN} border border-edge hover:bg-denied/10 hover:text-denied hover:border-denied/30`;
 
 function formatRuntime(secs: number): string {
   if (secs < 60) return `${secs}s`;
@@ -23,6 +28,24 @@ export default function PortsView() {
   const { detected, forwarded, loading, error } = usePorts();
   const { processes } = useProcesses();
   const [showProcesses, setShowProcesses] = useState(false);
+  const [forwardDialog, setForwardDialog] = useState<number | null>(null);
+  const [dialogHostPort, setDialogHostPort] = useState('');
+
+  const openForwardDialog = useCallback((guestPort: number) => {
+    setDialogHostPort(String(guestPort));
+    setForwardDialog(guestPort);
+  }, []);
+
+  const handleForward = useCallback(() => {
+    if (forwardDialog === null) return;
+    const hp = parseInt(dialogHostPort, 10);
+    if (isNaN(hp) || hp < 1 || hp > 65535) {
+      showToast('Invalid port number', 'error');
+      return;
+    }
+    forwardPortAction(forwardDialog, hp === forwardDialog ? undefined : hp);
+    setForwardDialog(null);
+  }, [forwardDialog, dialogHostPort]);
 
   const isForwarded = (port: number) => forwarded.some((f) => f.guest_port === port);
   const getHostPort = (port: number) => forwarded.find((f) => f.guest_port === port)?.host_port;
@@ -87,7 +110,22 @@ export default function PortsView() {
             </p>
           </div>
         ) : (
-          <table className="w-full text-sm">
+          <table className="w-full text-sm table-fixed">
+            <colgroup>
+              <col className="w-16" />
+              <col />
+              <col className="w-14" />
+              {showProcesses && (
+                <>
+                  <col className="w-14" />
+                  <col className="w-18" />
+                  <col className="w-18" />
+                </>
+              )}
+              <col className="w-20" />
+              <col className="w-40" />
+              <col className="w-36" />
+            </colgroup>
             <thead>
               <tr className="border-b border-edge text-xs text-content/50">
                 <th className="text-left font-medium px-4 py-2">Port</th>
@@ -101,6 +139,7 @@ export default function PortsView() {
                   </>
                 )}
                 <th className="text-left font-medium px-4 py-2">Status</th>
+                <th className="text-left font-medium px-4 py-2">Forwarded</th>
                 <th className="text-right font-medium px-4 py-2">Actions</th>
               </tr>
             </thead>
@@ -148,50 +187,34 @@ export default function PortsView() {
                         </>
                       )}
                       <td className="px-4 py-2.5">
-                        {fwd ? (
-                          <span className="inline-flex items-center gap-1.5">
-                            <span className="size-1.5 rounded-full bg-allowed animate-pulse" />
-                            <span className="text-xs text-allowed font-medium">Forwarded</span>
-                            <button
-                              className="text-xs text-content/40 font-mono hover:text-interactive transition-colors"
-                              onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(`localhost:${hostPort}`); showToast('Copied to clipboard', 'success', 2000); }}
-                              title="Copy address"
-                            >
-                              localhost:{hostPort} <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="size-3 inline-block ml-0.5"><rect width="14" height="14" x="8" y="8" rx="2" /><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" /></svg>
-                            </button>
+                        <span className="inline-flex items-center gap-1.5">
+                          <span className={`size-1.5 rounded-full ${fwd ? 'bg-allowed animate-pulse' : 'bg-content/20'}`} />
+                          <span className={`text-xs font-medium ${fwd ? 'text-allowed' : 'text-content/50'}`}>
+                            {fwd ? 'Forwarded' : 'Detected'}
                           </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1.5">
-                            <span className="size-1.5 rounded-full bg-content/20" />
-                            <span className="text-xs text-content/50">Detected</span>
-                          </span>
+                        </span>
+                      </td>
+                      <td className="px-4 py-2.5">
+                        {fwd && hostPort && (
+                          <button
+                            className="inline-flex items-center gap-1 text-xs font-mono text-content/60 hover:text-interactive transition-colors"
+                            onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(`localhost:${hostPort}`); showToast('Copied to clipboard', 'success', 2000); }}
+                            title="Copy address"
+                          >
+                            :{hostPort}
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="size-3 shrink-0"><rect width="14" height="14" x="8" y="8" rx="2" /><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" /></svg>
+                          </button>
                         )}
                       </td>
                       <td className="px-4 py-2.5 text-right">
                         <div className="flex items-center justify-end gap-1.5">
                           {fwd ? (
-                            <button
-                              className="px-2.5 py-1 text-xs rounded-md border border-edge hover:bg-denied/10 hover:text-denied hover:border-denied/30 transition-colors font-medium"
-                              onClick={() => stopForwardAction(p.port)}
-                            >
-                              Stop
-                            </button>
+                            <button className={BTN_DANGER} onClick={() => stopForwardAction(p.port)}>Stop</button>
                           ) : (
-                            <button
-                              className="px-2.5 py-1 text-xs rounded-md bg-interactive text-on-interactive hover:opacity-90 transition-opacity font-medium"
-                              onClick={() => forwardPortAction(p.port)}
-                            >
-                              Forward
-                            </button>
+                            <button className={BTN_PRIMARY} onClick={() => openForwardDialog(p.port)}>Forward</button>
                           )}
                           {showProcesses && (
-                            <button
-                              className="px-2 py-1 text-xs rounded-md border border-edge hover:bg-denied/10 hover:text-denied hover:border-denied/30 transition-colors"
-                              onClick={() => killProcessAction(p.pid)}
-                              title="Kill process"
-                            >
-                              Kill
-                            </button>
+                            <button className={BTN_DANGER} onClick={() => killProcessAction(p.pid)} title="Kill process">Kill</button>
                           )}
                         </div>
                       </td>
@@ -263,6 +286,47 @@ export default function PortsView() {
           </table>
         )}
       </div>
+
+      {/* Forward port dialog */}
+      <Dialog open={forwardDialog !== null} onClose={() => setForwardDialog(null)} title="Forward Port" width="max-w-sm">
+        {forwardDialog !== null && (
+          <div className="flex flex-col gap-4">
+            <p className="text-xs text-content/50">
+              Forward guest port <span className="font-mono font-medium text-content">{forwardDialog}</span> to a host port.
+            </p>
+            <div>
+              <label className="text-xs text-content/50 mb-1 block">Host Port</label>
+              <input
+                type="number"
+                min={1}
+                max={65535}
+                className="w-full px-2.5 py-1.5 text-sm font-mono border border-edge rounded-md bg-surface focus:outline-none focus:ring-2 focus:ring-interactive/40 tabular-nums"
+                value={dialogHostPort}
+                onChange={(e) => setDialogHostPort(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleForward(); }}
+                autoFocus
+              />
+              <p className="text-[11px] text-content/30 mt-1">
+                Access at <span className="font-mono">localhost:{dialogHostPort || forwardDialog}</span>
+              </p>
+            </div>
+            <div className="flex items-center justify-end gap-2">
+              <button
+                className="px-3 py-1.5 text-sm rounded-lg hover:bg-surface-alt transition-colors"
+                onClick={() => setForwardDialog(null)}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-3 py-1.5 text-sm rounded-lg bg-interactive text-on-interactive hover:opacity-90 transition font-medium"
+                onClick={handleForward}
+              >
+                Forward
+              </button>
+            </div>
+          </div>
+        )}
+      </Dialog>
     </div>
   );
 }

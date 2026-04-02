@@ -135,18 +135,16 @@ function ShellTabBar() {
           onClick={() => setActiveSession(tab.sessionId)}
         >
           <ShellTabLabel tab={tab} onRename={renameShell} />
-          {tab.sessionId !== 0 && (
-            <span
-              className="opacity-0 group-hover:opacity-100 hover:text-denied transition-opacity"
-              onClick={(e) => {
-                e.stopPropagation();
-                closeShell(tab.sessionId);
-              }}
-              title="Close shell"
-            >
-              <CloseIcon className="size-2.5" />
-            </span>
-          )}
+          <span
+            className="opacity-0 group-hover:opacity-100 hover:text-denied transition-opacity"
+            onClick={(e) => {
+              e.stopPropagation();
+              closeShell(tab.sessionId);
+            }}
+            title="Close shell"
+          >
+            <CloseIcon className="size-2.5" />
+          </span>
         </button>
       ))}
       <button

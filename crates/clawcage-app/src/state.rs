@@ -302,12 +302,20 @@ pub struct PartialDownload {
     pub data: Vec<u8>,
 }
 
+/// Version string for tray header (set once at startup).
+pub struct TrayInfo {
+    pub version: String,
+}
+
 pub struct AppState {
     pub vms: Mutex<HashMap<String, VmInstance>>,
     pub session_index: Mutex<SessionIndex>,
-    pub active_session_id: Mutex<Option<String>>,
-    pub active_venv_id: Mutex<Option<String>>,
-    pub terminal_output: Arc<TerminalOutputMap>,
+    /// Maps running venv_id -> session_id. Multiple VMs can run in parallel.
+    pub running_venvs: Mutex<HashMap<String, String>>,
+    /// The venv the user is currently viewing in the UI (not necessarily running).
+    pub focused_venv_id: Mutex<Option<String>>,
+    /// Per-VM terminal output maps keyed by venv_id.
+    pub terminal_outputs: Mutex<HashMap<String, Arc<TerminalOutputMap>>>,
     pub terminal_input_tx: std::sync::mpsc::Sender<TerminalInputMsg>,
     /// Monotonic counter for file download request IDs.
     pub download_id_counter: AtomicU64,
@@ -315,6 +323,8 @@ pub struct AppState {
     pub pending_downloads: Mutex<HashMap<u64, tokio::sync::oneshot::Sender<DownloadResult>>>,
     /// In-progress chunked file downloads accumulating data.
     pub partial_downloads: Mutex<HashMap<u64, PartialDownload>>,
+    /// Tray info (version string, set once at startup).
+    pub tray_info: Mutex<Option<TrayInfo>>,
 }
 
 impl AppState {
@@ -364,14 +374,42 @@ impl AppState {
         Self {
             vms: Mutex::new(HashMap::new()),
             session_index: Mutex::new(session_index),
-            active_session_id: Mutex::new(None),
-            active_venv_id: Mutex::new(None),
-            terminal_output: Arc::new(TerminalOutputMap::new()),
+            running_venvs: Mutex::new(HashMap::new()),
+            focused_venv_id: Mutex::new(None),
+            terminal_outputs: Mutex::new(HashMap::new()),
             terminal_input_tx: tx,
             download_id_counter: AtomicU64::new(1),
             pending_downloads: Mutex::new(HashMap::new()),
             partial_downloads: Mutex::new(HashMap::new()),
+            tray_info: Mutex::new(None),
         }
+    }
+
+    /// Resolve the session_id for a venv. If venv_id is None, uses focused_venv_id.
+    pub fn resolve_session_id(&self, venv_id: Option<&str>) -> Result<String, String> {
+        let vid = match venv_id {
+            Some(v) => v.to_string(),
+            None => self.focused_venv_id.lock().unwrap().clone()
+                .ok_or("no environment selected")?,
+        };
+        self.running_venvs.lock().unwrap().get(&vid).cloned()
+            .ok_or_else(|| format!("environment {vid} is not running"))
+    }
+
+    /// Check if any VM is currently running.
+    pub fn has_running_vms(&self) -> bool {
+        !self.running_venvs.lock().unwrap().is_empty()
+    }
+
+    /// Get the terminal output map for a specific venv.
+    pub fn terminal_output_for(&self, venv_id: &str) -> Option<Arc<TerminalOutputMap>> {
+        self.terminal_outputs.lock().unwrap().get(venv_id).cloned()
+    }
+
+    /// Get the terminal output map for the focused venv.
+    pub fn focused_terminal_output(&self) -> Option<Arc<TerminalOutputMap>> {
+        let vid = self.focused_venv_id.lock().unwrap().clone()?;
+        self.terminal_outputs.lock().unwrap().get(&vid).cloned()
     }
 }
 
@@ -393,14 +431,16 @@ mod tests {
         let state = AppState::new(idx);
         assert!(!state.vms.is_poisoned());
         assert!(!state.session_index.is_poisoned());
-        assert!(!state.active_session_id.is_poisoned());
+        assert!(!state.running_venvs.is_poisoned());
+        assert!(!state.focused_venv_id.is_poisoned());
     }
 
     #[test]
-    fn active_session_starts_none() {
+    fn no_running_vms_on_creation() {
         let idx = SessionIndex::open_in_memory().unwrap();
         let state = AppState::new(idx);
-        assert!(state.active_session_id.lock().unwrap().is_none());
+        assert!(!state.has_running_vms());
+        assert!(state.focused_venv_id.lock().unwrap().is_none());
     }
 
     // -----------------------------------------------------------------------
@@ -552,14 +592,12 @@ mod tests {
     }
 
     #[test]
-    fn app_state_has_terminal_output_map() {
+    fn app_state_terminal_outputs_starts_empty() {
         let idx = SessionIndex::open_in_memory().unwrap();
         let state = AppState::new(idx);
-        // Default queue should exist and be open.
-        let q = state.terminal_output.get(DEFAULT_SHELL_SESSION_ID).unwrap();
-        let queue = q.data.lock().unwrap();
-        assert!(queue.is_empty());
-        assert!(!q.closed.load(Ordering::Acquire));
+        // No terminal outputs until a venv is booted.
+        assert!(state.terminal_outputs.lock().unwrap().is_empty());
+        assert!(state.focused_terminal_output().is_none());
     }
 
     // -----------------------------------------------------------------------

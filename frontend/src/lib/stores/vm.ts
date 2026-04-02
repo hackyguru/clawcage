@@ -33,6 +33,7 @@ function subscribe(listener: () => void) {
 
 import { showToast } from './toast';
 import { resetShells } from './shells';
+import { getActiveVenv } from './venvs';
 export async function initVm() {
   try {
     vmState = (await vmStatus()).toLowerCase();
@@ -41,12 +42,21 @@ export async function initVm() {
     vmState = 'idle';
   }
   emit();
-  onVmStateChanged((state) => {
-    vmState = state.toLowerCase();
-    if (vmState === 'idle' || vmState === 'not created') {
-      resetShells();
+  onVmStateChanged((payload) => {
+    const s = payload.state.toLowerCase();
+    // For idle (vm stopped), only reset if it's the focused venv.
+    // Other venvs stopping shouldn't affect the current view.
+    if (s === 'idle' || s === 'not created') {
+      const focused = getActiveVenv();
+      if (!payload.venv_id || !focused || payload.venv_id === focused.id) {
+        vmState = s;
+        resetShells();
+        emit();
+      }
+    } else {
+      vmState = s;
+      emit();
     }
-    emit();
   });
   onDownloadProgress((progress) => {
     downloadProgress = progress;

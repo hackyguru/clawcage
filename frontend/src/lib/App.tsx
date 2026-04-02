@@ -2,7 +2,7 @@
 import { useEffect, useState, lazy, Suspense, Component, useCallback, type ReactNode, type ErrorInfo } from 'react';
 import { useSidebar } from './stores/sidebar';
 import { useVm, initVm } from './stores/vm';
-import { useVenvs, loadVenvs } from './stores/venvs';
+import { useVenvs, loadVenvs, startVenvListener } from './stores/venvs';
 import { loadSettings } from './stores/settings';
 import { initTheme } from './stores/theme';
 import ToastContainer from './components/ToastContainer';
@@ -84,6 +84,7 @@ function AppInner() {
     initVm().catch((e) => showToast('Failed to initialize VM: ' + String(e), 'error'));
     loadSettings().catch((e) => showToast('Failed to load settings: ' + String(e), 'error'));
     loadVenvs().catch((e) => showToast('Failed to load environments: ' + String(e), 'error'));
+    startVenvListener();
     startPorts();
     startProcesses();
 

@@ -97,6 +97,14 @@ export async function stopForwardAction(guestPort: number) {
   }
 }
 
+/** Clear cached data and re-poll immediately. Call when switching venvs. */
+export function refreshProcesses() {
+  processes = [];
+  forwarded = [];
+  emit();
+  poll();
+}
+
 export function useProcesses() {
   return useSyncExternalStore(subscribe, () => snapshot);
 }

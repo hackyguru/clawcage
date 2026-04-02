@@ -25,14 +25,22 @@ use tauri::State;
 use crate::clone_fd;
 use crate::state::AppState;
 
-/// Get the active VM ID from app state, or return an error.
+/// Resolve the session_id for a VM. If venv_id is provided, look it up.
+/// Otherwise fall back to the focused venv.
+fn resolve_vm_id(state: &AppState, venv_id: Option<&str>) -> Result<String, String> {
+    state.resolve_session_id(venv_id)
+}
+
+/// Get the active VM ID (focused venv). Backward-compatible shorthand.
 fn active_vm_id(state: &AppState) -> Result<String, String> {
-    state
-        .active_session_id
-        .lock()
-        .unwrap()
-        .clone()
-        .ok_or_else(|| "no active session".to_string())
+    resolve_vm_id(state, None)
+}
+
+/// Set which venv the frontend is currently viewing. All subsequent
+/// commands without an explicit venv_id will target this venv.
+#[tauri::command]
+pub fn focus_venv(id: Option<String>, state: State<'_, AppState>) {
+    *state.focused_venv_id.lock().unwrap() = id;
 }
 
 #[tauri::command]
@@ -80,7 +88,9 @@ pub async fn terminal_poll(
     state: State<'_, AppState>,
 ) -> Result<Vec<u8>, String> {
     let sid = session_id.unwrap_or(clawcage_core::clawcage_proto::DEFAULT_SHELL_SESSION_ID);
-    let queue = state.terminal_output.get_or_create(sid);
+    let terminal_output = state.focused_terminal_output()
+        .ok_or_else(|| "no environment selected".to_string())?;
+    let queue = terminal_output.get_or_create(sid);
     queue.poll().await
         .ok_or_else(|| "terminal closed".to_string())
 }
@@ -138,7 +148,9 @@ pub async fn spawn_shell(
     };
 
     // Create the output queue for this session ahead of time.
-    state.terminal_output.get_or_create(session_id);
+    if let Some(terminal_output) = state.focused_terminal_output() {
+        terminal_output.get_or_create(session_id);
+    }
 
     let msg = HostToGuest::SpawnShell { session_id };
     validate_host_msg(&msg, host_state)
@@ -188,7 +200,9 @@ pub async fn close_shell(
 /// List active shell session IDs.
 #[tauri::command]
 pub async fn list_shells(state: State<'_, AppState>) -> Result<Vec<u32>, String> {
-    Ok(state.terminal_output.session_ids())
+    let terminal_output = state.focused_terminal_output()
+        .ok_or_else(|| "no environment selected".to_string())?;
+    Ok(terminal_output.session_ids())
 }
 
 // ---------------------------------------------------------------------------
@@ -1160,14 +1174,15 @@ mod tests {
         let state = AppState::new(idx);
         let result = active_vm_id(&state);
         assert!(result.is_err());
-        assert_eq!(result.unwrap_err(), "no active session");
     }
 
     #[test]
     fn active_vm_id_returns_id_when_set() {
         let idx = SessionIndex::open_in_memory().unwrap();
         let state = AppState::new(idx);
-        *state.active_session_id.lock().unwrap() = Some("20260225-143052-a7f3".to_string());
+        // Register a running venv with a session_id and set it as focused.
+        state.running_venvs.lock().unwrap().insert("test-venv".to_string(), "20260225-143052-a7f3".to_string());
+        *state.focused_venv_id.lock().unwrap() = Some("test-venv".to_string());
         let result = active_vm_id(&state);
         assert_eq!(result.unwrap(), "20260225-143052-a7f3");
     }

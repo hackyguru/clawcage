@@ -210,6 +210,14 @@ export default function AITab() {
             <h3 className="text-xs font-semibold text-content/70 mb-2">Models</h3>
             <div className="overflow-x-auto">
               <table className="data-table">
+                <colgroup>
+                  <col />
+                  <col className="w-20" />
+                  <col className="w-16" />
+                  <col className="w-16" />
+                  <col className="w-16" />
+                  <col className="w-14" />
+                </colgroup>
                 <thead>
                   <tr>
                     <th>Model</th>

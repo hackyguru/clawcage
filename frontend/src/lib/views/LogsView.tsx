@@ -100,6 +100,7 @@ function toObjects(columns: string[], rows: unknown[][]): Record<string, unknown
 function NetworkTable({ data }: { data: Record<string, unknown>[] }) {
   return (
     <table className="data-table">
+      <colgroup><col className="w-20" /><col className="w-16" /><col className="w-14" /><col /><col /><col className="w-14" /></colgroup>
       <thead>
         <tr>
           <th>Time</th>
@@ -137,6 +138,7 @@ function NetworkTable({ data }: { data: Record<string, unknown>[] }) {
 function ModelTable({ data }: { data: Record<string, unknown>[] }) {
   return (
     <table className="data-table">
+      <colgroup><col className="w-20" /><col className="w-20" /><col /><col className="w-14" /><col className="w-16" /><col className="w-16" /><col className="w-16" /></colgroup>
       <thead>
         <tr>
           <th>Time</th>
@@ -172,6 +174,7 @@ function ModelTable({ data }: { data: Record<string, unknown>[] }) {
 function ToolsTable({ data }: { data: Record<string, unknown>[] }) {
   return (
     <table className="data-table">
+      <colgroup><col className="w-20" /><col /><col className="w-16" /><col className="w-20" /><col /><col className="w-12" /></colgroup>
       <thead>
         <tr>
           <th>Time</th>
@@ -203,6 +206,7 @@ function ToolsTable({ data }: { data: Record<string, unknown>[] }) {
 function McpTable({ data }: { data: Record<string, unknown>[] }) {
   return (
     <table className="data-table">
+      <colgroup><col className="w-20" /><col className="w-20" /><col className="w-16" /><col /><col className="w-16" /><col className="w-16" /></colgroup>
       <thead>
         <tr>
           <th>Time</th>
@@ -234,6 +238,7 @@ function McpTable({ data }: { data: Record<string, unknown>[] }) {
 function FilesTable({ data }: { data: Record<string, unknown>[] }) {
   return (
     <table className="data-table">
+      <colgroup><col className="w-20" /><col className="w-16" /><col /><col className="w-16" /></colgroup>
       <thead>
         <tr>
           <th>Time</th>

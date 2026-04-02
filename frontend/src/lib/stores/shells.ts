@@ -39,7 +39,13 @@ export function useShells() {
         if (!mounted) return;
         // Tab was already added optimistically in spawnShell, but confirm it exists.
         if (!tabs.find((t) => t.sessionId === session_id)) {
-          tabs = [...tabs, { sessionId: session_id, label: `Shell ${session_id + 1}` }];
+          const usedNums = new Set(tabs.map((t) => {
+            const m = t.label.match(/^Shell (\d+)$/);
+            return m ? parseInt(m[1], 10) : 0;
+          }));
+          let num = 1;
+          while (usedNums.has(num)) num++;
+          tabs = [...tabs, { sessionId: session_id, label: `Shell ${num}` }];
         }
         activeSessionId = session_id;
         emit();
@@ -51,6 +57,14 @@ export function useShells() {
           activeSessionId = tabs.length > 0 ? tabs[tabs.length - 1].sessionId : 0;
         }
         emit();
+        // If all shells are gone, spawn a fresh one.
+        if (tabs.length === 0) {
+          const sid = nextSessionId++;
+          tabs = [{ sessionId: sid, label: 'Shell 1' }];
+          activeSessionId = sid;
+          emit();
+          api.spawnShell(sid).catch(() => {});
+        }
       });
       eventCleanups.current = [unlistenReady, unlistenClosed];
     })();
@@ -62,8 +76,15 @@ export function useShells() {
 
   const spawnShell = useCallback(async () => {
     const sid = nextSessionId++;
+    // Find the next available label number (fill gaps).
+    const usedNums = new Set(tabs.map((t) => {
+      const m = t.label.match(/^Shell (\d+)$/);
+      return m ? parseInt(m[1], 10) : 0;
+    }));
+    let num = 1;
+    while (usedNums.has(num)) num++;
     // Optimistically add the tab.
-    tabs = [...tabs, { sessionId: sid, label: `Shell ${sid + 1}` }];
+    tabs = [...tabs, { sessionId: sid, label: `Shell ${num}` }];
     activeSessionId = sid;
     emit();
     try {
@@ -79,11 +100,23 @@ export function useShells() {
   }, []);
 
   const closeShell = useCallback(async (sessionId: number) => {
-    if (sessionId === 0) return; // Can't close default shell.
     try {
       await api.closeShell(sessionId);
     } catch {
       // Ignore -- event handler will clean up.
+    }
+    // If we closed the last shell, spawn a fresh one.
+    if (tabs.length <= 1) {
+      const sid = nextSessionId++;
+      tabs = [{ sessionId: sid, label: 'Shell 1' }];
+      activeSessionId = sid;
+      emit();
+      try {
+        await api.spawnShell(sid);
+      } catch {
+        tabs = [];
+        emit();
+      }
     }
   }, []);
 

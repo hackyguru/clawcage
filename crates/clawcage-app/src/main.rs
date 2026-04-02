@@ -686,7 +686,7 @@ async fn vsock_terminal_to_events(
 /// Handle vsock control channel: read incoming messages, handle heartbeat.
 /// Called AFTER the boot handshake (Ready/BootConfig/BootReady already consumed).
 /// Validates each incoming message against the host state machine before processing.
-async fn vsock_control_handler(app_handle: tauri::AppHandle, control_fd: RawFd) {
+async fn vsock_control_handler(app_handle: tauri::AppHandle, control_fd: RawFd, session_id: String, venv_id: String) {
     let (tx, mut rx) = tokio::sync::mpsc::channel::<GuestToHost>(32);
 
     // Blocking reader thread for control messages.
@@ -730,14 +730,11 @@ async fn vsock_control_handler(app_handle: tauri::AppHandle, control_fd: RawFd) 
         // Validate incoming guest message against host state machine.
         {
             let state = app_handle.state::<AppState>();
-            let vm_id = state.active_session_id.lock().unwrap().clone();
-            if let Some(ref id) = vm_id {
-                let vms = state.vms.lock().unwrap();
-                if let Some(instance) = vms.get(id) {
-                    if let Err(e) = validate_guest_msg(&msg, instance.state_machine.state()) {
-                        warn!("vsock: rejected control message: {e}");
-                        continue;
-                    }
+            let vms = state.vms.lock().unwrap();
+            if let Some(instance) = vms.get(&session_id) {
+                if let Err(e) = validate_guest_msg(&msg, instance.state_machine.state()) {
+                    warn!("vsock: rejected control message: {e}");
+                    continue;
                 }
             }
         }
@@ -748,21 +745,25 @@ async fn vsock_control_handler(app_handle: tauri::AppHandle, control_fd: RawFd) 
             GuestToHost::ExecDone { id, exit_code } => {
                 info!("vsock: exec done (id={id}, exit_code={exit_code})");
             }
-            GuestToHost::ShellReady { session_id } => {
-                info!("vsock: shell {session_id} ready");
+            GuestToHost::ShellReady { session_id: shell_sid } => {
+                info!("vsock: shell {shell_sid} ready");
                 // Ensure output queue exists for the new session.
                 let state = app_handle.state::<AppState>();
-                state.terminal_output.get_or_create(session_id);
+                if let Some(terminal_output) = state.terminal_output_for(&venv_id) {
+                    terminal_output.get_or_create(shell_sid);
+                }
                 let _ = app_handle.emit("shell-ready", serde_json::json!({
-                    "session_id": session_id,
+                    "session_id": shell_sid,
                 }));
             }
-            GuestToHost::ShellClosed { session_id, exit_code } => {
-                info!("vsock: shell {session_id} closed (exit_code={exit_code})");
+            GuestToHost::ShellClosed { session_id: shell_sid, exit_code } => {
+                info!("vsock: shell {shell_sid} closed (exit_code={exit_code})");
                 let state = app_handle.state::<AppState>();
-                state.terminal_output.remove(session_id);
+                if let Some(terminal_output) = state.terminal_output_for(&venv_id) {
+                    terminal_output.remove(shell_sid);
+                }
                 let _ = app_handle.emit("shell-closed", serde_json::json!({
-                    "session_id": session_id,
+                    "session_id": shell_sid,
                     "exit_code": exit_code,
                 }));
             }
@@ -856,6 +857,8 @@ async fn setup_vsock(
     app_handle: tauri::AppHandle,
     mut vsock_manager: VsockManager,
     serial_task: tauri::async_runtime::JoinHandle<()>,
+    session_id: String,
+    venv_id: String,
 ) {
     // Wait for both terminal and control connections from the guest agent.
     let mut terminal_conn = None;
@@ -889,13 +892,10 @@ async fn setup_vsock(
     // Transition: Booting -> VsockConnected
     {
         let state = app_handle.state::<AppState>();
-        let vm_id = state.active_session_id.lock().unwrap().clone();
-        if let Some(ref id) = vm_id {
-            let mut vms = state.vms.lock().unwrap();
-            if let Some(instance) = vms.get_mut(id) {
-                if let Err(e) = instance.state_machine.transition(HostState::VsockConnected, "vsock_ports_connected") {
-                    warn!("state machine: {e}");
-                }
+        let mut vms = state.vms.lock().unwrap();
+        if let Some(instance) = vms.get_mut(&session_id) {
+            if let Err(e) = instance.state_machine.transition(HostState::VsockConnected, "vsock_ports_connected") {
+                warn!("state machine: {e}");
             }
         }
     }
@@ -917,13 +917,10 @@ async fn setup_vsock(
             info!("vsock: guest agent ready (version {version})");
             // Transition: VsockConnected -> Handshaking
             let state = app_handle.state::<AppState>();
-            let vm_id = state.active_session_id.lock().unwrap().clone();
-            if let Some(ref id) = vm_id {
-                let mut vms = state.vms.lock().unwrap();
-                if let Some(instance) = vms.get_mut(id) {
-                    if let Err(e) = instance.state_machine.transition(HostState::Handshaking, "ready_received") {
-                        warn!("state machine: {e}");
-                    }
+            let mut vms = state.vms.lock().unwrap();
+            if let Some(instance) = vms.get_mut(&session_id) {
+                if let Err(e) = instance.state_machine.transition(HostState::Handshaking, "ready_received") {
+                    warn!("state machine: {e}");
                 }
             }
         }
@@ -936,12 +933,8 @@ async fn setup_vsock(
     }
 
     // Send boot config as individual messages (with venv overrides if active).
-    let active_venv = {
-        let state = app_handle.state::<AppState>();
-        let venv = state.active_venv_id.lock().unwrap().clone();
-        venv
-    };
-    if let Err(e) = send_boot_config_for_venv(&mut ctrl_file, &[], active_venv.as_deref()) {
+    let active_venv = if venv_id.is_empty() { None } else { Some(venv_id.as_str()) };
+    if let Err(e) = send_boot_config_for_venv(&mut ctrl_file, &[], active_venv) {
         warn!("vsock: failed to send boot config: {e}");
     }
 
@@ -974,9 +967,8 @@ async fn setup_vsock(
     // Store vsock fds and transition to Running.
     let (mitm_config, mcp_config, session_db) = {
         let state = app_handle.state::<AppState>();
-        let vm_id = state.active_session_id.lock().unwrap().clone();
         let mut vms = state.vms.lock().unwrap();
-        if let Some(instance) = vm_id.as_ref().and_then(|id| vms.get_mut(id)) {
+        if let Some(instance) = vms.get_mut(&session_id) {
             instance.vsock_terminal_fd = Some(terminal.fd);
             instance.vsock_control_fd = Some(control.fd);
             if let Err(e) = instance.state_machine.transition(HostState::Running, "boot_ready_received") {
@@ -985,12 +977,8 @@ async fn setup_vsock(
             write_perf_log(&instance.state_machine);
             let vpn_manager = instance.vpn_state.clone();
             let mitm = instance.net_state.as_ref().map(|ns| {
-                let active_venv = {
-                    let app_state = app_handle.state::<AppState>();
-                    let venv_id = app_state.active_venv_id.lock().unwrap().clone();
-                    venv_id
-                };
-                build_mitm_config(ns, vpn_manager, active_venv.as_deref())
+                let active_venv = if venv_id.is_empty() { None } else { Some(venv_id.as_str()) };
+                build_mitm_config(ns, vpn_manager, active_venv)
             });
             let mcp = instance.mcp_state.clone();
             // Extract session DB independently of MITM config so fs-watch/port-watch
@@ -1012,25 +1000,33 @@ async fn setup_vsock(
     // Spawn forwarding tasks.
     let terminal_output = {
         let state = app_handle.state::<AppState>();
-        Arc::clone(&state.terminal_output)
+        match state.terminal_output_for(&venv_id) {
+            Some(to) => to,
+            None => {
+                warn!("vsock: no terminal output map for venv {venv_id}, creating one");
+                let to = Arc::new(crate::state::TerminalOutputMap::new());
+                state.terminal_outputs.lock().unwrap().insert(venv_id.clone(), Arc::clone(&to));
+                to
+            }
+        }
     };
     tokio::spawn(vsock_terminal_to_events(terminal_output, terminal.fd));
     let _app_handle_for_accept = app_handle.clone();
-    tokio::spawn(vsock_control_handler(app_handle.clone(), control.fd));
+    tokio::spawn(vsock_control_handler(app_handle.clone(), control.fd, session_id.clone(), venv_id.clone()));
 
     // Spawn periodic flush task: every 30s, sync session summary from info.db to main.db.
     {
         let flush_handle = app_handle.clone();
         let state = app_handle.state::<AppState>();
-        let session_id = state.active_session_id.lock().unwrap().clone();
+        let flush_session_id = session_id.clone();
         let db = {
             let vms = state.vms.lock().unwrap();
-            session_id.as_ref()
-                .and_then(|id| vms.get(id))
+            vms.get(&flush_session_id)
                 .and_then(|i| i.net_state.as_ref())
                 .map(|ns| Arc::clone(&ns.db))
         };
-        if let (Some(sid), Some(db)) = (session_id, db) {
+        if let Some(db) = db {
+            let sid = flush_session_id;
             tokio::spawn(async move {
                 let mut interval = tokio::time::interval(Duration::from_secs(30));
                 interval.tick().await; // skip immediate first tick
@@ -1080,11 +1076,12 @@ async fn setup_vsock(
     // Get port_state, process_state, and sys_metrics for watch handlers.
     let (port_state, process_state, sys_metrics) = {
         let state = app_handle.state::<AppState>();
-        let vm_id = state.active_session_id.lock().unwrap().clone();
-        vm_id.map(|id| {
-            let vms = state.vms.lock().unwrap();
-            vms.get(&id).map(|inst| (Arc::clone(&inst.port_state), Arc::clone(&inst.process_state), Arc::clone(&inst.sys_metrics)))
-        }).flatten().map(|(ps, proc_s, sm)| (Some(ps), Some(proc_s), Some(sm))).unwrap_or((None, None, None))
+        let vms = state.vms.lock().unwrap();
+        vms.get(&session_id).map(|inst| (
+            Some(Arc::clone(&inst.port_state)),
+            Some(Arc::clone(&inst.process_state)),
+            Some(Arc::clone(&inst.sys_metrics)),
+        )).unwrap_or((None, None, None))
     };
 
     // Process any connections that arrived during the handshake phase.
@@ -2496,6 +2493,81 @@ async fn install_update(app: tauri::AppHandle) -> Result<(), String> {
 // Venv lifecycle: boot and stop VMs on demand
 // ---------------------------------------------------------------------------
 
+/// Rebuild the system tray menu with current venv list and status.
+fn update_tray_status(handle: &tauri::AppHandle, _venv_name: Option<&str>) {
+    use tauri::menu::{MenuBuilder, MenuItemBuilder};
+
+    let app_state = handle.state::<AppState>();
+    let version = app_state.tray_info.lock().unwrap()
+        .as_ref()
+        .map(|i| i.version.clone())
+        .unwrap_or_default();
+
+    let running_venvs = app_state.running_venvs.lock().unwrap().clone();
+
+    let venvs = venvs::load_venvs().unwrap_or_default();
+    // Sort by last_used descending, take top 5.
+    let mut recent: Vec<_> = venvs.into_iter().collect();
+    recent.sort_by(|a, b| b.last_used.cmp(&a.last_used));
+    let show_more = recent.len() > 5;
+    recent.truncate(5);
+
+    let Ok(menu) = (|| -> Result<tauri::menu::Menu<tauri::Wry>, Box<dyn std::error::Error>> {
+        let mut builder = MenuBuilder::new(handle);
+
+        // Header
+        builder = builder.item(
+            &MenuItemBuilder::with_id("header", format!("Clawcage v{version}"))
+                .enabled(false)
+                .build(handle)?
+        );
+        builder = builder.separator();
+
+        // Venv list — use live running_venvs, not persisted status
+        if recent.is_empty() {
+            builder = builder.item(
+                &MenuItemBuilder::with_id("no-envs", "No environments")
+                    .enabled(false)
+                    .build(handle)?
+            );
+        } else {
+            for v in &recent {
+                let is_running = running_venvs.contains_key(&v.id);
+                let dot = if is_running { "●" } else { "○" };
+                let label = format!("{dot}  {}", v.name);
+                let action_id = if is_running {
+                    format!("stop:{}", v.id)
+                } else {
+                    format!("start:{}", v.id)
+                };
+                builder = builder.item(
+                    &MenuItemBuilder::with_id(action_id, label).build(handle)?
+                );
+            }
+        }
+
+        if show_more {
+            builder = builder.item(
+                &MenuItemBuilder::with_id("show-more", "View all...").build(handle)?
+            );
+        }
+
+        builder = builder.separator();
+        builder = builder.item(&MenuItemBuilder::with_id("show", "Open Dashboard").build(handle)?);
+        builder = builder.separator();
+        builder = builder.item(&MenuItemBuilder::with_id("quit", "Quit Clawcage").build(handle)?);
+
+        Ok(builder.build()?)
+    })() else {
+        return;
+    };
+
+    // Update the tray icon's menu.
+    if let Some(tray) = handle.tray_by_id("main") {
+        let _ = tray.set_menu(Some(menu));
+    }
+}
+
 /// Per-venv data directory: ~/.clawcage/venvs/<venv_id>/
 fn venv_scratch_dir(venv_id: &str) -> Option<PathBuf> {
     std::env::var("HOME").ok().map(|h| {
@@ -2503,25 +2575,21 @@ fn venv_scratch_dir(venv_id: &str) -> Option<PathBuf> {
     })
 }
 
-/// Stop the currently running VM (if any), clean up its session, and reset
-/// terminal output. Called before booting a new venv or when explicitly stopping.
-pub(crate) fn stop_active_vm(handle: &tauri::AppHandle) -> Result<(), String> {
+/// Stop a specific VM by venv_id. Cleans up session, terminal output, and VM instance.
+pub(crate) fn stop_vm(handle: &tauri::AppHandle, venv_id: &str) -> Result<(), String> {
     let app_state = handle.state::<AppState>();
 
+    // Remove from running_venvs and get the session_id.
     let session_id = {
-        let mut id = app_state.active_session_id.lock().unwrap();
-        id.take()
+        let mut running = app_state.running_venvs.lock().unwrap();
+        running.remove(venv_id)
     };
-    {
-        let mut vid = app_state.active_venv_id.lock().unwrap();
-        *vid = None;
-    }
 
     let Some(session_id) = session_id else {
-        return Ok(()); // No VM running
+        return Ok(()); // Not running
     };
 
-    info!(session_id = %session_id, "stopping active VM");
+    info!(session_id = %session_id, venv_id = %venv_id, "stopping VM");
 
     // Remove VmInstance from the map (takes ownership).
     let instance = {
@@ -2530,16 +2598,10 @@ pub(crate) fn stop_active_vm(handle: &tauri::AppHandle) -> Result<(), String> {
     };
 
     if let Some(instance) = instance {
-        // Flush guest filesystems before stopping. Write `sync` to the PTY so
-        // ext4 commits all dirty pages to the backing disk image. This is
-        // critical for persistent venvs -- without it, user files written to
-        // /root may be lost because the VM stop is abrupt.
+        // Flush guest filesystems before stopping.
         {
             let term_fd = instance.vsock_terminal_fd.unwrap_or(instance.serial_input_fd);
             if let Ok(mut file) = clone_fd(term_fd) {
-                // Send Ctrl-C first to interrupt any running command, then sync.
-                // Must use framed encoding since the guest agent expects
-                // [4B len][4B session_id][data] on the terminal vsock.
                 let payload = b"\x03\nsync\n";
                 let frame = clawcage_core::clawcage_proto::encode_terminal_frame(
                     clawcage_core::clawcage_proto::DEFAULT_SHELL_SESSION_ID,
@@ -2548,16 +2610,13 @@ pub(crate) fn stop_active_vm(handle: &tauri::AppHandle) -> Result<(), String> {
                 let _ = file.write_all(&frame);
                 let _ = file.flush();
             }
-            // Give the guest kernel time to flush.
             std::thread::sleep(Duration::from_millis(1500));
         }
 
-        // Stop the VM. This closes vsock fds and unblocks reader threads.
+        // Stop the VM.
         let _ = instance._vm.stop();
 
-        // Clean up session: snapshot stats, mark stopped.
-        // Don't delete scratch disk -- it's per-venv and persists across reboots.
-        // For ephemeral venvs, scratch is deleted on venv deletion, not on stop.
+        // Clean up session.
         let session_dir = session_dir_for(&session_id);
         if let Some(ref dir) = session_dir {
             let db_ref = instance.net_state.as_ref().map(|ns| ns.db.as_ref());
@@ -2565,32 +2624,55 @@ pub(crate) fn stop_active_vm(handle: &tauri::AppHandle) -> Result<(), String> {
             cleanup_session(dir, None, &session_id, &idx, db_ref);
         }
 
-        // Drop network state to flush WAL.
         drop(instance);
 
-        // Vacuum session DB.
         if let Some(ref dir) = session_dir {
             let idx = app_state.session_index.lock().unwrap();
             vacuum_session(&session_id, &idx, dir);
         }
     }
 
-    // Close all terminal session queues.
-    app_state.terminal_output.close_all();
+    // Close this venv's terminal output queues.
+    if let Some(output) = app_state.terminal_outputs.lock().unwrap().remove(venv_id) {
+        output.close_all();
+    }
 
     let _ = handle.emit("vm-state-changed", serde_json::json!({
         "state": "Idle",
         "trigger": "vm_stopped",
+        "venv_id": venv_id,
     }));
+
+    update_tray_status(handle, None);
 
     Ok(())
 }
 
-/// Boot a new VM for the given venv. Stops any currently running VM first.
+/// Stop all running VMs. Used on app quit.
+pub(crate) fn stop_all_vms(handle: &tauri::AppHandle) -> Result<(), String> {
+    let app_state = handle.state::<AppState>();
+    let venv_ids: Vec<String> = app_state.running_venvs.lock().unwrap().keys().cloned().collect();
+    for vid in venv_ids {
+        stop_vm(handle, &vid)?;
+    }
+    Ok(())
+}
+
+/// Backward-compatible: stop the focused VM (or all if quitting).
+pub(crate) fn stop_active_vm(handle: &tauri::AppHandle) -> Result<(), String> {
+    stop_all_vms(handle)
+}
+
+/// Boot a new VM for the given venv. Multiple VMs can run in parallel.
 /// Downloads rootfs if necessary.
 pub(crate) fn boot_venv(handle: &tauri::AppHandle, venv_id: &str) -> Result<(), String> {
-    // Stop any currently running VM.
-    stop_active_vm(handle)?;
+    // If this specific venv is already running, do nothing.
+    {
+        let app_state = handle.state::<AppState>();
+        if app_state.running_venvs.lock().unwrap().contains_key(venv_id) {
+            return Ok(());
+        }
+    }
 
     let app_state = handle.state::<AppState>();
     let asset_config = handle.state::<AssetConfig>();
@@ -2672,11 +2754,11 @@ pub(crate) fn boot_venv(handle: &tauri::AppHandle, venv_id: &str) -> Result<(), 
         }
     }
 
-    // Set active IDs and reset terminal queue so the poll loop can start
-    // receiving data as soon as the VM's vsock connects.
-    *app_state.active_session_id.lock().unwrap() = Some(session_id.clone());
-    *app_state.active_venv_id.lock().unwrap() = Some(venv_id.to_string());
-    app_state.terminal_output.reset();
+    // Register this VM as running and create its terminal output map.
+    app_state.running_venvs.lock().unwrap().insert(venv_id.to_string(), session_id.clone());
+    *app_state.focused_venv_id.lock().unwrap() = Some(venv_id.to_string());
+    let terminal_output = Arc::new(state::TerminalOutputMap::new());
+    app_state.terminal_outputs.lock().unwrap().insert(venv_id.to_string(), Arc::clone(&terminal_output));
 
     if rootfs.is_some() {
         // Rootfs available -- boot immediately.
@@ -2750,6 +2832,12 @@ pub(crate) fn boot_venv(handle: &tauri::AppHandle, venv_id: &str) -> Result<(), 
             }
         });
     }
+
+    // Update tray menu with venv name.
+    let venv_name = venvs::load_venvs()
+        .ok()
+        .and_then(|vs| vs.into_iter().find(|v| v.id == venv_id).map(|v| v.name));
+    update_tray_status(handle, venv_name.as_deref());
 
     Ok(())
 }
@@ -2835,13 +2923,25 @@ fn gui_boot_vm(
             // Reset the terminal output queue for the new session.
             {
                 let app_state = handle.state::<AppState>();
-                app_state.terminal_output.reset();
+                if let Some(vid) = venv_id {
+                    if let Some(to) = app_state.terminal_output_for(vid) {
+                        to.reset();
+                    }
+                }
             }
 
             // Serial forwarding for boot logs (aborted once vsock connects).
             let serial_output = {
                 let app_state = handle.state::<AppState>();
-                Arc::clone(&app_state.terminal_output)
+                let vid = venv_id.unwrap_or("");
+                match app_state.terminal_output_for(vid) {
+                    Some(to) => to,
+                    None => {
+                        let to = Arc::new(crate::state::TerminalOutputMap::new());
+                        app_state.terminal_outputs.lock().unwrap().insert(vid.to_string(), Arc::clone(&to));
+                        to
+                    }
+                }
             };
             let serial_task = tauri::async_runtime::spawn(
                 serial_to_events(serial_output, rx),
@@ -2850,8 +2950,10 @@ fn gui_boot_vm(
             // Spawn vsock connection handler if available.
             let h = handle.clone();
             if let Some(mgr) = vsock_manager {
+                let vsock_session_id = session_id.to_string();
+                let vsock_venv_id = venv_id.unwrap_or("").to_string();
                 tauri::async_runtime::spawn(
-                    setup_vsock(h.clone(), mgr, serial_task),
+                    setup_vsock(h.clone(), mgr, serial_task, vsock_session_id, vsock_venv_id),
                 );
             }
 
@@ -3000,9 +3102,74 @@ fn main() {
                 "trigger": "app_started",
             }));
 
+            // System tray: VMs keep running when the window is closed.
+            use tauri::tray::{TrayIconBuilder, MouseButton, TrayIconEvent};
+
+            let version = app.package_info().version.to_string();
+            {
+                let state: tauri::State<'_, AppState> = app.state();
+                *state.tray_info.lock().unwrap() = Some(crate::state::TrayInfo {
+                    version: version.clone(),
+                });
+            }
+
+            TrayIconBuilder::with_id("main")
+                .icon(app.default_window_icon().cloned().unwrap())
+                .tooltip(&format!("Clawcage v{version}"))
+                .on_menu_event(|app, event| {
+                    let id = event.id().as_ref().to_string();
+                    if id == "show" || id == "show-more" {
+                        if let Some(win) = app.get_webview_window("main") {
+                            let _ = win.show();
+                            let _ = win.set_focus();
+                        }
+                    } else if id == "quit" {
+                        let _ = crate::stop_active_vm(app);
+                        app.exit(0);
+                    } else if let Some(venv_id) = id.strip_prefix("start:") {
+                        let h = app.clone();
+                        let vid = venv_id.to_string();
+                        app.run_on_main_thread(move || {
+                            let _ = crate::boot_venv(&h, &vid);
+                        }).ok();
+                    } else if let Some(venv_id) = id.strip_prefix("stop:") {
+                        let h = app.clone();
+                        let vid = venv_id.to_string();
+                        app.run_on_main_thread(move || {
+                            let _ = crate::stop_vm(&h, &vid);
+                        }).ok();
+                    }
+                })
+                .on_tray_icon_event(|tray, event| {
+                    if let TrayIconEvent::DoubleClick { button: MouseButton::Left, .. } = event {
+                        if let Some(win) = tray.app_handle().get_webview_window("main") {
+                            let _ = win.show();
+                            let _ = win.set_focus();
+                        }
+                    }
+                })
+                .build(app)?;
+
+            // Build initial tray menu.
+            update_tray_status(app.handle(), None);
+
             Ok(())
         })
+        // Hide window instead of quitting when a VM is running.
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                let has_vm = {
+                    let state: tauri::State<'_, AppState> = window.app_handle().state();
+                    state.has_running_vms()
+                };
+                if has_vm {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+            }
+        })
         .invoke_handler(tauri::generate_handler![
+            commands::focus_venv,
             commands::vm_status,
             commands::serial_input,
             commands::terminal_poll,
@@ -3044,6 +3211,15 @@ fn main() {
             venvs::stop_venv,
             install_update,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app_handle, event| {
+            // Re-show window when Dock icon is clicked with no visible windows.
+            if let tauri::RunEvent::Reopen { .. } = event {
+                if let Some(win) = app_handle.get_webview_window("main") {
+                    let _ = win.show();
+                    let _ = win.set_focus();
+                }
+            }
+        });
 }

@@ -64,6 +64,16 @@ export function stopSystemMetrics() {
   emit();
 }
 
+/** Clear history and re-fetch. Call when switching venvs. */
+export function refreshSystemMetrics() {
+  latest = null;
+  history = [];
+  emit();
+  getSystemMetrics()
+    .then((m) => { if (m.updated_at > 0) pushSample(m); })
+    .catch(() => {});
+}
+
 export function useSystemMetrics() {
   return useSyncExternalStore(subscribe, () => snapshot);
 }

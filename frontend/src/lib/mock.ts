@@ -711,7 +711,7 @@ export const mockApi = {
 
   // Event listeners return no-op unsubscribers in mock mode
   onSerialOutput: async (_cb: (data: number[]) => void) => () => {},
-  onVmStateChanged: async (_cb: (state: string) => void) => () => {},
+  onVmStateChanged: async (_cb: (payload: { state: string; trigger: string; venv_id?: string }) => void) => () => {},
   onTerminalSourceChanged: async (_cb: (source: string) => void) => () => {},
   onDownloadProgress: async (_cb: (progress: any) => void) => () => {},
   onFileDownloadProgress: async (_cb: (progress: any) => void) => () => {},

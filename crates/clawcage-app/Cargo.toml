@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 clawcage-core = { path = "../clawcage-core" }
 clawcage-logger = { path = "../clawcage-logger" }
-tauri = { version = "2", features = ["macos-private-api"] }
+tauri = { version = "2", features = ["macos-private-api", "tray-icon", "image-png"] }
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
 tauri-plugin-dialog = "2"
