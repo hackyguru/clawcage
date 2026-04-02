@@ -2495,7 +2495,7 @@ async fn install_update(app: tauri::AppHandle) -> Result<(), String> {
 
 /// Rebuild the system tray menu with current venv list and status.
 fn update_tray_status(handle: &tauri::AppHandle, _venv_name: Option<&str>) {
-    use tauri::menu::{MenuBuilder, MenuItemBuilder};
+    use tauri::menu::{MenuBuilder, MenuItemBuilder, IconMenuItemBuilder};
 
     let app_state = handle.state::<AppState>();
     let version = app_state.tray_info.lock().unwrap()
@@ -2531,17 +2531,22 @@ fn update_tray_status(handle: &tauri::AppHandle, _venv_name: Option<&str>) {
                     .build(handle)?
             );
         } else {
+            let green = tauri::image::Image::from_bytes(include_bytes!("../icons/tray-venv-active.png")).unwrap();
+            let gray = tauri::image::Image::from_bytes(include_bytes!("../icons/tray-venv-inactive.png")).unwrap();
+
             for v in &recent {
                 let is_running = running_venvs.contains_key(&v.id);
-                let dot = if is_running { "●" } else { "○" };
-                let label = format!("{dot}  {}", v.name);
+                let label = v.name.clone();
                 let action_id = if is_running {
                     format!("stop:{}", v.id)
                 } else {
                     format!("start:{}", v.id)
                 };
+                let icon = if is_running { green.clone() } else { gray.clone() };
                 builder = builder.item(
-                    &MenuItemBuilder::with_id(action_id, label).build(handle)?
+                    &IconMenuItemBuilder::with_id(action_id, label)
+                        .icon(icon)
+                        .build(handle)?
                 );
             }
         }
@@ -3113,8 +3118,13 @@ fn main() {
                 });
             }
 
+            let tray_icon = {
+                let bytes = include_bytes!("../icons/tray-icon.png");
+                tauri::image::Image::from_bytes(bytes).unwrap()
+            };
             TrayIconBuilder::with_id("main")
-                .icon(app.default_window_icon().cloned().unwrap())
+                .icon(tray_icon)
+                .icon_as_template(true)
                 .tooltip(&format!("Clawcage v{version}"))
                 .on_menu_event(|app, event| {
                     let id = event.id().as_ref().to_string();
