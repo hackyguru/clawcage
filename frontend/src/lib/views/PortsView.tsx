@@ -73,15 +73,13 @@ export default function PortsView() {
           )}
           {/* Show processes toggle */}
           <label className="flex items-center gap-1.5 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              className="toggle-switch"
+              checked={showProcesses}
+              onChange={(e) => setShowProcesses(e.target.checked)}
+            />
             <span className="text-[11px] text-content/40">Processes</span>
-            <button
-              role="switch"
-              aria-checked={showProcesses}
-              onClick={() => setShowProcesses(!showProcesses)}
-              className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors ${showProcesses ? 'bg-interactive' : 'bg-content/15'}`}
-            >
-              <span className={`inline-block size-2.5 rounded-full bg-white transition-transform ${showProcesses ? 'translate-x-3.5' : 'translate-x-1'}`} />
-            </button>
           </label>
         </div>
       </div>

@@ -249,22 +249,14 @@ export default function VpnView() {
                   <p className="text-xs text-allowed/60 mt-1">Kill switch active</p>
                 )}
               </div>
-              <button
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-interactive/30 ${
-                  isActive ? 'bg-interactive' : 'bg-content/15'
-                }`}
-                onClick={handleToggle}
+              <input
+                type="checkbox"
+                className="toggle-switch"
+                checked={isActive}
+                onChange={handleToggle}
                 disabled={connecting}
-                role="switch"
-                aria-checked={isActive}
                 aria-label="Toggle VPN"
-              >
-                <span
-                  className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${
-                    isActive ? 'translate-x-6' : 'translate-x-1'
-                  }`}
-                />
-              </button>
+              />
             </div>
           </div>
 
@@ -318,20 +310,12 @@ AllowedIPs = 0.0.0.0/0`}
                   <span className="text-xs font-medium">Kill Switch</span>
                   <p className="text-[10px] text-content/40">Block all traffic if tunnel drops</p>
                 </div>
-                <button
-                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${
-                    vpn.killSwitch ? 'bg-interactive' : 'bg-content/15'
-                  }`}
-                  onClick={handleKillSwitchToggle}
-                  role="switch"
-                  aria-checked={vpn.killSwitch}
-                >
-                  <span
-                    className={`inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform ${
-                      vpn.killSwitch ? 'translate-x-4.5' : 'translate-x-0.5'
-                    }`}
-                  />
-                </button>
+                <input
+                  type="checkbox"
+                  className="toggle-switch"
+                  checked={vpn.killSwitch}
+                  onChange={handleKillSwitchToggle}
+                />
               </div>
             </div>
 
