@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.7] - 2026-04-02
+
+### Added
+- Parallel VMs: multiple environments can now run simultaneously with independent terminals, ports, files, and metrics
+- System tray: app hides to menu bar when closed with a VM running; tray menu shows all venvs with start/stop controls
+- Per-venv focus: switching environments in the UI immediately scopes all pages (terminal, ports, files, stats) to that venv
+- Port forward dialog: configure custom host port when forwarding guest ports
+- Shell management: closing the last shell spawns a fresh one; shell labels reuse numbers (Shell 1, not Shell 7)
+
+### Changed
+- Table columns use fixed widths across all data tables (ports, stats, logs) to prevent layout shifts
+- Port table split into separate Status and Forwarded columns with copy button
+- Action buttons (Forward, Stop, Kill) use consistent fixed widths
+
+### Fixed
+- Tray and desktop app now stay in sync via VM state change events that trigger automatic venv list reload
+- Stopping one venv from the tray no longer stops all running VMs
+- VM state events scoped by venv_id so stopping venv A doesn't reset the UI for venv B
+- Filesystem events now recorded even when MITM proxy is disabled
+- Double scrollbar in Settings pages removed
+
 ## [0.9.6] - 2026-03-30
 
 ### Added
