@@ -46,6 +46,9 @@ pub struct VenvInfoResponse {
     pub info: VenvInfo,
     /// Total disk usage of the venv directory in bytes (scratch.img + session DBs + config).
     pub disk_usage_bytes: u64,
+    /// Base64 data URL for the custom icon (if set). Read from disk on each list call.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icon_url: Option<String>,
 }
 
 /// Get the guest-reported disk usage for a venv (saved on stop).
@@ -138,7 +141,56 @@ pub async fn list_venvs(app_handle: tauri::AppHandle) -> Result<Vec<VenvInfoResp
                 // JSON says running but it's not — stale status.
                 info.status = "stopped".to_string();
             }
-            VenvInfoResponse { info, disk_usage_bytes: disk }
+            // Read custom icon as data URL if present.
+            let icon_url = info.icon.as_ref().and_then(|filename| {
+                let home = std::env::var("HOME").ok()?;
+                let path = std::path::PathBuf::from(home)
+                    .join(".clawcage")
+                    .join("venvs")
+                    .join(&info.id)
+                    .join(filename);
+                let bytes = std::fs::read(&path).ok()?;
+                // Detect MIME type from file magic bytes.
+                let mime = if bytes.starts_with(b"\x89PNG") {
+                    "image/png"
+                } else if bytes.starts_with(b"\xff\xd8\xff") {
+                    "image/jpeg"
+                } else if bytes.starts_with(b"GIF8") {
+                    "image/gif"
+                } else if bytes.starts_with(b"RIFF") && bytes.len() > 12 && &bytes[8..12] == b"WEBP" {
+                    "image/webp"
+                } else {
+                    "image/png" // fallback
+                };
+                use std::fmt::Write;
+                let mut b64 = String::new();
+                for chunk in bytes.chunks(3) {
+                    const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+                    match chunk.len() {
+                        3 => {
+                            let _ = write!(b64, "{}{}{}{}",
+                                TABLE[(chunk[0] >> 2) as usize] as char,
+                                TABLE[((chunk[0] & 0x03) << 4 | chunk[1] >> 4) as usize] as char,
+                                TABLE[((chunk[1] & 0x0f) << 2 | chunk[2] >> 6) as usize] as char,
+                                TABLE[(chunk[2] & 0x3f) as usize] as char);
+                        }
+                        2 => {
+                            let _ = write!(b64, "{}{}{}=",
+                                TABLE[(chunk[0] >> 2) as usize] as char,
+                                TABLE[((chunk[0] & 0x03) << 4 | chunk[1] >> 4) as usize] as char,
+                                TABLE[((chunk[1] & 0x0f) << 2) as usize] as char);
+                        }
+                        1 => {
+                            let _ = write!(b64, "{}{}==",
+                                TABLE[(chunk[0] >> 2) as usize] as char,
+                                TABLE[((chunk[0] & 0x03) << 4) as usize] as char);
+                        }
+                        _ => {}
+                    }
+                }
+                Some(format!("data:{mime};base64,{b64}"))
+            });
+            VenvInfoResponse { info, disk_usage_bytes: disk, icon_url }
         }).collect())
     })
     .await

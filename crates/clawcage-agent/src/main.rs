@@ -768,11 +768,8 @@ fn multi_bridge_loop(
             // Refresh fd snapshot.
             fds = shell_mgr.fd_snapshot();
 
-            // If default shell closed, exit the agent.
-            if session_id == DEFAULT_SHELL_SESSION_ID {
-                eprintln!("[clawcage-agent] default shell exited, shutting down");
-                return;
-            }
+            // Keep agent alive even after all shells close.
+            // New shells can be spawned via the control channel.
         }
     }
 }

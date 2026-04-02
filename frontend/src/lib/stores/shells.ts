@@ -1,6 +1,9 @@
 // Shell session store for multi-terminal tab management.
-import { useSyncExternalStore, useCallback, useRef, useEffect } from 'react';
+// Uses a simple model: tabs are only added AFTER the backend confirms
+// the shell is ready (via shell-ready event). No optimistic updates.
+import { useSyncExternalStore, useCallback } from 'react';
 import * as api from '../api';
+import { showToast } from './toast';
 
 export interface ShellTab {
   sessionId: number;
@@ -10,10 +13,11 @@ export interface ShellTab {
 let tabs: ShellTab[] = [{ sessionId: 0, label: 'Shell 1' }];
 let activeSessionId = 0;
 let nextSessionId = 1;
-// Cached snapshot objects for useSyncExternalStore (must be referentially stable).
+let spawning = false; // prevents double-spawn
 let tabsSnapshot = tabs;
 let activeSnapshot = activeSessionId;
 const listeners = new Set<() => void>();
+let eventsInitialized = false;
 
 function emit() {
   tabsSnapshot = [...tabs];
@@ -26,97 +30,71 @@ function subscribe(listener: () => void) {
   return () => listeners.delete(listener);
 }
 
+function nextLabel(): string {
+  const usedNums = new Set(tabs.map((t) => {
+    const m = t.label.match(/^Shell (\d+)$/);
+    return m ? parseInt(m[1], 10) : 0;
+  }));
+  let num = 1;
+  while (usedNums.has(num)) num++;
+  return `Shell ${num}`;
+}
+
+/** Set up global event listeners once. */
+function initShellEvents() {
+  if (eventsInitialized) return;
+  eventsInitialized = true;
+
+  api.onShellReady(({ session_id }) => {
+    spawning = false;
+    // Only add if not already present.
+    if (!tabs.find((t) => t.sessionId === session_id)) {
+      tabs = [...tabs, { sessionId: session_id, label: nextLabel() }];
+    }
+    activeSessionId = session_id;
+    emit();
+  }).catch(() => {});
+
+  api.onShellClosed(({ session_id }) => {
+    tabs = tabs.filter((t) => t.sessionId !== session_id);
+    if (activeSessionId === session_id) {
+      activeSessionId = tabs.length > 0 ? tabs[tabs.length - 1].sessionId : 0;
+    }
+    emit();
+  }).catch(() => {});
+}
+
 export function useShells() {
+  initShellEvents();
+
   const currentTabs = useSyncExternalStore(subscribe, () => tabsSnapshot);
   const currentActive = useSyncExternalStore(subscribe, () => activeSnapshot);
-  const eventCleanups = useRef<Array<() => void>>([]);
-
-  // Listen for shell-ready and shell-closed events from the backend.
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      const unlistenReady = await api.onShellReady(({ session_id }) => {
-        if (!mounted) return;
-        // Tab was already added optimistically in spawnShell, but confirm it exists.
-        if (!tabs.find((t) => t.sessionId === session_id)) {
-          const usedNums = new Set(tabs.map((t) => {
-            const m = t.label.match(/^Shell (\d+)$/);
-            return m ? parseInt(m[1], 10) : 0;
-          }));
-          let num = 1;
-          while (usedNums.has(num)) num++;
-          tabs = [...tabs, { sessionId: session_id, label: `Shell ${num}` }];
-        }
-        activeSessionId = session_id;
-        emit();
-      });
-      const unlistenClosed = await api.onShellClosed(({ session_id }) => {
-        if (!mounted) return;
-        tabs = tabs.filter((t) => t.sessionId !== session_id);
-        if (activeSessionId === session_id) {
-          activeSessionId = tabs.length > 0 ? tabs[tabs.length - 1].sessionId : 0;
-        }
-        emit();
-        // If all shells are gone, spawn a fresh one.
-        if (tabs.length === 0) {
-          const sid = nextSessionId++;
-          tabs = [{ sessionId: sid, label: 'Shell 1' }];
-          activeSessionId = sid;
-          emit();
-          api.spawnShell(sid).catch(() => {});
-        }
-      });
-      eventCleanups.current = [unlistenReady, unlistenClosed];
-    })();
-    return () => {
-      mounted = false;
-      eventCleanups.current.forEach((fn) => fn());
-    };
-  }, []);
 
   const spawnShell = useCallback(async () => {
+    if (spawning) return;
+    spawning = true;
     const sid = nextSessionId++;
-    // Find the next available label number (fill gaps).
-    const usedNums = new Set(tabs.map((t) => {
-      const m = t.label.match(/^Shell (\d+)$/);
-      return m ? parseInt(m[1], 10) : 0;
-    }));
-    let num = 1;
-    while (usedNums.has(num)) num++;
-    // Optimistically add the tab.
-    tabs = [...tabs, { sessionId: sid, label: `Shell ${num}` }];
-    activeSessionId = sid;
-    emit();
     try {
       await api.spawnShell(sid);
-    } catch {
-      // Revert if backend rejects.
-      tabs = tabs.filter((t) => t.sessionId !== sid);
-      if (activeSessionId === sid) {
-        activeSessionId = tabs.length > 0 ? tabs[tabs.length - 1].sessionId : 0;
-      }
-      emit();
+      // Don't add tab here — wait for shell-ready event.
+    } catch (e) {
+      spawning = false;
+      console.error('[shells] spawnShell failed:', e);
+      showToast('Failed to create shell: ' + String(e), 'error');
     }
   }, []);
 
   const closeShell = useCallback(async (sessionId: number) => {
+    // Remove tab immediately for responsive UI.
+    tabs = tabs.filter((t) => t.sessionId !== sessionId);
+    if (activeSessionId === sessionId) {
+      activeSessionId = tabs.length > 0 ? tabs[tabs.length - 1].sessionId : 0;
+    }
+    emit();
     try {
       await api.closeShell(sessionId);
     } catch {
-      // Ignore -- event handler will clean up.
-    }
-    // If we closed the last shell, spawn a fresh one.
-    if (tabs.length <= 1) {
-      const sid = nextSessionId++;
-      tabs = [{ sessionId: sid, label: 'Shell 1' }];
-      activeSessionId = sid;
-      emit();
-      try {
-        await api.spawnShell(sid);
-      } catch {
-        tabs = [];
-        emit();
-      }
+      // Backend cleanup happens via shell-closed event.
     }
   }, []);
 
@@ -148,5 +126,6 @@ export function resetShells() {
   tabs = [{ sessionId: 0, label: 'Shell 1' }];
   activeSessionId = 0;
   nextSessionId = 1;
+  spawning = false;
   emit();
 }

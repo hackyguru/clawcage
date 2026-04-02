@@ -23,6 +23,7 @@ import HomeView from './views/HomeView';
 
 // Lazy-load heavy views (StatsView pulls in recharts ~700KB)
 const PortsView = lazy(() => import('./views/PortsView'));
+const BrowserView = lazy(() => import('./views/BrowserView'));
 const FilesView = lazy(() => import('./views/FilesView'));
 const LogsView = lazy(() => import('./views/LogsView'));
 const StatsView = lazy(() => import('./views/StatsView'));
@@ -150,6 +151,7 @@ function AppInner() {
             )}
             <Suspense fallback={<div className="flex items-center justify-center h-full"><span className="spinner w-6 h-6 text-content/30" /></div>}>
               {currentView === 'ports' && <PortsView />}
+              {currentView === 'browser' && <BrowserView />}
               {currentView === 'files' && <FilesView />}
               {currentView === 'logs' && <LogsView />}
               {currentView === 'stats' && <StatsView />}

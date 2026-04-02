@@ -4,6 +4,7 @@ import { useState, useCallback } from 'react';
 import { usePorts, forwardPortAction, stopForwardAction } from '../stores/ports';
 import { useProcesses, killProcessAction } from '../stores/processes';
 import { showToast } from '../stores/toast';
+import { openInBrowser } from '../stores/sidebar';
 import Dialog from '../components/Dialog';
 
 const BTN = 'w-16 py-1 text-xs rounded-md font-medium text-center transition-colors';
@@ -208,6 +209,7 @@ export default function PortsView() {
                       </td>
                       <td className="px-4 py-2.5 text-right">
                         <div className="flex items-center justify-end gap-1.5">
+                          <button className={`${BTN} border border-edge hover:bg-surface-alt`} onClick={() => openInBrowser(p.port)} title="Open in browser">Preview</button>
                           {fwd ? (
                             <button className={BTN_DANGER} onClick={() => stopForwardAction(p.port)}>Stop</button>
                           ) : (

@@ -160,24 +160,51 @@ function ShellTabBar() {
 }
 
 export default function TerminalView() {
-  const { tabs, activeSessionId } = useShells();
+  const { tabs, activeSessionId, spawnShell } = useShells();
 
   return (
     <div className="flex flex-col h-full w-full">
       <TerminalToolbar />
       <ShellTabBar />
       <div className="flex-1 min-h-0 relative">
-        {tabs.map((tab) => (
-          <div
-            key={tab.sessionId}
-            className="absolute inset-0"
-            style={{ display: tab.sessionId === activeSessionId ? 'block' : 'none' }}
-          >
-            <Terminal sessionId={tab.sessionId} />
+        {tabs.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full bg-base-300">
+            <div className="flex flex-col items-center gap-4 max-w-xs text-center">
+              <div className="w-14 h-14 rounded-2xl bg-interactive/10 flex items-center justify-center">
+                <TerminalIconLarge className="size-7 text-interactive" />
+              </div>
+              <p className="text-sm font-medium text-content/70">No shells open</p>
+              <button
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-sm rounded-lg bg-interactive text-on-interactive hover:opacity-90 transition-opacity font-medium"
+                onClick={() => spawnShell()}
+              >
+                <PlusIcon className="size-3.5" />
+                New Shell
+              </button>
+            </div>
           </div>
-        ))}
+        ) : (
+          tabs.map((tab) => (
+            <div
+              key={tab.sessionId}
+              className="absolute inset-0"
+              style={{ display: tab.sessionId === activeSessionId ? 'block' : 'none' }}
+            >
+              <Terminal sessionId={tab.sessionId} />
+            </div>
+          ))
+        )}
       </div>
       <StatsBar />
     </div>
+  );
+}
+
+function TerminalIconLarge({ className }: { className?: string }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <polyline points="4 17 10 11 4 5" />
+      <line x1="12" y1="19" x2="20" y2="19" />
+    </svg>
   );
 }

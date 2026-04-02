@@ -9,6 +9,7 @@ import { ChevronDown, TrashIcon } from '../icons/Icons';
 import { ConfirmDialog } from '../components/Dialog';
 import SubMenu from '../components/SubMenu';
 import SettingsSection from './settings/SettingsSection';
+import { getTemplate } from '../templates';
 
 /** Inline environment name + icon customization. */
 function VenvCustomization({ venvId, name, icon }: { venvId: string; name: string; icon?: string | null }) {
@@ -48,11 +49,14 @@ function VenvCustomization({ venvId, name, icon }: { venvId: string; name: strin
     const reader = new FileReader();
     reader.onload = async () => {
       const dataUrl = reader.result as string;
+      console.log('[icon] uploading', dataUrl.length, 'chars');
       try {
         await setVenvIcon(venvId, dataUrl);
+        console.log('[icon] saved, reloading venvs');
         await loadVenvs();
         showToast('Icon updated', 'success', 2000);
       } catch (err) {
+        console.error('[icon] upload failed:', err);
         showToast('Failed to set icon: ' + String(err), 'error');
       }
     };
@@ -71,10 +75,12 @@ function VenvCustomization({ venvId, name, icon }: { venvId: string; name: strin
     }
   }, [venvId]);
 
-  // Build icon URL if custom icon exists.
-  const iconUrl = icon
-    ? `asset://localhost/.clawcage/venvs/${venvId}/${icon}`
-    : null;
+  // Find the icon from the venvs list. Fall back to template logo.
+  const { venvs: allVenvs } = useVenvs();
+  const venvData = allVenvs.find((v) => v.id === venvId);
+  const iconUrl = venvData?.icon_url ?? null;
+  const tmpl = venvData ? getTemplate(venvData.template) : null;
+  const displayIcon = iconUrl ?? tmpl?.logo ?? null;
 
   return (
     <div className="border-t border-edge mx-4 mt-6 pt-4 pb-2">
@@ -107,8 +113,8 @@ function VenvCustomization({ venvId, name, icon }: { venvId: string; name: strin
         <div className="flex items-center gap-3">
           <span className="text-xs text-content/50 w-12 shrink-0">Icon</span>
           <div className="flex items-center gap-2">
-            {iconUrl ? (
-              <img src={iconUrl} alt="" className="size-8 rounded-md object-cover border border-edge" />
+            {displayIcon ? (
+              <img src={displayIcon} alt="" className="size-8 rounded-md object-cover border border-edge" />
             ) : (
               <div className="size-8 rounded-md bg-content/5 border border-edge/50 flex items-center justify-center text-content/20 text-[10px]">
                 None
@@ -118,7 +124,7 @@ function VenvCustomization({ venvId, name, icon }: { venvId: string; name: strin
               className="px-2 py-1 text-xs rounded-md border border-edge hover:bg-surface-alt transition-colors"
               onClick={() => fileRef.current?.click()}
             >
-              {icon ? 'Change' : 'Upload'}
+              {displayIcon ? 'Change' : 'Upload Image'}
             </button>
             {icon && (
               <button

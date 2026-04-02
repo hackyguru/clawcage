@@ -260,6 +260,14 @@ export function forwardPort(guestPort: number, hostPort?: number): Promise<numbe
   return ensureDeps().then(() => isMock ? mockApi.forwardPort(guestPort, hostPort) : tauriInvoke<number>('forward_port', { guestPort, hostPort }));
 }
 
+export function startBrowserProxy(guestPort: number): Promise<number> {
+  return ensureDeps().then(() => isMock ? Promise.resolve(guestPort) : tauriInvoke<number>('start_browser_proxy', { guestPort }));
+}
+
+export function stopBrowserProxy(guestPort: number): Promise<void> {
+  return ensureDeps().then(() => isMock ? Promise.resolve() : tauriInvoke<void>('stop_browser_proxy', { guestPort }));
+}
+
 export function stopForward(guestPort: number): Promise<void> {
   return ensureDeps().then(() => isMock ? mockApi.stopForward(guestPort) : tauriInvoke<void>('stop_forward', { guestPort }));
 }

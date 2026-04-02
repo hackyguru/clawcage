@@ -3200,6 +3200,8 @@ fn main() {
             commands::get_ports,
             commands::forward_port,
             commands::stop_forward,
+            commands::start_browser_proxy,
+            commands::stop_browser_proxy,
             commands::get_processes,
             commands::kill_process,
             commands::system_metrics,

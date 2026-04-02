@@ -20,16 +20,18 @@ export default function Terminal({ sessionId = 0 }: TerminalProps) {
   const inputBufferRef = useRef('');
   const inputTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isMock, setIsMock] = useState(false);
-  const [booting, setBooting] = useState(true);
+  // Non-default shells skip the boot overlay — the VM is already running.
+  const [booting, setBooting] = useState(sessionId === 0);
   const [settingUp, setSettingUp] = useState(false);
   const settingUpRef = useRef(false);
   const [setupName, setSetupName] = useState('');
   const [disconnected, setDisconnected] = useState(false);
   const failCountRef = useRef(0);
-  const DISCONNECT_THRESHOLD = 8; // ~2s of consecutive failures
+  // Non-default shells need more time for the backend to spawn the PTY.
+  const DISCONNECT_THRESHOLD = sessionId === 0 ? 8 : 20;
   // Boot phases: 'booting' = discard all output, 'buffering' = vsock connected
   // but bashrc hasn't cleared screen yet (accumulate), 'ready' = pass-through.
-  const phaseRef = useRef<'booting' | 'buffering' | 'ready'>('booting');
+  const phaseRef = useRef<'booting' | 'buffering' | 'ready'>(sessionId === 0 ? 'booting' : 'ready');
   const postBootBuf = useRef<number[]>([]);
   const vmAlreadyRunning = useRef(false);
 

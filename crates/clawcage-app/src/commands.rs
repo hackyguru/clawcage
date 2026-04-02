@@ -807,6 +807,74 @@ pub async fn stop_forward(
 }
 
 // ---------------------------------------------------------------------------
+// Browser proxy (internal port bridge for in-app browser)
+// ---------------------------------------------------------------------------
+
+/// Start a browser proxy: binds localhost to bridge traffic to a guest port
+/// via vsock relay. Returns the host port. Does NOT appear in the forwarded
+/// ports list — this is internal to the in-app browser.
+#[tauri::command]
+pub async fn start_browser_proxy(
+    guest_port: u16,
+    state: State<'_, AppState>,
+) -> Result<u16, String> {
+    let vm_id = active_vm_id(&state)?;
+    let vms = state.vms.lock().unwrap();
+    let instance = vms.get(&vm_id).ok_or("VM not found")?;
+    let port_state = Arc::clone(&instance.port_state);
+    drop(vms);
+
+    // Already proxied?
+    {
+        let proxies = port_state.browser_proxies.lock().unwrap();
+        if let Some(&(hp, _)) = proxies.get(&guest_port) {
+            return Ok(hp);
+        }
+    }
+
+    // Bind to random port
+    let std_listener = std::net::TcpListener::bind("127.0.0.1:0")
+        .map_err(|e| format!("bind failed: {e}"))?;
+    let actual_port = std_listener.local_addr()
+        .map_err(|e| format!("local addr: {e}"))?
+        .port();
+    std_listener.set_nonblocking(true)
+        .map_err(|e| format!("nonblocking: {e}"))?;
+    let tokio_listener = tokio::net::TcpListener::from_std(std_listener)
+        .map_err(|e| format!("async listener: {e}"))?;
+
+    let ps = Arc::clone(&port_state);
+    let task = tokio::spawn(async move {
+        port_forward_accept_loop(tokio_listener, guest_port, ps).await;
+    });
+
+    port_state.browser_proxies.lock().unwrap()
+        .insert(guest_port, (actual_port, task.abort_handle()));
+
+    tracing::info!("browser proxy: guest:{guest_port} -> localhost:{actual_port}");
+    Ok(actual_port)
+}
+
+/// Stop a browser proxy for a guest port.
+#[tauri::command]
+pub async fn stop_browser_proxy(
+    guest_port: u16,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let vm_id = active_vm_id(&state)?;
+    let vms = state.vms.lock().unwrap();
+    let instance = vms.get(&vm_id).ok_or("VM not found")?;
+    let port_state = Arc::clone(&instance.port_state);
+    drop(vms);
+
+    if let Some((_, handle)) = port_state.browser_proxies.lock().unwrap().remove(&guest_port) {
+        handle.abort();
+        tracing::info!("browser proxy stopped: guest:{guest_port}");
+    }
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
 // Processes
 // ---------------------------------------------------------------------------
 

@@ -88,6 +88,7 @@ export async function startVenvAction(id: string) {
     target.status = 'booting';
   }
   activeVenvId = id;
+  apiFocusVenv(id).catch(() => {});
   emit();
 
   try {

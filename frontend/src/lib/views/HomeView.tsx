@@ -475,8 +475,8 @@ function VenvCard({ venv, onDelete }: { venv: VenvInfo; onDelete: (v: VenvInfo) 
           <div className={`flex items-center justify-center w-10 h-10 rounded-xl shrink-0 overflow-hidden ${
             venv.icon || tmpl.logo ? '' : isRunning ? 'bg-allowed/10 text-allowed' : 'bg-interactive/10 text-interactive'
           }`}>
-            {venv.icon ? (
-              <img src={`asset://localhost/.clawcage/venvs/${venv.id}/${venv.icon}`} alt="" className="w-full h-full object-cover" />
+            {venv.icon_url ? (
+              <img src={venv.icon_url} alt="" className="w-full h-full object-cover" />
             ) : (
               <TemplateIcon icon={tmpl.icon} logo={tmpl.logo} className="size-5" fill={!!tmpl.logo} />
             )}

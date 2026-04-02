@@ -54,6 +54,8 @@ pub struct PortState {
     pub relay_rx: tokio::sync::Mutex<tokio::sync::mpsc::UnboundedReceiver<RawFd>>,
     /// Abort handles for per-port forwarding background tasks.
     pub forward_tasks: Mutex<HashMap<u16, tokio::task::AbortHandle>>,
+    /// Browser proxy sessions: guest_port -> (host_port, abort_handle).
+    pub browser_proxies: Mutex<HashMap<u16, (u16, tokio::task::AbortHandle)>>,
 }
 
 impl PortState {
@@ -65,6 +67,7 @@ impl PortState {
             relay_tx,
             relay_rx: tokio::sync::Mutex::new(relay_rx),
             forward_tasks: Mutex::new(HashMap::new()),
+            browser_proxies: Mutex::new(HashMap::new()),
         }
     }
 }
@@ -386,11 +389,25 @@ impl AppState {
     }
 
     /// Resolve the session_id for a venv. If venv_id is None, uses focused_venv_id.
+    /// Falls back to the only running venv if focused is unset and exactly one is running.
     pub fn resolve_session_id(&self, venv_id: Option<&str>) -> Result<String, String> {
         let vid = match venv_id {
             Some(v) => v.to_string(),
-            None => self.focused_venv_id.lock().unwrap().clone()
-                .ok_or("no environment selected")?,
+            None => {
+                let focused = self.focused_venv_id.lock().unwrap().clone();
+                match focused {
+                    Some(v) => v,
+                    None => {
+                        // Fall back to the only running venv.
+                        let running = self.running_venvs.lock().unwrap();
+                        if running.len() == 1 {
+                            running.keys().next().unwrap().clone()
+                        } else {
+                            return Err("no environment selected".to_string());
+                        }
+                    }
+                }
+            }
         };
         self.running_venvs.lock().unwrap().get(&vid).cloned()
             .ok_or_else(|| format!("environment {vid} is not running"))
@@ -407,8 +424,22 @@ impl AppState {
     }
 
     /// Get the terminal output map for the focused venv.
+    /// Falls back to the only running venv if focused is unset.
     pub fn focused_terminal_output(&self) -> Option<Arc<TerminalOutputMap>> {
-        let vid = self.focused_venv_id.lock().unwrap().clone()?;
+        let vid = {
+            let focused = self.focused_venv_id.lock().unwrap().clone();
+            match focused {
+                Some(v) => v,
+                None => {
+                    let outputs = self.terminal_outputs.lock().unwrap();
+                    if outputs.len() == 1 {
+                        outputs.keys().next().unwrap().clone()
+                    } else {
+                        return None;
+                    }
+                }
+            }
+        };
         self.terminal_outputs.lock().unwrap().get(&vid).cloned()
     }
 }

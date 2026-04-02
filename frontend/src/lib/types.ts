@@ -181,12 +181,14 @@ export interface VenvInfo {
   template: string;
   /** Custom icon filename (e.g. "icon.png"), stored in the venv data dir. */
   icon?: string | null;
+  /** Base64 data URL for the custom icon (computed by backend). */
+  icon_url?: string | null;
   /** Total disk usage of the venv directory in bytes. */
   disk_usage_bytes?: number;
 }
 
 /** Sidebar view names. */
-export type ViewName = 'home' | 'terminal' | 'ports' | 'files' | 'logs' | 'stats' | 'vpn' | 'settings';
+export type ViewName = 'home' | 'terminal' | 'ports' | 'browser' | 'files' | 'logs' | 'stats' | 'vpn' | 'settings';
 
 /** A running process inside the guest VM. */
 export interface GuestProcess {

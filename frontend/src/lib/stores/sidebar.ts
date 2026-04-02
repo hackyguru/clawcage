@@ -6,6 +6,7 @@ type SettingsSection = string;
 
 let activeView: ViewName = 'home';
 let settingsSection: SettingsSection = '';
+let pendingBrowserPort: number | null = null;
 const listeners = new Set<() => void>();
 
 function emit() {
@@ -32,4 +33,18 @@ export function useSidebar() {
   }, []);
 
   return { activeView: view, settingsSection: section, setView, setSettingsSection };
+}
+
+/** Navigate to the browser view and open a specific guest port. */
+export function openInBrowser(port: number) {
+  pendingBrowserPort = port;
+  activeView = 'browser';
+  emit();
+}
+
+/** Consume the pending browser port (called by BrowserView on mount). */
+export function consumePendingBrowserPort(): number | null {
+  const p = pendingBrowserPort;
+  pendingBrowserPort = null;
+  return p;
 }
