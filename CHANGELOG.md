@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.9] - 2026-04-02
+
+### Changed
+- System tray icon now uses the Clawcage logo rendered as a macOS template image (adapts to light/dark menu bar)
+- Venv menu items in the system tray show colored logo icons: green for running, gray for stopped
+
 ## [0.9.8] - 2026-04-02
 
 ### Added
