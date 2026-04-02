@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.8] - 2026-04-02
+
+### Added
+- Live system metrics on venv cards: CPU, memory, and disk usage with trend arrows update every 3 seconds for running environments
+- Customizable environment name and icon in Settings: rename venvs inline, upload a custom icon image (max 512 KB)
+- Custom venv icons override template logos on the home page cards
+
+### Changed
+- Template logos (OpenClaw, Hermes) now fill their rounded containers edge-to-edge instead of showing with padding
+
 ## [0.9.7] - 2026-04-02
 
 ### Added
