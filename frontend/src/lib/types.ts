@@ -179,6 +179,8 @@ export interface VenvInfo {
   ephemeral: boolean;
   /** Template ID used when this venv was created. */
   template: string;
+  /** Custom icon filename (e.g. "icon.png"), stored in the venv data dir. */
+  icon?: string | null;
   /** Total disk usage of the venv directory in bytes. */
   disk_usage_bytes?: number;
 }

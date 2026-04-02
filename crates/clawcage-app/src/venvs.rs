@@ -30,6 +30,9 @@ pub struct VenvInfo {
     /// Template ID used when this venv was created (e.g. "blank").
     #[serde(default = "default_template")]
     pub template: String,
+    /// Custom icon path (relative to venv data dir, e.g. "icon.png").
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub icon: Option<String>,
 }
 
 fn default_template() -> String {
@@ -154,6 +157,7 @@ pub async fn create_venv(name: String, ephemeral: bool, template: Option<String>
             last_used: None,
             ephemeral,
             template: template.unwrap_or_else(default_template),
+            icon: None,
         };
         venvs.push(venv.clone());
         save_venvs(&venvs)?;
@@ -178,6 +182,84 @@ pub async fn save_venv_file(id: String, filename: String, content: String) -> Re
     })
     .await
     .map_err(|e| format!("spawn_blocking: {e}"))?
+}
+
+/// Rename a venv.
+#[tauri::command]
+pub async fn rename_venv(id: String, name: String) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || {
+        let mut venvs = load_venvs()?;
+        let venv = venvs.iter_mut().find(|v| v.id == id)
+            .ok_or_else(|| format!("venv not found: {id}"))?;
+        venv.name = name;
+        save_venvs(&venvs)
+    })
+    .await
+    .map_err(|e| format!("spawn_blocking: {e}"))?
+}
+
+/// Set a custom icon for a venv (base64-encoded PNG saved to disk).
+#[tauri::command]
+pub async fn set_venv_icon(id: String, icon_data: Option<String>) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || {
+        let mut venvs = load_venvs()?;
+        let venv = venvs.iter_mut().find(|v| v.id == id)
+            .ok_or_else(|| format!("venv not found: {id}"))?;
+
+        if let Some(data) = icon_data {
+            // Decode base64 and save as icon.png in venv dir.
+            let bytes = base64_decode(&data)?;
+            let home = std::env::var("HOME").map_err(|_| "HOME not set".to_string())?;
+            let dir = std::path::PathBuf::from(home)
+                .join(".clawcage")
+                .join("venvs")
+                .join(&id);
+            std::fs::create_dir_all(&dir).map_err(|e| format!("create dir: {e}"))?;
+            std::fs::write(dir.join("icon.png"), bytes).map_err(|e| format!("write icon: {e}"))?;
+            venv.icon = Some("icon.png".to_string());
+        } else {
+            // Remove custom icon.
+            venv.icon = None;
+            let home = std::env::var("HOME").unwrap_or_default();
+            let icon_path = std::path::PathBuf::from(home)
+                .join(".clawcage")
+                .join("venvs")
+                .join(&id)
+                .join("icon.png");
+            let _ = std::fs::remove_file(icon_path);
+        }
+
+        save_venvs(&venvs)
+    })
+    .await
+    .map_err(|e| format!("spawn_blocking: {e}"))?
+}
+
+/// Simple base64 decoder (no padding required).
+fn base64_decode(input: &str) -> Result<Vec<u8>, String> {
+    // Strip data URL prefix if present (e.g. "data:image/png;base64,...")
+    let b64 = input.strip_prefix("data:")
+        .and_then(|s| s.split_once(','))
+        .map(|(_, data)| data)
+        .unwrap_or(input);
+
+    const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = Vec::new();
+    let mut buf: u32 = 0;
+    let mut bits = 0;
+    for &ch in b64.as_bytes() {
+        if ch == b'=' || ch == b'\n' || ch == b'\r' || ch == b' ' { continue; }
+        let val = TABLE.iter().position(|&c| c == ch)
+            .ok_or_else(|| format!("invalid base64 char: {}", ch as char))? as u32;
+        buf = (buf << 6) | val;
+        bits += 6;
+        if bits >= 8 {
+            bits -= 8;
+            out.push((buf >> bits) as u8);
+            buf &= (1 << bits) - 1;
+        }
+    }
+    Ok(out)
 }
 
 #[tauri::command]

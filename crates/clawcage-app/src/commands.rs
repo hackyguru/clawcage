@@ -864,6 +864,16 @@ pub fn system_metrics(state: State<'_, AppState>) -> Result<crate::state::System
     Ok(metrics)
 }
 
+/// Get system metrics for a specific venv by ID.
+#[tauri::command]
+pub fn venv_metrics(venv_id: String, state: State<'_, AppState>) -> Result<crate::state::SystemMetrics, String> {
+    let vm_id = resolve_vm_id(&state, Some(&venv_id))?;
+    let vms = state.vms.lock().unwrap();
+    let instance = vms.get(&vm_id).ok_or("VM not found")?;
+    let metrics = instance.sys_metrics.latest.read().unwrap().clone();
+    Ok(metrics)
+}
+
 /// Returns available disk space on the host in bytes.
 #[tauri::command]
 pub fn host_disk_free() -> Result<u64, String> {

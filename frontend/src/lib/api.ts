@@ -228,6 +228,14 @@ export function saveVenvFile(id: string, filename: string, content: string): Pro
   return ensureDeps().then(() => isMock ? Promise.resolve() : tauriInvoke<void>('save_venv_file', { id, filename, content }));
 }
 
+export function renameVenv(id: string, name: string): Promise<void> {
+  return ensureDeps().then(() => isMock ? Promise.resolve() : tauriInvoke<void>('rename_venv', { id, name }));
+}
+
+export function setVenvIcon(id: string, iconData: string | null): Promise<void> {
+  return ensureDeps().then(() => isMock ? Promise.resolve() : tauriInvoke<void>('set_venv_icon', { id, iconData }));
+}
+
 export function deleteVenv(id: string): Promise<void> {
   return ensureDeps().then(() => isMock ? mockApi.deleteVenv(id) : tauriInvoke<void>('delete_venv', { id }));
 }
@@ -282,6 +290,10 @@ export function onPortClosed(callback: (data: { port: number }) => void): Promis
 
 export function getSystemMetrics(): Promise<SystemMetrics> {
   return ensureDeps().then(() => isMock ? mockApi.getSystemMetrics() : tauriInvoke<SystemMetrics>('system_metrics'));
+}
+
+export function getVenvMetrics(venvId: string): Promise<SystemMetrics> {
+  return ensureDeps().then(() => isMock ? mockApi.getSystemMetrics() : tauriInvoke<SystemMetrics>('venv_metrics', { venvId }));
 }
 
 export function onSystemMetrics(callback: (metrics: SystemMetrics) => void): Promise<UnlistenFn> {

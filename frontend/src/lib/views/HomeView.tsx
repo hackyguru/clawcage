@@ -1,8 +1,9 @@
 // HomeView -- virtual environment list + create
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useVenvs, loadVenvs, createVenvAction, deleteVenvAction, startVenvAction, stopVenvAction, openVenv } from '../stores/venvs';
 import { useSidebar } from '../stores/sidebar';
-import { updateSetting, saveVenvFile } from '../api';
+import { updateSetting, saveVenvFile, getVenvMetrics } from '../api';
+import type { SystemMetrics } from '../types';
 import { PlusIcon, PlayIcon, StopIcon, TrashIcon, TerminalIcon, ChevronRight, ChevronDown } from '../icons/Icons';
 import Dialog, { ConfirmDialog } from '../components/Dialog';
 import { TEMPLATES, getTemplate } from '../templates';
@@ -53,10 +54,11 @@ function statusText(status: VenvInfo['status']): string {
   }
 }
 
-/** Icon for a template card. Uses logo image if available, otherwise SVG icon. */
-function TemplateIcon({ icon, logo, className = 'size-5' }: { icon: string; logo?: string; className?: string }) {
+/** Icon for a template card. Uses logo image if available, otherwise SVG icon.
+ *  When `fill` is true, the logo fills its parent container (use with overflow-hidden). */
+function TemplateIcon({ icon, logo, className = 'size-5', fill }: { icon: string; logo?: string; className?: string; fill?: boolean }) {
   if (logo) {
-    return <img src={logo} alt="" className={`${className} rounded object-contain`} />;
+    return <img src={logo} alt="" className={fill ? 'w-full h-full object-cover' : `${className} rounded object-contain`} />;
   }
   switch (icon) {
     case 'bot':
@@ -91,10 +93,10 @@ function TemplatePicker({ selected, onSelect }: { selected: string; onSelect: (t
             }`}
             onClick={() => onSelect(t)}
           >
-            <div className={`flex items-center justify-center w-8 h-8 rounded-md shrink-0 ${
-              selected === t.id ? 'bg-interactive/20 text-interactive' : 'bg-content/5 text-content/40'
+            <div className={`flex items-center justify-center w-8 h-8 rounded-md shrink-0 overflow-hidden ${
+              t.logo ? '' : selected === t.id ? 'bg-interactive/20 text-interactive' : 'bg-content/5 text-content/40'
             }`}>
-              <TemplateIcon icon={t.icon} logo={t.logo} className="size-4" />
+              <TemplateIcon icon={t.icon} logo={t.logo} className="size-4" fill={!!t.logo} />
             </div>
             <div className="min-w-0">
               <div className="text-sm font-medium truncate">{t.name}</div>
@@ -344,6 +346,73 @@ function HardwareSection({ cpu, ram, disk, onCpu, onRam, onDisk }: {
   );
 }
 
+/** Tiny trend arrow: up, down, or stable. */
+function TrendArrow({ current, previous }: { current: number; previous: number }) {
+  const diff = current - previous;
+  if (Math.abs(diff) < 0.5) return null;
+  return diff > 0
+    ? <svg viewBox="0 0 8 8" className="size-2 shrink-0 text-denied/60"><path d="M4 1L7 5H1z" fill="currentColor" /></svg>
+    : <svg viewBox="0 0 8 8" className="size-2 shrink-0 text-allowed/60"><path d="M4 7L1 3h6z" fill="currentColor" /></svg>;
+}
+
+/** Live metrics bar for a running venv card. */
+function VenvMetrics({ venvId }: { venvId: string }) {
+  const [metrics, setMetrics] = useState<SystemMetrics | null>(null);
+  const prevRef = useRef<{ cpu: number; mem: number; disk: number }>({ cpu: 0, mem: 0, disk: 0 });
+
+  useEffect(() => {
+    let mounted = true;
+    const poll = () => {
+      getVenvMetrics(venvId).then((m) => {
+        if (!mounted) return;
+        if (metrics) {
+          prevRef.current = {
+            cpu: metrics.cpu_percent,
+            mem: metrics.mem_total_kb > 0 ? (metrics.mem_used_kb / metrics.mem_total_kb) * 100 : 0,
+            disk: metrics.disk_total_kb > 0 ? (metrics.disk_used_kb / metrics.disk_total_kb) * 100 : 0,
+          };
+        }
+        setMetrics(m);
+      }).catch(() => {});
+    };
+    poll();
+    const iv = setInterval(poll, 3000);
+    return () => { mounted = false; clearInterval(iv); };
+  }, [venvId]);
+
+  if (!metrics || metrics.updated_at === 0) return null;
+
+  const cpuPct = metrics.cpu_percent;
+  const memPct = metrics.mem_total_kb > 0 ? (metrics.mem_used_kb / metrics.mem_total_kb) * 100 : 0;
+  const diskPct = metrics.disk_total_kb > 0 ? (metrics.disk_used_kb / metrics.disk_total_kb) * 100 : 0;
+  const memMb = Math.round(metrics.mem_used_kb / 1024);
+  const memTotalGb = (metrics.mem_total_kb / (1024 * 1024)).toFixed(1);
+  const prev = prevRef.current;
+
+  return (
+    <div className="flex items-center gap-3 text-[10px] text-content/40 tabular-nums pt-2 border-t border-edge/30">
+      {/* CPU */}
+      <div className="flex items-center gap-1" title={`CPU ${cpuPct.toFixed(1)}%`}>
+        <svg viewBox="0 0 16 16" className="size-3 shrink-0 text-content/30"><rect x="3" y="3" width="10" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.2" fill="none" /><path d="M6 1v2M10 1v2M6 13v2M10 13v2M1 6h2M1 10h2M13 6h2M13 10h2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" /></svg>
+        <span>{cpuPct.toFixed(1)}%</span>
+        <TrendArrow current={cpuPct} previous={prev.cpu} />
+      </div>
+      {/* Memory */}
+      <div className="flex items-center gap-1" title={`${memMb} MB / ${memTotalGb} GB`}>
+        <svg viewBox="0 0 16 16" className="size-3 shrink-0 text-content/30"><rect x="2" y="4" width="12" height="8" rx="1" stroke="currentColor" strokeWidth="1.2" fill="none" /><rect x="4" y="6" width="2" height="4" rx="0.5" fill="currentColor" /><rect x="7" y="6" width="2" height="4" rx="0.5" fill="currentColor" opacity="0.5" /></svg>
+        <span>{memPct.toFixed(1)}%</span>
+        <TrendArrow current={memPct} previous={prev.mem} />
+      </div>
+      {/* Disk */}
+      <div className="flex items-center gap-1" title={`Disk ${diskPct.toFixed(1)}%`}>
+        <svg viewBox="0 0 16 16" className="size-3 shrink-0 text-content/30"><circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.2" fill="none" /><circle cx="8" cy="8" r="1.5" fill="currentColor" /></svg>
+        <span>{diskPct.toFixed(1)}%</span>
+        <TrendArrow current={diskPct} previous={prev.disk} />
+      </div>
+    </div>
+  );
+}
+
 function VenvCard({ venv, onDelete }: { venv: VenvInfo; onDelete: (v: VenvInfo) => void }) {
   const { setView } = useSidebar();
   const tmpl = getTemplate(venv.template);
@@ -403,10 +472,14 @@ function VenvCard({ venv, onDelete }: { venv: VenvInfo; onDelete: (v: VenvInfo) 
 
         {/* Icon + name */}
         <div className="flex items-center gap-3 mb-3">
-          <div className={`flex items-center justify-center w-10 h-10 rounded-xl shrink-0 ${
-            isRunning ? 'bg-allowed/10 text-allowed' : 'bg-interactive/10 text-interactive'
+          <div className={`flex items-center justify-center w-10 h-10 rounded-xl shrink-0 overflow-hidden ${
+            venv.icon || tmpl.logo ? '' : isRunning ? 'bg-allowed/10 text-allowed' : 'bg-interactive/10 text-interactive'
           }`}>
-            <TemplateIcon icon={tmpl.icon} logo={tmpl.logo} className="size-5" />
+            {venv.icon ? (
+              <img src={`asset://localhost/.clawcage/venvs/${venv.id}/${venv.icon}`} alt="" className="w-full h-full object-cover" />
+            ) : (
+              <TemplateIcon icon={tmpl.icon} logo={tmpl.logo} className="size-5" fill={!!tmpl.logo} />
+            )}
           </div>
           <div className="min-w-0 flex-1">
             <h3 className="text-sm font-semibold truncate">{venv.name}</h3>
@@ -425,16 +498,20 @@ function VenvCard({ venv, onDelete }: { venv: VenvInfo; onDelete: (v: VenvInfo) 
           </span>
         </div>
 
-        {/* Footer */}
-        <div className="flex items-center justify-between text-[11px] text-content/30 pt-2 border-t border-edge/30">
-          <span>{relativeTime(venv.last_used)}</span>
-          <div className="flex items-center gap-2">
-            {venv.disk_usage_bytes != null && venv.disk_usage_bytes > 0 && (
-              <span className="tabular-nums">{formatDiskSize(venv.disk_usage_bytes)}</span>
-            )}
-            <span>{new Date(venv.created_at).toLocaleDateString()}</span>
+        {/* Footer: live metrics for running, static info for stopped */}
+        {isRunning ? (
+          <VenvMetrics venvId={venv.id} />
+        ) : (
+          <div className="flex items-center justify-between text-[11px] text-content/30 pt-2 border-t border-edge/30">
+            <span>{relativeTime(venv.last_used)}</span>
+            <div className="flex items-center gap-2">
+              {venv.disk_usage_bytes != null && venv.disk_usage_bytes > 0 && (
+                <span className="tabular-nums">{formatDiskSize(venv.disk_usage_bytes)}</span>
+              )}
+              <span>{new Date(venv.created_at).toLocaleDateString()}</span>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       <ConfirmDialog
