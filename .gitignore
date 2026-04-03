@@ -48,6 +48,9 @@ images/aivm-pty-agent
 # Tauri
 crates/aivm-app/gen/
 
+# Cloud
+cloud/
+
 # Frontend
 frontend/dist/
 frontend/node_modules/

@@ -569,7 +569,7 @@ function VenvCard({ venv, onDelete }: { venv: VenvInfo; onDelete: (v: VenvInfo) 
         title="Stop Environment"
         message={`Stop "${venv.name}"? ${venv.ephemeral ? 'This is an ephemeral environment — all files will be lost.' : 'Persistent files will be saved.'}`}
         confirmLabel="Stop"
-        variant="caution"
+        variant="danger"
       />
 
       {/* Clone dialog */}

@@ -72,7 +72,7 @@ function TerminalToolbar() {
         title="Stop Environment"
         message={`Stop "${activeVenv.name}"? ${activeVenv.ephemeral ? 'This is an ephemeral environment — all files will be lost.' : 'Persistent files will be saved.'}`}
         confirmLabel="Stop"
-        variant="caution"
+        variant="danger"
       />
     </>
   );
