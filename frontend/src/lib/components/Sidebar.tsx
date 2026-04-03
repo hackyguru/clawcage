@@ -62,13 +62,6 @@ export default function Sidebar() {
             onClick={goHome}
           />
 
-          <SidebarButton
-            label="Storage"
-            Icon={StorageIcon}
-            active={activeView === 'storage'}
-            onClick={() => setView('storage')}
-          />
-
           {/* VM-specific nav only when a venv is open */}
           {activeVenvId && (
             <>
@@ -86,6 +79,14 @@ export default function Sidebar() {
           )}
         </ul>
       </nav>
+      <div className="shrink-0 px-1.5 pb-3">
+        <SidebarButton
+          label="Storage"
+          Icon={StorageIcon}
+          active={activeView === 'storage'}
+          onClick={() => setView('storage')}
+        />
+      </div>
     </aside>
   );
 }

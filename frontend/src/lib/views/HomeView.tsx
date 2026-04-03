@@ -503,13 +503,13 @@ function VenvCard({ venv, onDelete }: { venv: VenvInfo; onDelete: (v: VenvInfo) 
             {showMenu && (
               <>
                 <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setShowMenu(false); }} />
-                <div className="absolute right-0 top-8 z-50 bg-surface border border-edge rounded-lg shadow-xl py-1 min-w-36" onClick={(e) => e.stopPropagation()}>
-                  <button className="w-full text-left px-3 py-1.5 text-xs hover:bg-surface-alt transition-colors" onClick={() => { setShowMenu(false); setCloneName(venv.name + ' (copy)'); setShowCloneDialog(true); }}>Clone</button>
-                  <button className="w-full text-left px-3 py-1.5 text-xs hover:bg-surface-alt transition-colors" disabled={isRunning} onClick={handleExport}>
+                <div className="absolute right-0 top-8 z-50 bg-surface border border-edge rounded-xl shadow-xl overflow-hidden min-w-36" onClick={(e) => e.stopPropagation()}>
+                  <button className="w-full text-left px-3 py-2 text-xs hover:bg-surface-alt transition-colors" onClick={() => { setShowMenu(false); setCloneName(venv.name + ' (copy)'); setShowCloneDialog(true); }}>Clone</button>
+                  <button className="w-full text-left px-3 py-2 text-xs hover:bg-surface-alt transition-colors disabled:text-content/20" disabled={isRunning} onClick={handleExport}>
                     Export{isRunning ? ' (stop first)' : ''}
                   </button>
-                  <div className="border-t border-edge my-1" />
-                  <button className="w-full text-left px-3 py-1.5 text-xs text-denied hover:bg-denied/10 transition-colors" onClick={() => { setShowMenu(false); onDelete(venv); }}>Delete</button>
+                  <div className="border-t border-edge" />
+                  <button className="w-full text-left px-3 py-2 text-xs text-denied hover:bg-denied/10 transition-colors" onClick={() => { setShowMenu(false); onDelete(venv); }}>Delete</button>
                 </div>
               </>
             )}
