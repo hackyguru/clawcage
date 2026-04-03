@@ -1,7 +1,7 @@
 // Sidebar component
 import { useSidebar } from '../stores/sidebar';
 import { useVenvs, closeVenv } from '../stores/venvs';
-import { HomeIcon, TerminalIcon, PortsIcon, GlobeIcon, FolderIcon, LogsIcon, StatsIcon, VpnIcon, SettingsIcon } from '../icons/Icons';
+import { HomeIcon, StorageIcon, TerminalIcon, PortsIcon, GlobeIcon, FolderIcon, LogsIcon, StatsIcon, VpnIcon, SettingsIcon } from '../icons/Icons';
 import type { ViewName } from '../types';
 import type { FC } from 'react';
 
@@ -60,6 +60,13 @@ export default function Sidebar() {
             Icon={HomeIcon}
             active={activeView === 'home'}
             onClick={goHome}
+          />
+
+          <SidebarButton
+            label="Storage"
+            Icon={StorageIcon}
+            active={activeView === 'storage'}
+            onClick={() => setView('storage')}
           />
 
           {/* VM-specific nav only when a venv is open */}

@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod commands;
+mod snapshots;
 mod state;
 mod venvs;
 
@@ -3207,6 +3208,8 @@ fn main() {
             commands::kill_process,
             commands::system_metrics,
             commands::venv_metrics,
+            commands::list_storage,
+            commands::delete_storage,
             commands::host_disk_free,
             commands::download_file,
             commands::list_dir,
@@ -3225,6 +3228,9 @@ fn main() {
             venvs::delete_venv,
             venvs::start_venv,
             venvs::stop_venv,
+            snapshots::clone_venv,
+            snapshots::export_venv,
+            snapshots::import_venv,
             install_update,
         ])
         .build(tauri::generate_context!())

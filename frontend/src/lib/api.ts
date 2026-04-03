@@ -317,6 +317,48 @@ export function downloadFile(guestPath: string, hostPath: string): Promise<void>
   return ensureDeps().then(() => isMock ? mockApi.downloadFile(guestPath, hostPath) : tauriInvoke('download_file', { guestPath, hostPath }));
 }
 
+export interface SnapshotProgress {
+  operation: string;
+  venv_id: string;
+  phase: string;
+  bytes_processed: number;
+  total_bytes: number;
+}
+
+export function onSnapshotProgress(callback: (progress: SnapshotProgress) => void): Promise<UnlistenFn> {
+  return ensureDeps().then(() => isMock ? Promise.resolve(() => {}) : tauriListen<SnapshotProgress>('snapshot-progress', callback));
+}
+
+// ---------------------------------------------------------------------------
+// Snapshots, Clone, Export/Import
+// ---------------------------------------------------------------------------
+
+export function cloneVenv(sourceVenvId: string, newName: string): Promise<VenvInfo> {
+  return ensureDeps().then(() => isMock ? Promise.reject('not in mock') : tauriInvoke<VenvInfo>('clone_venv', { sourceVenvId, newName }));
+}
+
+export function exportVenv(venvId: string, destPath: string): Promise<void> {
+  return ensureDeps().then(() => isMock ? Promise.resolve() : tauriInvoke<void>('export_venv', { venvId, destPath }));
+}
+
+export function importVenv(sourcePath: string, newName?: string): Promise<VenvInfo> {
+  return ensureDeps().then(() => isMock ? Promise.reject('not in mock') : tauriInvoke<VenvInfo>('import_venv', { sourcePath, newName: newName ?? null }));
+}
+
+// ---------------------------------------------------------------------------
+// Storage
+// ---------------------------------------------------------------------------
+
+/** List all Clawcage storage entries with sizes. */
+export function listStorage(): Promise<{ path: string; name: string; size_bytes: number; actual_bytes: number; kind: string; deletable: boolean }[]> {
+  return ensureDeps().then(() => isMock ? Promise.resolve([]) : tauriInvoke('list_storage'));
+}
+
+/** Delete a storage entry by path. */
+export function deleteStorage(path: string): Promise<void> {
+  return ensureDeps().then(() => isMock ? Promise.resolve() : tauriInvoke('delete_storage', { path }));
+}
+
 /** Returns available host disk space in bytes. */
 export function hostDiskFree(): Promise<number> {
   return ensureDeps().then(() => isMock ? Promise.resolve(100 * 1024 * 1024 * 1024) : tauriInvoke<number>('host_disk_free'));

@@ -183,12 +183,14 @@ export interface VenvInfo {
   icon?: string | null;
   /** Base64 data URL for the custom icon (computed by backend). */
   icon_url?: string | null;
-  /** Total disk usage of the venv directory in bytes. */
-  disk_usage_bytes?: number;
+  /** Guest-reported disk usage in bytes (what df shows inside the VM). */
+  disk_used_bytes?: number;
+  /** Allocated disk size in bytes (logical size of scratch.img). */
+  disk_allocated_bytes?: number;
 }
 
 /** Sidebar view names. */
-export type ViewName = 'home' | 'terminal' | 'ports' | 'browser' | 'files' | 'logs' | 'stats' | 'vpn' | 'settings';
+export type ViewName = 'home' | 'storage' | 'terminal' | 'ports' | 'browser' | 'files' | 'logs' | 'stats' | 'vpn' | 'settings';
 
 /** A running process inside the guest VM. */
 export interface GuestProcess {

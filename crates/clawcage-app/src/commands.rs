@@ -942,6 +942,169 @@ pub fn venv_metrics(venv_id: String, state: State<'_, AppState>) -> Result<crate
     Ok(metrics)
 }
 
+/// A storage entry with path and size.
+#[derive(Serialize)]
+pub struct StorageEntry {
+    pub path: String,
+    pub name: String,
+    /// Display size (logical/allocated for venvs, actual for others).
+    pub size_bytes: u64,
+    /// Actual host disk consumption (blocks * 512).
+    pub actual_bytes: u64,
+    pub kind: String,
+    pub deletable: bool,
+}
+
+/// List all Clawcage-related files with sizes.
+#[tauri::command]
+pub async fn list_storage() -> Result<Vec<StorageEntry>, String> {
+    tokio::task::spawn_blocking(|| {
+        use std::os::unix::fs::MetadataExt;
+        let home = std::env::var("HOME").map_err(|_| "HOME not set".to_string())?;
+        let base = std::path::PathBuf::from(&home).join(".clawcage");
+        let mut entries = Vec::new();
+        if !base.exists() { return Ok(entries); }
+
+        fn dir_size(path: &std::path::Path) -> u64 {
+            use std::os::unix::fs::MetadataExt;
+            let mut total = 0u64;
+            if let Ok(rd) = std::fs::read_dir(path) {
+                for e in rd.flatten() {
+                    if let Ok(m) = e.metadata() {
+                        if m.is_dir() { total += dir_size(&e.path()); }
+                        else { total += m.blocks() * 512; }
+                    }
+                }
+            }
+            total
+        }
+
+        fn venv_name(vid: &str) -> String {
+            crate::venvs::load_venvs().ok()
+                .and_then(|vs| vs.into_iter().find(|v| v.id == vid).map(|v| v.name))
+                .unwrap_or_else(|| vid.to_string())
+        }
+
+        // Venvs
+        let venvs_dir = base.join("venvs");
+        if venvs_dir.is_dir() {
+            if let Ok(rd) = std::fs::read_dir(&venvs_dir) {
+                for e in rd.flatten() {
+                    if e.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+                        let id = e.file_name().to_string_lossy().to_string();
+                        let scratch = e.path().join("scratch.img");
+                        let logical = scratch.metadata().map(|m| m.len()).unwrap_or(0);
+                        let actual = dir_size(&e.path());
+                        entries.push(StorageEntry {
+                            path: e.path().to_string_lossy().to_string(),
+                            name: format!("Env: {}", venv_name(&id)),
+                            size_bytes: logical,
+                            actual_bytes: actual,
+                            kind: "venv".into(),
+                            deletable: true,
+                        });
+                    }
+                }
+            }
+        }
+
+        // Snapshots
+        let snap_dir = base.join("snapshots");
+        if snap_dir.is_dir() {
+            if let Ok(rd) = std::fs::read_dir(&snap_dir) {
+                for vd in rd.flatten() {
+                    if !vd.file_type().map(|t| t.is_dir()).unwrap_or(false) { continue; }
+                    let vid = vd.file_name().to_string_lossy().to_string();
+                    if let Ok(rd2) = std::fs::read_dir(vd.path()) {
+                        for s in rd2.flatten() {
+                            let fname = s.file_name().to_string_lossy().to_string();
+                            if fname.ends_with(".tar.zst") {
+                                let sname = fname.strip_suffix(".tar.zst").unwrap_or(&fname);
+                                let snap_size = s.metadata().map(|m| m.len()).unwrap_or(0);
+                                entries.push(StorageEntry {
+                                    path: s.path().to_string_lossy().to_string(),
+                                    name: format!("Snapshot: {} / {}", venv_name(&vid), sname),
+                                    size_bytes: snap_size,
+                                    actual_bytes: snap_size,
+                                    kind: "snapshot".into(),
+                                    deletable: true,
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Assets
+        let assets_dir = base.join("assets");
+        if assets_dir.is_dir() {
+            let s = dir_size(&assets_dir);
+            entries.push(StorageEntry {
+                path: assets_dir.to_string_lossy().to_string(),
+                name: "VM Assets (rootfs, kernel, initrd)".into(),
+                size_bytes: s, actual_bytes: s,
+                kind: "rootfs".into(),
+                deletable: false,
+            });
+        }
+
+        // Sessions
+        let sessions_dir = base.join("sessions");
+        if sessions_dir.is_dir() {
+            let s = dir_size(&sessions_dir);
+            entries.push(StorageEntry {
+                path: sessions_dir.to_string_lossy().to_string(),
+                name: "Session Logs".into(),
+                size_bytes: s, actual_bytes: s,
+                kind: "other".into(),
+                deletable: true,
+            });
+        }
+
+        // Config files
+        for name in &["main.db", "venvs.json", "user.toml"] {
+            let p = base.join(name);
+            if p.exists() {
+                let s = p.metadata().map(|m| m.len()).unwrap_or(0);
+                entries.push(StorageEntry {
+                    path: p.to_string_lossy().to_string(),
+                    name: name.to_string(),
+                    size_bytes: s, actual_bytes: s,
+                    kind: "config".into(),
+                    deletable: false,
+                });
+            }
+        }
+
+        entries.sort_by(|a, b| b.size_bytes.cmp(&a.size_bytes));
+        Ok(entries)
+    })
+    .await
+    .map_err(|e| format!("spawn_blocking: {e}"))?
+}
+
+/// Delete a storage entry (must be within ~/.clawcage/).
+#[tauri::command]
+pub async fn delete_storage(path: String) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || {
+        let p = std::path::Path::new(&path);
+        let home = std::env::var("HOME").map_err(|_| "HOME not set".to_string())?;
+        let base = std::path::PathBuf::from(&home).join(".clawcage");
+        if !p.starts_with(&base) {
+            return Err("cannot delete files outside ~/.clawcage".to_string());
+        }
+        if p.is_dir() {
+            std::fs::remove_dir_all(p).map_err(|e| format!("delete failed: {e}"))?;
+        } else {
+            std::fs::remove_file(p).map_err(|e| format!("delete failed: {e}"))?;
+        }
+        Ok(())
+    })
+    .await
+    .map_err(|e| format!("spawn_blocking: {e}"))?
+}
+
 /// Returns available disk space on the host in bytes.
 #[tauri::command]
 pub fn host_disk_free() -> Result<u64, String> {

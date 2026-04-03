@@ -24,6 +24,8 @@ objc2-virtualization = { workspace = true }
 objc2-foundation = { workspace = true }
 objc2-app-kit = { version = "0.3", features = ["NSWindow", "NSView", "NSColor"] }
 reqwest = { workspace = true }
+zstd = "0.13"
+tar = "0.4"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

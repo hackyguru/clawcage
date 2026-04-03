@@ -44,16 +44,17 @@ fn default_template() -> String {
 pub struct VenvInfoResponse {
     #[serde(flatten)]
     pub info: VenvInfo,
-    /// Total disk usage of the venv directory in bytes (scratch.img + session DBs + config).
-    pub disk_usage_bytes: u64,
+    /// Guest-reported disk usage in bytes (what df shows inside the VM).
+    pub disk_used_bytes: u64,
+    /// Allocated disk size in bytes (logical size of scratch.img).
+    pub disk_allocated_bytes: u64,
     /// Base64 data URL for the custom icon (if set). Read from disk on each list call.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub icon_url: Option<String>,
 }
 
 /// Get the guest-reported disk usage for a venv (saved on stop).
-/// Returns bytes. Falls back to 0 if no data available yet.
-fn venv_disk_usage(venv_id: &str) -> u64 {
+pub(crate) fn venv_disk_used(venv_id: &str) -> u64 {
     let home = match std::env::var("HOME") {
         Ok(h) => h,
         Err(_) => return 0,
@@ -67,6 +68,20 @@ fn venv_disk_usage(venv_id: &str) -> u64 {
         Ok(s) => s.trim().parse::<u64>().unwrap_or(0) * 1024,
         Err(_) => 0,
     }
+}
+
+/// Get the allocated (logical) size of the scratch disk.
+pub(crate) fn venv_disk_allocated(venv_id: &str) -> u64 {
+    let home = match std::env::var("HOME") {
+        Ok(h) => h,
+        Err(_) => return 0,
+    };
+    let path = std::path::PathBuf::from(home)
+        .join(".clawcage")
+        .join("venvs")
+        .join(venv_id)
+        .join("scratch.img");
+    std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0)
 }
 
 /// Returns the path to `~/.clawcage/venvs.json`.
@@ -132,7 +147,8 @@ pub async fn list_venvs(app_handle: tauri::AppHandle) -> Result<Vec<VenvInfoResp
     tokio::task::spawn_blocking(move || {
         let venvs = load_venvs()?;
         Ok(venvs.into_iter().map(|v| {
-            let disk = venv_disk_usage(&v.id);
+            let used = venv_disk_used(&v.id);
+            let allocated = venv_disk_allocated(&v.id);
             // Override persisted status with live running state.
             let mut info = v;
             if running.contains(&info.id) {
@@ -190,7 +206,7 @@ pub async fn list_venvs(app_handle: tauri::AppHandle) -> Result<Vec<VenvInfoResp
                 }
                 Some(format!("data:{mime};base64,{b64}"))
             });
-            VenvInfoResponse { info, disk_usage_bytes: disk, icon_url }
+            VenvInfoResponse { info, disk_used_bytes: used, disk_allocated_bytes: allocated, icon_url }
         }).collect())
     })
     .await

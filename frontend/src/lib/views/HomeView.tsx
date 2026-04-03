@@ -2,7 +2,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useVenvs, loadVenvs, createVenvAction, deleteVenvAction, startVenvAction, stopVenvAction, openVenv } from '../stores/venvs';
 import { useSidebar } from '../stores/sidebar';
-import { updateSetting, saveVenvFile, getVenvMetrics } from '../api';
+import { updateSetting, saveVenvFile, getVenvMetrics, cloneVenv, exportVenv, importVenv, onSnapshotProgress, type SnapshotProgress } from '../api';
+import { showToast } from '../stores/toast';
 import type { SystemMetrics } from '../types';
 import { PlusIcon, PlayIcon, StopIcon, TrashIcon, TerminalIcon, ChevronRight, ChevronDown } from '../icons/Icons';
 import Dialog, { ConfirmDialog } from '../components/Dialog';
@@ -417,6 +418,37 @@ function VenvCard({ venv, onDelete }: { venv: VenvInfo; onDelete: (v: VenvInfo) 
   const { setView } = useSidebar();
   const tmpl = getTemplate(venv.template);
   const [showStopDialog, setShowStopDialog] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
+  const [showCloneDialog, setShowCloneDialog] = useState(false);
+  const [cloneName, setCloneName] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const handleClone = useCallback(async () => {
+    if (!cloneName.trim() || busy) return;
+    setBusy(true);
+    try {
+      await cloneVenv(venv.id, cloneName.trim());
+      showToast('Environment cloned', 'success', 3000);
+      setShowCloneDialog(false);
+      loadVenvs();
+    } catch (e) { showToast('Clone failed: ' + String(e), 'error'); }
+    finally { setBusy(false); }
+  }, [venv.id, cloneName, busy]);
+
+  const handleExport = useCallback(async () => {
+    if (busy) return;
+    setBusy(true);
+    setShowMenu(false);
+    try {
+      const { save } = await import('@tauri-apps/plugin-dialog');
+      const path = await save({ defaultPath: `${venv.name}.clawcage`, filters: [{ name: 'Clawcage Archive', extensions: ['clawcage'] }] });
+      if (path) {
+        await exportVenv(venv.id, path);
+        showToast('Environment exported', 'success', 3000);
+      }
+    } catch (e) { showToast('Export failed: ' + String(e), 'error'); }
+    finally { setBusy(false); }
+  }, [venv.id, venv.name, busy]);
 
   const handleOpen = useCallback(() => {
     openVenv(venv.id);
@@ -460,14 +492,28 @@ function VenvCard({ venv, onDelete }: { venv: VenvInfo; onDelete: (v: VenvInfo) 
               <PlayIcon className="size-3.5" />
             </button>
           )}
-          <button
-            className="p-1.5 rounded-md hover:bg-denied/10 text-content/40 hover:text-denied transition-colors"
-            onClick={(e) => { e.stopPropagation(); onDelete(venv); }}
-            title="Delete"
-            aria-label={`Delete ${venv.name}`}
-          >
-            <TrashIcon className="size-3.5" />
-          </button>
+          <div className="relative">
+            <button
+              className="p-1.5 rounded-md hover:bg-surface-alt text-content/40 hover:text-content/70 transition-colors"
+              onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }}
+              title="More actions"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="size-3.5"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>
+            </button>
+            {showMenu && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setShowMenu(false); }} />
+                <div className="absolute right-0 top-8 z-50 bg-surface border border-edge rounded-lg shadow-xl py-1 min-w-36" onClick={(e) => e.stopPropagation()}>
+                  <button className="w-full text-left px-3 py-1.5 text-xs hover:bg-surface-alt transition-colors" onClick={() => { setShowMenu(false); setCloneName(venv.name + ' (copy)'); setShowCloneDialog(true); }}>Clone</button>
+                  <button className="w-full text-left px-3 py-1.5 text-xs hover:bg-surface-alt transition-colors" disabled={isRunning} onClick={handleExport}>
+                    Export{isRunning ? ' (stop first)' : ''}
+                  </button>
+                  <div className="border-t border-edge my-1" />
+                  <button className="w-full text-left px-3 py-1.5 text-xs text-denied hover:bg-denied/10 transition-colors" onClick={() => { setShowMenu(false); onDelete(venv); }}>Delete</button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
 
         {/* Icon + name */}
@@ -505,8 +551,10 @@ function VenvCard({ venv, onDelete }: { venv: VenvInfo; onDelete: (v: VenvInfo) 
           <div className="flex items-center justify-between text-[11px] text-content/30 pt-2 border-t border-edge/30">
             <span>{relativeTime(venv.last_used)}</span>
             <div className="flex items-center gap-2">
-              {venv.disk_usage_bytes != null && venv.disk_usage_bytes > 0 && (
-                <span className="tabular-nums">{formatDiskSize(venv.disk_usage_bytes)}</span>
+              {venv.disk_allocated_bytes != null && venv.disk_allocated_bytes > 0 && (
+                <span className="tabular-nums">
+                  {venv.disk_used_bytes ? formatDiskSize(venv.disk_used_bytes) : '0 B'} / {formatDiskSize(venv.disk_allocated_bytes)}
+                </span>
               )}
               <span>{new Date(venv.created_at).toLocaleDateString()}</span>
             </div>
@@ -523,6 +571,31 @@ function VenvCard({ venv, onDelete }: { venv: VenvInfo; onDelete: (v: VenvInfo) 
         confirmLabel="Stop"
         variant="caution"
       />
+
+      {/* Clone dialog */}
+      <Dialog open={showCloneDialog} onClose={() => setShowCloneDialog(false)} title="Clone Environment" width="max-w-sm">
+        <div className="flex flex-col gap-3">
+          <p className="text-xs text-content/50">Create a copy of "{venv.name}" with all files and settings.</p>
+          <div>
+            <label className="text-xs text-content/50 mb-1 block">New name</label>
+            <input
+              type="text"
+              className="w-full px-2.5 py-1.5 text-sm border border-edge rounded-md bg-surface focus:outline-none focus:ring-2 focus:ring-interactive/40"
+              value={cloneName}
+              onChange={(e) => setCloneName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleClone(); }}
+              autoFocus
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <button className="px-3 py-1.5 text-sm rounded-lg hover:bg-surface-alt transition-colors" onClick={() => setShowCloneDialog(false)}>Cancel</button>
+            <button className="px-3 py-1.5 text-sm rounded-lg bg-interactive text-on-interactive hover:opacity-90 font-medium disabled:opacity-40" onClick={handleClone} disabled={!cloneName.trim() || busy}>
+              {busy ? 'Cloning...' : 'Clone'}
+            </button>
+          </div>
+        </div>
+      </Dialog>
+
     </>
   );
 }
@@ -543,6 +616,28 @@ export default function HomeView() {
   const [mitmEnabled, setMitmEnabled] = useState(true);
   const [deleteTarget, setDeleteTarget] = useState<VenvInfo | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [progress, setProgress] = useState<SnapshotProgress | null>(null);
+
+  // Listen for snapshot/clone/export/import progress events.
+  useEffect(() => {
+    let unlisten: (() => void) | null = null;
+    let doneTimer: ReturnType<typeof setTimeout> | null = null;
+    onSnapshotProgress((p) => {
+      if (p.phase === 'done' || p.phase === 'error') {
+        // Small delay so user sees 100% before modal closes.
+        if (doneTimer) clearTimeout(doneTimer);
+        doneTimer = setTimeout(() => setProgress(null), 500);
+      } else {
+        setProgress(p);
+        // Safety: auto-dismiss if stuck at 100% for 3 seconds.
+        if (p.total_bytes > 0 && p.bytes_processed >= p.total_bytes) {
+          if (doneTimer) clearTimeout(doneTimer);
+          doneTimer = setTimeout(() => setProgress(null), 3000);
+        }
+      }
+    }).then((fn) => { unlisten = fn; });
+    return () => { if (unlisten) unlisten(); if (doneTimer) clearTimeout(doneTimer); };
+  }, []);
 
   useEffect(() => {
     loadVenvs();
@@ -652,14 +747,33 @@ export default function HomeView() {
             {venvs.length > 0 ? `${venvs.length} environment${venvs.length !== 1 ? 's' : ''}` : 'Create and manage sandboxed environments'}
           </p>
         </div>
-        <button
-          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-md bg-interactive text-on-interactive hover:opacity-90 transition font-medium"
-          onClick={() => setCreating(true)}
-          aria-label="Create new environment"
-        >
-          <PlusIcon className="size-3.5" />
-          New
-        </button>
+        <div className="flex items-center gap-1.5">
+          <button
+            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-md border border-edge hover:bg-surface-alt transition font-medium"
+            onClick={async () => {
+              try {
+                const { open } = await import('@tauri-apps/plugin-dialog');
+                const path = await open({ filters: [{ name: 'Clawcage Archive', extensions: ['clawcage'] }] });
+                if (path && typeof path === 'string') {
+                  await importVenv(path);
+                  showToast('Environment imported', 'success', 3000);
+                  loadVenvs();
+                }
+              } catch (e) { showToast('Import failed: ' + String(e), 'error'); }
+            }}
+            aria-label="Import environment"
+          >
+            Import
+          </button>
+          <button
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-md bg-interactive text-on-interactive hover:opacity-90 transition font-medium"
+            onClick={() => setCreating(true)}
+            aria-label="Create new environment"
+          >
+            <PlusIcon className="size-3.5" />
+            New
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-auto">
@@ -832,6 +946,47 @@ export default function HomeView() {
           confirmLabel="Delete"
           variant="danger"
         />
+
+        {/* Progress modal for snapshot/clone/export/import */}
+        {progress && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+            <div className="max-w-sm w-full mx-4 glass-elevated border border-edge rounded-xl shadow-2xl px-6 py-5">
+              <div className="flex flex-col items-center gap-4">
+                <span className="spinner w-6 h-6 text-interactive" />
+                <div className="text-center">
+                  <p className="text-sm font-medium text-content capitalize">{progress.operation}...</p>
+                  <p className="text-xs text-content/50 mt-0.5 capitalize">{progress.phase}</p>
+                </div>
+                {progress.total_bytes > 0 ? (
+                  <div className="w-full">
+                    <div className="h-1.5 bg-content/5 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-interactive rounded-full transition-all duration-300"
+                        style={{ width: `${Math.min(100, (progress.bytes_processed / progress.total_bytes) * 100)}%` }}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between mt-1.5">
+                      <span className="text-xs font-medium text-content/60 tabular-nums">
+                        {Math.min(100, Math.round((progress.bytes_processed / progress.total_bytes) * 100))}%
+                      </span>
+                      <span className="text-[10px] text-content/30 tabular-nums">
+                        {formatDiskSize(progress.bytes_processed)} / {formatDiskSize(progress.total_bytes)}
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-content/30">Please wait...</p>
+                )}
+                <button
+                  className="px-3 py-1 text-xs rounded-md text-content/40 hover:text-content/70 hover:bg-surface-alt transition-colors"
+                  onClick={() => setProgress(null)}
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Loading state */}
         {loading && venvs.length === 0 && (
