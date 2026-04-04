@@ -1,6 +1,6 @@
 // CloudView — cloud sync settings and status
 import { useState, useEffect, useCallback } from 'react';
-import { cloudLogin, cloudDisconnect, cloudStatus, cloudSyncVenv, cloudBackupKey, cloudExportKey, openExternal, onSnapshotProgress } from '../api';
+import { cloudLogin, cloudDisconnect, cloudStatus, cloudSyncVenv, cloudBackupKey, cloudExportKey, cloudListSnapshots, openExternal, onSnapshotProgress } from '../api';
 import { useVenvs } from '../stores/venvs';
 import { showToast } from '../stores/toast';
 
@@ -13,6 +13,16 @@ interface SyncProgress {
 function formatSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function timeAgo(iso: string): string {
+  const ms = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(ms / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
 }
 
 const phaseLabels: Record<string, string> = {
@@ -29,12 +39,17 @@ export default function CloudView() {
   const [syncing, setSyncing] = useState<string | null>(null);
   const [progress, setProgress] = useState<SyncProgress | null>(null);
   const [exportedKey, setExportedKey] = useState<string | null>(null);
+  const [snapshots, setSnapshots] = useState<{ venv_name: string; synced_at: string }[]>([]);
   const { venvs } = useVenvs();
 
   const refresh = useCallback(async () => {
     try {
       const s = await cloudStatus();
       setStatus(s);
+      if (s.connected && s.plan === 'pro') {
+        const snaps = await cloudListSnapshots().catch(() => []);
+        setSnapshots(snaps);
+      }
     } catch {
       setStatus({ connected: false, email: null, plan: 'free' });
     } finally {
@@ -43,6 +58,12 @@ export default function CloudView() {
   }, []);
 
   useEffect(() => { refresh(); }, [refresh]);
+
+  // Poll plan status every 30s (picks up upgrades/downgrades within the 5-min cache TTL)
+  useEffect(() => {
+    const iv = setInterval(refresh, 30_000);
+    return () => clearInterval(iv);
+  }, [refresh]);
 
   // Listen for snapshot progress events
   useEffect(() => {
@@ -82,6 +103,8 @@ export default function CloudView() {
     setProgress(null);
     try {
       await cloudSyncVenv(venvId);
+      const snaps = await cloudListSnapshots().catch(() => []);
+      setSnapshots(snaps);
       showToast('Environment synced to cloud', 'success', 3000);
     } catch (e) {
       showToast('Sync failed: ' + String(e), 'error');
@@ -210,26 +233,40 @@ export default function CloudView() {
               <p className="text-xs text-content/40">Stop an environment to sync it to the cloud.</p>
             ) : (
               <div className="space-y-2">
-                {stoppedVenvs.map((v) => (
-                  <div key={v.id} className="flex items-center justify-between p-3 rounded-xl border border-edge bg-surface-alt/30">
-                    <div>
-                      <p className="text-sm font-medium">{v.name}</p>
-                      <p className="text-xs text-content/40">{v.template}</p>
+                {stoppedVenvs.map((v) => {
+                  const snap = snapshots.find(s => s.venv_name === v.name);
+                  const syncedRecently = snap && (Date.now() - new Date(snap.synced_at).getTime()) < 24 * 60 * 60 * 1000;
+                  const syncedAgo = snap ? timeAgo(snap.synced_at) : null;
+
+                  return (
+                    <div key={v.id} className="flex items-center justify-between p-3 rounded-xl border border-edge bg-surface-alt/30">
+                      <div>
+                        <p className="text-sm font-medium">{v.name}</p>
+                        <p className="text-xs text-content/40">
+                          {v.template}
+                          {syncedAgo && <span className="text-content/30"> · synced {syncedAgo}</span>}
+                        </p>
+                      </div>
+                      <button
+                        className="px-3 py-1.5 text-xs rounded-lg border border-edge hover:bg-surface-alt transition font-medium disabled:opacity-40"
+                        onClick={() => handleSync(v.id)}
+                        disabled={syncing !== null}
+                      >
+                        {syncing === v.id ? (
+                          <span className="flex items-center gap-1.5">
+                            <span className="spinner w-3 h-3" />
+                            {phaseLabels[progress?.phase ?? ''] ?? 'Syncing'}...
+                          </span>
+                        ) : syncedRecently ? (
+                          <span className="flex items-center gap-1.5 text-allowed">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3"><path d="M20 6 9 17l-5-5"/></svg>
+                            Synced
+                          </span>
+                        ) : 'Sync'}
+                      </button>
                     </div>
-                    <button
-                      className="px-3 py-1.5 text-xs rounded-lg border border-edge hover:bg-surface-alt transition font-medium disabled:opacity-40"
-                      onClick={() => handleSync(v.id)}
-                      disabled={syncing !== null}
-                    >
-                      {syncing === v.id ? (
-                        <span className="flex items-center gap-1.5">
-                          <span className="spinner w-3 h-3" />
-                          {phaseLabels[progress?.phase ?? ''] ?? 'Syncing'}...
-                        </span>
-                      ) : 'Sync'}
-                    </button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

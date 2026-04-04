@@ -3239,6 +3239,7 @@ fn main() {
             cloud::cloud_sync_venv,
             cloud::cloud_backup_key,
             cloud::cloud_export_key,
+            cloud::cloud_list_snapshots,
             cloud::open_external,
             install_update,
         ])

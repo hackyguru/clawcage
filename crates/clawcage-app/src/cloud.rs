@@ -420,6 +420,31 @@ pub async fn cloud_export_key() -> Result<String, String> {
     config.encryption_key.ok_or("no encryption key — sync an environment first".to_string())
 }
 
+/// List cloud snapshots (fetches from cloud API).
+#[tauri::command]
+pub async fn cloud_list_snapshots() -> Result<Vec<serde_json::Value>, String> {
+    let mut config = load_config();
+    let token = get_valid_token(&mut config).await?;
+    let cloud_url = config.cloud_url.as_deref().unwrap_or("http://localhost:3000");
+
+    let resp = reqwest::Client::new()
+        .get(format!("{cloud_url}/api/snapshots"))
+        .header("Authorization", format!("Bearer {token}"))
+        .timeout(std::time::Duration::from_secs(10))
+        .send()
+        .await
+        .map_err(|e| format!("fetch snapshots: {e}"))?;
+
+    if !resp.status().is_success() {
+        return Ok(vec![]);
+    }
+
+    let body: serde_json::Value = resp.json().await
+        .map_err(|e| format!("parse snapshots: {e}"))?;
+
+    Ok(body["snapshots"].as_array().cloned().unwrap_or_default())
+}
+
 /// Open a URL in the user's default browser.
 #[tauri::command]
 pub async fn open_external(url: String) -> Result<(), String> {

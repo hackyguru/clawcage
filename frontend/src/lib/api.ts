@@ -377,6 +377,10 @@ export function cloudExportKey(): Promise<string> {
   return ensureDeps().then(() => isMock ? Promise.resolve('mock-key') : tauriInvoke('cloud_export_key'));
 }
 
+export function cloudListSnapshots(): Promise<{ venv_name: string; synced_at: string; file_size_bytes: number }[]> {
+  return ensureDeps().then(() => isMock ? Promise.resolve([]) : tauriInvoke('cloud_list_snapshots'));
+}
+
 // ---------------------------------------------------------------------------
 // Utilities
 // ---------------------------------------------------------------------------
