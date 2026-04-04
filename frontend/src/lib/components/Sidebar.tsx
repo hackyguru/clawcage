@@ -1,7 +1,7 @@
 // Sidebar component
 import { useSidebar } from '../stores/sidebar';
 import { useVenvs, closeVenv } from '../stores/venvs';
-import { HomeIcon, StorageIcon, TerminalIcon, PortsIcon, GlobeIcon, FolderIcon, LogsIcon, StatsIcon, VpnIcon, SettingsIcon } from '../icons/Icons';
+import { HomeIcon, StorageIcon, CloudIcon, TerminalIcon, PortsIcon, GlobeIcon, FolderIcon, LogsIcon, StatsIcon, VpnIcon, SettingsIcon } from '../icons/Icons';
 import type { ViewName } from '../types';
 import type { FC } from 'react';
 
@@ -79,7 +79,13 @@ export default function Sidebar() {
           )}
         </ul>
       </nav>
-      <div className="shrink-0 px-1.5 pb-3">
+      <div className="shrink-0 px-1.5 pb-3 flex flex-col gap-1">
+        <SidebarButton
+          label="Cloud"
+          Icon={CloudIcon}
+          active={activeView === 'cloud'}
+          onClick={() => setView('cloud')}
+        />
         <SidebarButton
           label="Storage"
           Icon={StorageIcon}

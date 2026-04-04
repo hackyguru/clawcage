@@ -45,3 +45,5 @@ async-compression = { version = "0.4", features = ["tokio", "gzip"] }
 tokio-util = { version = "0.7", features = ["io"] }
 base64 = "0.22"
 regex = "1"
+aes-gcm = "0.10"
+rand = "0.8"

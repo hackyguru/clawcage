@@ -190,7 +190,7 @@ export interface VenvInfo {
 }
 
 /** Sidebar view names. */
-export type ViewName = 'home' | 'storage' | 'terminal' | 'ports' | 'browser' | 'files' | 'logs' | 'stats' | 'vpn' | 'settings';
+export type ViewName = 'home' | 'storage' | 'cloud' | 'terminal' | 'ports' | 'browser' | 'files' | 'logs' | 'stats' | 'vpn' | 'settings';
 
 /** A running process inside the guest VM. */
 export interface GuestProcess {

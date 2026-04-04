@@ -1,0 +1,15 @@
+name: Cloud Cleanup
+on:
+  # schedule:
+  #   - cron: '0 3 * * *'  # Daily at 3 AM UTC — enable after cloud deployment
+  workflow_dispatch: {}   # Manual trigger only for now
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete expired snapshots
+        run: |
+          curl -sf -X POST "${{ secrets.CLOUD_URL }}/api/cleanup" \
+            -H "Content-Type: application/json" \
+            -d '{"secret":"${{ secrets.CLEANUP_SECRET }}"}'

@@ -346,6 +346,46 @@ export function importVenv(sourcePath: string, newName?: string): Promise<VenvIn
 }
 
 // ---------------------------------------------------------------------------
+// Cloud
+// ---------------------------------------------------------------------------
+
+export function cloudConnect(token: string, email?: string, cloudUrl?: string): Promise<void> {
+  return ensureDeps().then(() => isMock ? Promise.resolve() : tauriInvoke('cloud_connect', { token, email: email ?? null, cloudUrl: cloudUrl ?? null }));
+}
+
+export function cloudLogin(cloudUrl?: string): Promise<{ connected: boolean; email: string | null; plan: string }> {
+  return ensureDeps().then(() => isMock ? Promise.resolve({ connected: true, email: 'test@example.com', plan: 'free' }) : tauriInvoke('cloud_login', { cloudUrl: cloudUrl ?? null }));
+}
+
+export function cloudDisconnect(): Promise<void> {
+  return ensureDeps().then(() => isMock ? Promise.resolve() : tauriInvoke('cloud_disconnect'));
+}
+
+export function cloudStatus(): Promise<{ connected: boolean; email: string | null; plan: string }> {
+  return ensureDeps().then(() => isMock ? Promise.resolve({ connected: false, email: null, plan: 'free' }) : tauriInvoke('cloud_status'));
+}
+
+export function cloudSyncVenv(venvId: string): Promise<void> {
+  return ensureDeps().then(() => isMock ? Promise.resolve() : tauriInvoke('cloud_sync_venv', { venvId }));
+}
+
+export function cloudBackupKey(): Promise<void> {
+  return ensureDeps().then(() => isMock ? Promise.resolve() : tauriInvoke('cloud_backup_key'));
+}
+
+export function cloudExportKey(): Promise<string> {
+  return ensureDeps().then(() => isMock ? Promise.resolve('mock-key') : tauriInvoke('cloud_export_key'));
+}
+
+// ---------------------------------------------------------------------------
+// Utilities
+// ---------------------------------------------------------------------------
+
+export function openExternal(url: string): Promise<void> {
+  return ensureDeps().then(() => isMock ? Promise.resolve(void window.open(url, '_blank')) : tauriInvoke('open_external', { url }));
+}
+
+// ---------------------------------------------------------------------------
 // Storage
 // ---------------------------------------------------------------------------
 

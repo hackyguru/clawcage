@@ -121,6 +121,16 @@ fn cow_copy(src: &Path, dst: &Path) -> std::io::Result<()> {
 }
 
 /// Create a tar.zst archive from a venv data directory.
+/// Public wrapper for cloud.rs to use.
+pub fn create_archive_pub(
+    venv_dir: &Path,
+    manifest: &SnapshotManifest,
+    output: &Path,
+    emit_progress: &dyn Fn(u64, u64),
+) -> Result<(), String> {
+    create_archive(venv_dir, manifest, output, emit_progress)
+}
+
 fn create_archive(
     venv_dir: &Path,
     manifest: &SnapshotManifest,

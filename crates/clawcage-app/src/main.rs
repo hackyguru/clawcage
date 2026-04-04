@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod cloud;
 mod commands;
 mod snapshots;
 mod state;
@@ -3231,6 +3232,14 @@ fn main() {
             snapshots::clone_venv,
             snapshots::export_venv,
             snapshots::import_venv,
+            cloud::cloud_connect,
+            cloud::cloud_login,
+            cloud::cloud_disconnect,
+            cloud::cloud_status,
+            cloud::cloud_sync_venv,
+            cloud::cloud_backup_key,
+            cloud::cloud_export_key,
+            cloud::open_external,
             install_update,
         ])
         .build(tauri::generate_context!())

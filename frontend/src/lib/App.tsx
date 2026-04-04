@@ -25,6 +25,7 @@ import HomeView from './views/HomeView';
 // Lazy-load heavy views (StatsView pulls in recharts ~700KB)
 const PortsView = lazy(() => import('./views/PortsView'));
 const StorageView = lazy(() => import('./views/StorageView'));
+const CloudView = lazy(() => import('./views/CloudView'));
 const BrowserView = lazy(() => import('./views/BrowserView'));
 const FilesView = lazy(() => import('./views/FilesView'));
 const LogsView = lazy(() => import('./views/LogsView'));
@@ -144,6 +145,7 @@ function AppInner() {
           <div className="flex-1 min-h-0 overflow-hidden relative">
             {currentView === 'home' && <HomeView />}
             {currentView === 'storage' && <Suspense fallback={<div className="flex items-center justify-center h-full"><span className="spinner w-6 h-6 text-content/30" /></div>}><StorageView /></Suspense>}
+            {currentView === 'cloud' && <Suspense fallback={<div className="flex items-center justify-center h-full"><span className="spinner w-6 h-6 text-content/30" /></div>}><CloudView /></Suspense>}
             {/* Keep TerminalView mounted (hidden) so xterm state survives view switches */}
             {activeVenvId && (
               <div
