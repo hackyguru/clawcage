@@ -124,7 +124,7 @@ export default function BrowserView() {
             <PlusIcon className="size-3" />
           </button>
           {showPortPicker && (
-            <div className="absolute top-7 left-0 z-50 bg-surface border border-edge rounded-lg shadow-xl py-1 min-w-40">
+            <div className="absolute top-7 left-0 z-50 bg-surface border border-edge rounded-lg py-1 min-w-40">
               {availablePorts.length === 0 && detected.length === 0 ? (
                 <div className="px-3 py-2 text-xs text-content/40">No ports detected</div>
               ) : availablePorts.length === 0 ? (

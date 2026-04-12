@@ -1,6 +1,6 @@
 {
   "productName": "Clawcage",
-  "version": "0.10.0",
+  "version": "1.0.0",
   "identifier": "com.clawcage.clawcage",
   "build": {
     "beforeDevCommand": "pnpm dev",

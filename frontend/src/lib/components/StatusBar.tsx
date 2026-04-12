@@ -8,6 +8,8 @@ import VmStateIndicator from './VmStateIndicator';
 import Dialog from './Dialog';
 import { onUpdateAvailable, onUpdateProgress, installUpdate } from '../api';
 import type { UpdateInfo, UpdateProgress } from '../api';
+import { useCloudSync } from '../stores/cloudSync';
+import { CloudIcon } from '../icons/Icons';
 
 const isTauri = typeof window !== 'undefined' && !!(window as any).__TAURI_INTERNALS__;
 
@@ -15,6 +17,7 @@ export default function StatusBar() {
   const { terminalRenderer } = useVm();
   const { activeVenv } = useVenvs();
   const { theme, toggle } = useTheme();
+  const cloudSync = useCloudSync();
   const [version, setVersion] = useState<string | null>(null);
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [showModal, setShowModal] = useState(false);
@@ -77,6 +80,14 @@ export default function StatusBar() {
           )}
         </div>
         <div className="flex items-center gap-2">
+          {cloudSync.syncingVenvId && cloudSync.phase && cloudSync.phase !== 'done' && (
+            <span className="flex items-center gap-1.5 text-[10px] text-interactive">
+              <CloudIcon className="size-2.5 animate-pulse" />
+              {cloudSync.phase === 'uploading' && cloudSync.totalBytes > 0
+                ? `Syncing ${Math.round((cloudSync.bytesProcessed / cloudSync.totalBytes) * 100)}%`
+                : `Syncing...`}
+            </span>
+          )}
           {updateInfo && (
             <button
               className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-interactive/15 text-interactive text-[10px] font-medium hover:bg-interactive/25 transition-colors"

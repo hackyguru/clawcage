@@ -6,11 +6,13 @@ import { useVenvs, loadVenvs, startVenvListener } from './stores/venvs';
 import { loadSettings } from './stores/settings';
 import { initTheme } from './stores/theme';
 import ToastContainer from './components/ToastContainer';
+import SyncToast from './components/SyncToast';
 import { showToast } from './stores/toast';
 import { hostDiskFree } from './api';
 import { startPorts } from './stores/ports';
 import { startProcesses } from './stores/processes';
 import { startNotificationHooks } from './stores/notificationHooks';
+import { startCloudSyncListener } from './stores/cloudSync';
 import type { ViewName } from './types';
 import WizardView from './views/WizardView';
 
@@ -92,6 +94,7 @@ function AppInner() {
     startNotificationHooks();
     startPorts();
     startProcesses();
+    startCloudSyncListener();
 
     // Periodic host disk space check (every 30s).
     const LOW_DISK_THRESHOLD = 2 * 1024 * 1024 * 1024; // 2 GB
@@ -140,6 +143,7 @@ function AppInner() {
 
           {/* Toast notifications */}
           <ToastContainer />
+          <SyncToast />
 
           {/* Main content area */}
           <div className="flex-1 min-h-0 overflow-hidden relative">

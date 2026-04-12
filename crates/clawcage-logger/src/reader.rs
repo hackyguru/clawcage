@@ -126,6 +126,17 @@ pub struct FileEventStats {
     pub deleted: u64,
 }
 
+/// Summary of a model call for usage reporting.
+#[derive(Debug, Clone, Serialize)]
+pub struct ModelCallSummary {
+    pub id: i64,
+    pub provider: String,
+    pub model: String,
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+    pub estimated_cost_usd: f64,
+}
+
 /// Aggregate MCP call statistics.
 #[derive(Debug, Clone, Serialize)]
 pub struct McpCallStats {
@@ -481,6 +492,25 @@ impl DbReader {
                 ))
             },
         )
+    }
+
+    /// Get model calls with id > since_id (for incremental usage reporting).
+    pub fn model_calls_since(&self, since_id: i64) -> rusqlite::Result<Vec<ModelCallSummary>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, provider, model, input_tokens, output_tokens, estimated_cost_usd
+             FROM model_calls WHERE id > ?1 ORDER BY id",
+        )?;
+        let rows = stmt.query_map(params![since_id], |row| {
+            Ok(ModelCallSummary {
+                id: row.get(0)?,
+                provider: row.get(1)?,
+                model: row.get::<_, Option<String>>(2)?.unwrap_or_default(),
+                input_tokens: row.get::<_, Option<i64>>(3)?.unwrap_or(0),
+                output_tokens: row.get::<_, Option<i64>>(4)?.unwrap_or(0),
+                estimated_cost_usd: row.get::<_, Option<f64>>(5)?.unwrap_or(0.0),
+            })
+        })?;
+        rows.collect()
     }
 
     /// Count total model calls.

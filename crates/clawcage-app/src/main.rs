@@ -3081,6 +3081,9 @@ fn main() {
                 check_for_update(handle).await;
             });
 
+            // Start background auto-sync loop (checks every 5 min, syncs daily).
+            cloud::start_auto_sync(app.handle().clone());
+
             // Resolve assets directory and rootfs path once, store for reuse.
             let (assets, rootfs) = match resolve_assets_dir() {
                 Ok(a) => {
@@ -3240,7 +3243,11 @@ fn main() {
             cloud::cloud_backup_key,
             cloud::cloud_export_key,
             cloud::cloud_list_snapshots,
+            cloud::cloud_restore_snapshot,
+            cloud::cloud_set_auto_sync,
+            cloud::cloud_get_auto_sync,
             cloud::open_external,
+            cloud::cloud_open_portal,
             install_update,
         ])
         .build(tauri::generate_context!())

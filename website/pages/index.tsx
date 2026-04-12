@@ -362,15 +362,6 @@ function Hero() {
             <AppleIcon className="size-4" />
             Download for macOS
           </a>
-          <a
-            href="https://github.com/hackyguru/clawcage"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-medium rounded-lg border border-edge hover:bg-surface-alt transition"
-          >
-            <GithubIcon className="size-4" />
-            View source
-          </a>
         </div>
 
         <p className="text-[11px] text-content/20 mt-3 text-center">
@@ -597,7 +588,7 @@ function Pricing() {
           </h2>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-w-3xl">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 max-w-4xl">
           {/* Free tier */}
           <div className="glass border border-edge rounded-lg p-6 flex flex-col">
             <div className="text-[10px] text-content/30 uppercase tracking-widest font-semibold mb-3">Open Source</div>
@@ -630,7 +621,7 @@ function Pricing() {
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-allowed mt-0.5 shrink-0">&#10003;</span>
-                Bring your own API keys
+                Local export &amp; import
               </li>
             </ul>
 
@@ -645,49 +636,98 @@ function Pricing() {
           </div>
 
           {/* Pro tier */}
-          <div className="glass border border-edge rounded-lg p-6 flex flex-col relative overflow-hidden">
+          <div className="glass border border-allowed/20 rounded-lg p-6 flex flex-col relative overflow-hidden">
             <div className="absolute top-4 right-4">
-              <span className="text-[9px] text-allowed/70 border border-allowed/20 rounded px-1.5 py-0.5 uppercase tracking-widest font-semibold">Maybe?</span>
+              <span className="text-[9px] text-allowed/70 border border-allowed/20 rounded px-1.5 py-0.5 uppercase tracking-widest font-semibold">Popular</span>
             </div>
-            <div className="text-[10px] text-content/30 uppercase tracking-widest font-semibold mb-3">Pro</div>
+            <div className="text-[10px] text-allowed/50 uppercase tracking-widest font-semibold mb-3">Pro</div>
             <div className="flex items-baseline gap-1 mb-1">
-              <span className="text-xl font-semibold text-content/30">Maybe?</span>
+              <span className="text-3xl font-semibold">&pound;15</span>
+              <span className="text-xs text-content/30">/mo</span>
             </div>
-            <p className="text-xs text-content/35 mb-5">Managed infrastructure so you don&apos;t have to bring your own.</p>
+            <p className="text-xs text-content/35 mb-5">Cloud sync with end-to-end encryption.</p>
 
-            <ul className="flex flex-col gap-2.5 text-xs text-content/35 mb-6 flex-1">
+            <ul className="flex flex-col gap-2.5 text-xs text-content/50 mb-6 flex-1">
               <li className="flex items-start gap-2">
-                <span className="text-content/15 mt-0.5 shrink-0">&#10003;</span>
-                Everything in Open Source
+                <span className="text-allowed mt-0.5 shrink-0">&#10003;</span>
+                Everything in Free
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-content/15 mt-0.5 shrink-0">&#10003;</span>
-                Managed AI inference endpoints
+                <span className="text-allowed mt-0.5 shrink-0">&#10003;</span>
+                1 GB encrypted cloud storage
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-content/15 mt-0.5 shrink-0">&#10003;</span>
-                Managed VPN for sandboxed traffic
+                <span className="text-allowed mt-0.5 shrink-0">&#10003;</span>
+                Unlimited snapshots &amp; restores
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-content/15 mt-0.5 shrink-0">&#10003;</span>
-                No API keys needed
+                <span className="text-allowed mt-0.5 shrink-0">&#10003;</span>
+                Daily auto-sync
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-content/15 mt-0.5 shrink-0">&#10003;</span>
-                Usage dashboard &amp; billing
+                <span className="text-allowed mt-0.5 shrink-0">&#10003;</span>
+                Restore to any device
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-content/15 mt-0.5 shrink-0">&#10003;</span>
-                Priority support
+                <span className="text-allowed mt-0.5 shrink-0">&#10003;</span>
+                AES-256 E2E encryption
               </li>
             </ul>
 
-            <button
-              disabled
-              className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-interactive/10 text-content/25 w-full cursor-not-allowed"
+            <a
+              href="https://buy.polar.sh/polar_cl_ixyw7tfQ3ffYwLX282w0KTMCUcOu9moqAISvG3JjubI"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-allowed text-black hover:bg-allowed/90 transition w-full"
             >
-              Notify me
-            </button>
+              Get Pro
+            </a>
+          </div>
+
+          {/* Pro+ tier */}
+          <div className="glass border border-edge rounded-lg p-6 flex flex-col">
+            <div className="text-[10px] text-content/30 uppercase tracking-widest font-semibold mb-3">Pro+</div>
+            <div className="flex items-baseline gap-1 mb-1">
+              <span className="text-3xl font-semibold">&pound;40</span>
+              <span className="text-xs text-content/30">/mo</span>
+            </div>
+            <p className="text-xs text-content/35 mb-5">Snapshot history and more storage.</p>
+
+            <ul className="flex flex-col gap-2.5 text-xs text-content/50 mb-6 flex-1">
+              <li className="flex items-start gap-2">
+                <span className="text-allowed mt-0.5 shrink-0">&#10003;</span>
+                Everything in Pro
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-allowed mt-0.5 shrink-0">&#10003;</span>
+                5 GB encrypted cloud storage
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-allowed mt-0.5 shrink-0">&#10003;</span>
+                Unlimited snapshots &amp; restores
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-allowed mt-0.5 shrink-0">&#10003;</span>
+                30-day snapshot history
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-allowed mt-0.5 shrink-0">&#10003;</span>
+                Rollback to any point
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-content/25 mt-0.5 shrink-0">&#10003;</span>
+                <span className="text-content/35">Remote VPS execution <span className="text-[9px] px-1 py-0.5 rounded border border-edge ml-1">soon</span></span>
+              </li>
+            </ul>
+
+            <a
+              href="https://buy.polar.sh/polar_cl_MiDARs1PftXZcdAM2JGSHMGJLRoCnxgU0CQPw2vFMHm"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border border-edge hover:bg-surface-alt transition w-full"
+            >
+              Get Pro+
+            </a>
           </div>
         </div>
       </div>

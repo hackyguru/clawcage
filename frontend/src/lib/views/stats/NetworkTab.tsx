@@ -94,7 +94,7 @@ export default function NetworkTab() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Timeline */}
-          <div className="glass border border-edge rounded-lg p-3 shadow-xs">
+          <div className="glass border border-edge rounded-lg p-3">
             <h3 className="text-xs font-semibold text-content/70 mb-2">Requests Over Time</h3>
             {timeline.length > 0 ? (
               <ResponsiveContainer width="100%" height={180}>
@@ -112,7 +112,7 @@ export default function NetworkTab() {
           </div>
 
           {/* Methods pie */}
-          <div className="glass border border-edge rounded-lg p-3 shadow-xs">
+          <div className="glass border border-edge rounded-lg p-3">
             <h3 className="text-xs font-semibold text-content/70 mb-2">Methods</h3>
             {methodPieData.length > 0 ? (
               <ResponsiveContainer width="100%" height={180}>
@@ -133,7 +133,7 @@ export default function NetworkTab() {
 
         {/* Top domains */}
         {domains.length > 0 && (
-          <div className="glass border border-edge rounded-lg p-3 shadow-xs">
+          <div className="glass border border-edge rounded-lg p-3">
             <h3 className="text-xs font-semibold text-content/70 mb-2">Top Domains</h3>
             <ResponsiveContainer width="100%" height={160}>
               <BarChart data={domains} layout="vertical">

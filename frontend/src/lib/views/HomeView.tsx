@@ -2,12 +2,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useVenvs, loadVenvs, createVenvAction, deleteVenvAction, startVenvAction, stopVenvAction, openVenv } from '../stores/venvs';
 import { useSidebar } from '../stores/sidebar';
-import { updateSetting, saveVenvFile, getVenvMetrics, cloneVenv, exportVenv, importVenv, onSnapshotProgress, type SnapshotProgress } from '../api';
+import { updateSetting, saveVenvFile, getVenvMetrics, cloneVenv, exportVenv, importVenv, onSnapshotProgress, cloudStatus, cloudListSnapshots, cloudSyncVenv, type SnapshotProgress } from '../api';
 import { showToast } from '../stores/toast';
 import type { SystemMetrics } from '../types';
-import { PlusIcon, PlayIcon, StopIcon, TrashIcon, TerminalIcon, ChevronRight, ChevronDown } from '../icons/Icons';
+import { PlusIcon, PlayIcon, StopIcon, TrashIcon, TerminalIcon, ChevronRight, ChevronDown, CloudIcon } from '../icons/Icons';
 import Dialog, { ConfirmDialog } from '../components/Dialog';
 import { TEMPLATES, getTemplate } from '../templates';
+import { useCloudSync, setSyncing } from '../stores/cloudSync';
 import type { VenvInfo, VenvTemplate, TemplateFormField } from '../types';
 
 // Hardware defaults (must match config/defaults.toml)
@@ -180,7 +181,7 @@ function ApiKeysSection({ keys, onKey }: {
       {open && (
         <div className="flex flex-col gap-2.5 px-3 pb-3 pt-1">
           <p className="text-[11px] text-content/40 leading-snug">
-            Set API keys for this environment. Keys stay on the host and are injected by the proxy.
+            Keys stay on the host and are injected by the proxy.
           </p>
           {PROVIDERS.map((p) => (
             <div key={p.id} className="flex items-center gap-2">
@@ -414,12 +415,231 @@ function VenvMetrics({ venvId }: { venvId: string }) {
   );
 }
 
-function VenvCard({ venv, onDelete }: { venv: VenvInfo; onDelete: (v: VenvInfo) => void }) {
+type SnapshotEntry = { venv_name: string; synced_at: string; file_size_bytes: number; id?: string };
+
+function formatSnapSize(bytes: number): string {
+  if (bytes < 1e6) return `${(bytes / 1e3).toFixed(0)} KB`;
+  if (bytes < 1e9) return `${(bytes / 1e6).toFixed(1)} MB`;
+  return `${(bytes / 1e9).toFixed(2)} GB`;
+}
+
+function timeAgo(iso: string): string {
+  const ms = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(ms / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
+
+/** Snapshot history modal — shows all versions with restore buttons. */
+function SnapshotHistoryModal({ venvName, snapshots, open, onClose }: {
+  venvName: string;
+  snapshots: SnapshotEntry[];
+  open: boolean;
+  onClose: () => void;
+}) {
+  const [restoring, setRestoring] = useState<string | null>(null);
+  const versions = snapshots.filter(s => s.venv_name === venvName);
+
+  if (!open || versions.length === 0) return null;
+
+  const latest = versions[0];
+  const older = versions.slice(1);
+
+  return (
+    <Dialog open={open} onClose={onClose} width="max-w-sm">
+      <div className="space-y-4">
+        {/* Header with venv name + latest info */}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center justify-center size-9 rounded-xl bg-allowed/10 shrink-0">
+            <CloudIcon className="size-4 text-allowed" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h3 className="text-sm font-semibold truncate">{venvName}</h3>
+            <p className="text-[11px] text-content/40">
+              {versions.length} snapshot{versions.length > 1 ? 's' : ''} · last synced {timeAgo(latest.synced_at)}
+            </p>
+          </div>
+        </div>
+
+        {/* Latest snapshot — prominent */}
+        <div className="rounded-lg border border-allowed/20 bg-allowed/5 p-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span className="size-1.5 rounded-full bg-allowed" />
+                <span className="text-xs font-medium">Latest</span>
+              </div>
+              <p className="text-[11px] text-content/40 mt-0.5 ml-3">
+                {new Date(latest.synced_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })} · {formatSnapSize(latest.file_size_bytes)}
+              </p>
+            </div>
+            <button
+              className="px-3 py-1.5 text-[11px] rounded-lg bg-allowed text-black hover:bg-allowed/90 transition font-medium disabled:opacity-40 shrink-0"
+              disabled={restoring !== null || !latest.id}
+              onClick={async (e) => {
+                e.stopPropagation();
+                if (!latest.id) return;
+                setRestoring(latest.id);
+                try {
+                  const { cloudRestoreSnapshot } = await import('../api');
+                  await cloudRestoreSnapshot(latest.id);
+                  showToast(`Restored "${venvName}"`, 'success', 3000);
+                  onClose();
+                } catch (e) {
+                  showToast('Restore failed: ' + String(e), 'error');
+                } finally {
+                  setRestoring(null);
+                }
+              }}
+            >
+              {restoring === latest.id ? (
+                <span className="flex items-center gap-1"><span className="spinner w-2.5 h-2.5" /> Restoring</span>
+              ) : 'Restore'}
+            </button>
+          </div>
+        </div>
+
+        {/* Older versions — scrollable list */}
+        {older.length > 0 && (
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[10px] text-content/30 font-medium uppercase tracking-wider">Older versions</p>
+              <span className="text-[10px] text-content/20 tabular-nums">{older.length} version{older.length > 1 ? 's' : ''}</span>
+            </div>
+            <div className="space-y-1 max-h-[35vh] overflow-y-auto overscroll-contain">
+              {older.map((v) => (
+                <div key={v.id ?? v.synced_at} className="flex items-center justify-between py-2 px-2 rounded-lg hover:bg-surface-alt/50 transition group/row">
+                  <div className="flex items-center gap-2">
+                    <span className="size-1.5 rounded-full bg-content/15 shrink-0" />
+                    <div>
+                      <p className="text-[11px] text-content/50">
+                        {new Date(v.synced_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                      <p className="text-[10px] text-content/25">{formatSnapSize(v.file_size_bytes)}</p>
+                    </div>
+                  </div>
+                  <button
+                    className="px-2.5 py-1 text-[11px] rounded-lg border border-edge hover:bg-surface-alt transition font-medium disabled:opacity-40 opacity-0 group-hover/row:opacity-100 shrink-0"
+                    disabled={restoring !== null || !v.id}
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      if (!v.id) return;
+                      setRestoring(v.id);
+                      try {
+                        const { cloudRestoreSnapshot } = await import('../api');
+                        await cloudRestoreSnapshot(v.id);
+                        showToast(`Restored "${venvName}" from ${timeAgo(v.synced_at)}`, 'success', 3000);
+                        onClose();
+                      } catch (e) {
+                        showToast('Restore failed: ' + String(e), 'error');
+                      } finally {
+                        setRestoring(null);
+                      }
+                    }}
+                  >
+                    {restoring === v.id ? (
+                      <span className="flex items-center gap-1"><span className="spinner w-2.5 h-2.5" /> Restoring</span>
+                    ) : 'Restore'}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Upsell for Pro users */}
+        {versions.length === 1 && (
+          <p className="text-[10px] text-content/25 text-center pt-1 border-t border-edge/20">
+            Upgrade to Pro+ for 30-day snapshot history
+          </p>
+        )}
+      </div>
+    </Dialog>
+  );
+}
+
+/** Circular sync status badge for venv cards. */
+function SyncBadge({ venvId, venvName, snapshots, syncingVenvId, syncProgress, onShowHistory }: {
+  venvId: string;
+  venvName: string;
+  snapshots: SnapshotEntry[];
+  syncingVenvId: string | null;
+  syncProgress: { phase: string; bytesProcessed: number; totalBytes: number };
+  onShowHistory: () => void;
+}) {
+  const venvSnaps = snapshots.filter(s => s.venv_name === venvName);
+  const snap = venvSnaps[0];
+  const synced = snap && (Date.now() - new Date(snap.synced_at).getTime()) < 24 * 60 * 60 * 1000;
+  const isSyncing = syncingVenvId === venvId;
+  const pct = syncProgress.totalBytes > 0
+    ? Math.round((syncProgress.bytesProcessed / syncProgress.totalBytes) * 100)
+    : 0;
+
+  const badge = (() => {
+    if (isSyncing) {
+      const radius = 11;
+      const circumference = 2 * Math.PI * radius;
+      const offset = circumference - (pct / 100) * circumference;
+      return (
+        <div className="relative flex items-center justify-center size-7" title={`Syncing ${pct}%`}>
+          <svg className="absolute inset-0 -rotate-90" viewBox="0 0 28 28">
+            <circle cx="14" cy="14" r={radius} fill="none" stroke="currentColor" strokeWidth="2" className="text-content/10" />
+            <circle cx="14" cy="14" r={radius} fill="none" stroke="currentColor" strokeWidth="2" className="text-interactive" strokeDasharray={circumference} strokeDashoffset={offset} strokeLinecap="round" />
+          </svg>
+          <span className="text-[8px] font-bold text-interactive tabular-nums">{pct}</span>
+        </div>
+      );
+    }
+
+    if (synced) {
+      return (
+        <div className="flex items-center justify-center size-7 rounded-full bg-allowed/15 ring-2 ring-allowed/30 cursor-pointer hover:ring-allowed/50 transition" title={`Synced ${timeAgo(snap.synced_at)} — click for history`}>
+          <CloudIcon className="size-3.5 text-allowed" />
+        </div>
+      );
+    }
+
+    if (snap) {
+      return (
+        <div className="flex items-center justify-center size-7 rounded-full bg-content/5 cursor-pointer hover:bg-content/10 transition" title={`Last sync: ${timeAgo(snap.synced_at)} — click for history`}>
+          <CloudIcon className="size-3.5 text-content/25" />
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex items-center justify-center size-7 rounded-full bg-content/5" title="Not synced to cloud">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="size-3.5 text-content/20">
+          <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z" />
+          <path d="M12 13v5" /><path d="m9 18 3 3 3-3" />
+        </svg>
+      </div>
+    );
+  })();
+
+  return (
+    <div onClick={(e) => { e.stopPropagation(); if (venvSnaps.length > 0) onShowHistory(); }}>
+      {badge}
+    </div>
+  );
+}
+
+function VenvCard({ venv, onDelete, snapshots, syncingVenvId, syncProgress }: {
+  venv: VenvInfo;
+  onDelete: (v: VenvInfo) => void;
+  snapshots: SnapshotEntry[];
+  syncingVenvId: string | null;
+  syncProgress: { phase: string; bytesProcessed: number; totalBytes: number };
+}) {
   const { setView } = useSidebar();
   const tmpl = getTemplate(venv.template);
   const [showStopDialog, setShowStopDialog] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [showCloneDialog, setShowCloneDialog] = useState(false);
+  const [showSnapshots, setShowSnapshots] = useState(false);
   const [cloneName, setCloneName] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -450,6 +670,16 @@ function VenvCard({ venv, onDelete }: { venv: VenvInfo; onDelete: (v: VenvInfo) 
     finally { setBusy(false); }
   }, [venv.id, venv.name, busy]);
 
+  const handleCloudSync = useCallback(() => {
+    setShowMenu(false);
+    // Fire and forget — global cloudSync store + SyncToast handle progress UI
+    setSyncing(venv.id);
+    cloudSyncVenv(venv.id).catch((e) => {
+      setSyncing(null);
+      showToast('Sync failed: ' + String(e), 'error');
+    });
+  }, [venv.id]);
+
   const handleOpen = useCallback(() => {
     openVenv(venv.id);
     startVenvAction(venv.id);
@@ -466,10 +696,11 @@ function VenvCard({ venv, onDelete }: { venv: VenvInfo; onDelete: (v: VenvInfo) 
   return (
     <>
       <div
-        className={`group relative glass border rounded-xl p-4 shadow-xs hover:shadow-md transition-all cursor-pointer ${
+        className={`group relative glass border rounded-xl p-4 transition-all cursor-pointer ${
           isRunning ? 'border-allowed/30 hover:border-allowed/50' : 'border-edge hover:border-interactive/30'
         }`}
         onClick={handleOpen}
+        onMouseLeave={() => setShowMenu(false)}
       >
         {/* Actions (top-right) */}
         <div className="absolute top-3 right-3 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
@@ -503,7 +734,11 @@ function VenvCard({ venv, onDelete }: { venv: VenvInfo; onDelete: (v: VenvInfo) 
             {showMenu && (
               <>
                 <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setShowMenu(false); }} />
-                <div className="absolute right-0 top-8 z-50 bg-surface border border-edge rounded-xl shadow-xl overflow-hidden min-w-36" onClick={(e) => e.stopPropagation()}>
+                <div className="absolute right-0 top-8 z-50 bg-surface border border-edge rounded-xl overflow-hidden min-w-40" onClick={(e) => e.stopPropagation()}>
+                  <button className="w-full text-left px-3 py-2 text-xs text-allowed hover:bg-allowed/10 transition-colors disabled:text-allowed/30" disabled={isRunning || busy} onClick={handleCloudSync}>
+                    {busy ? 'Syncing...' : `Sync to Cloud${isRunning ? ' (stop first)' : ''}`}
+                  </button>
+                  <div className="border-t border-edge/50" />
                   <button className="w-full text-left px-3 py-2 text-xs hover:bg-surface-alt transition-colors" onClick={() => { setShowMenu(false); setCloneName(venv.name + ' (copy)'); setShowCloneDialog(true); }}>Clone</button>
                   <button className="w-full text-left px-3 py-2 text-xs hover:bg-surface-alt transition-colors disabled:text-content/20" disabled={isRunning} onClick={handleExport}>
                     Export{isRunning ? ' (stop first)' : ''}
@@ -546,7 +781,10 @@ function VenvCard({ venv, onDelete }: { venv: VenvInfo; onDelete: (v: VenvInfo) 
 
         {/* Footer: live metrics for running, static info for stopped */}
         {isRunning ? (
-          <VenvMetrics venvId={venv.id} />
+          <div className="flex items-center justify-between pt-2 border-t border-edge/30">
+            <VenvMetrics venvId={venv.id} />
+            <SyncBadge venvId={venv.id} venvName={venv.name} snapshots={snapshots} syncingVenvId={syncingVenvId} syncProgress={syncProgress} onShowHistory={() => setShowSnapshots(true)} />
+          </div>
         ) : (
           <div className="flex items-center justify-between text-[11px] text-content/30 pt-2 border-t border-edge/30">
             <span>{relativeTime(venv.last_used)}</span>
@@ -556,7 +794,7 @@ function VenvCard({ venv, onDelete }: { venv: VenvInfo; onDelete: (v: VenvInfo) 
                   {venv.disk_used_bytes ? formatDiskSize(venv.disk_used_bytes) : '0 B'} / {formatDiskSize(venv.disk_allocated_bytes)}
                 </span>
               )}
-              <span>{new Date(venv.created_at).toLocaleDateString()}</span>
+              <SyncBadge venvId={venv.id} venvName={venv.name} snapshots={snapshots} syncingVenvId={syncingVenvId} syncProgress={syncProgress} onShowHistory={() => setShowSnapshots(true)} />
             </div>
           </div>
         )}
@@ -596,12 +834,21 @@ function VenvCard({ venv, onDelete }: { venv: VenvInfo; onDelete: (v: VenvInfo) 
         </div>
       </Dialog>
 
+      {/* Snapshot history modal */}
+      <SnapshotHistoryModal
+        venvName={venv.name}
+        snapshots={snapshots}
+        open={showSnapshots}
+        onClose={() => setShowSnapshots(false)}
+      />
     </>
   );
 }
 
 export default function HomeView() {
   const { venvs, loading } = useVenvs();
+  const cloudSync = useCloudSync();
+  const [cloudSnapshots, setCloudSnapshots] = useState<SnapshotEntry[]>([]);
   const [creating, setCreating] = useState(false);
   const [step, setStep] = useState(0);
   const [newName, setNewName] = useState('');
@@ -618,11 +865,21 @@ export default function HomeView() {
   const [submitting, setSubmitting] = useState(false);
   const [progress, setProgress] = useState<SnapshotProgress | null>(null);
 
+  // Fetch cloud snapshots for sync badges (skip if not connected).
+  useEffect(() => {
+    cloudStatus().then(s => {
+      if (s.connected) return cloudListSnapshots();
+      return [];
+    }).then(setCloudSnapshots).catch(() => {});
+  }, []);
+
   // Listen for snapshot/clone/export/import progress events.
   useEffect(() => {
     let unlisten: (() => void) | null = null;
     let doneTimer: ReturnType<typeof setTimeout> | null = null;
     onSnapshotProgress((p) => {
+      // Cloud sync uses the SyncToast in the bottom-right — skip the blocking modal.
+      if (p.operation === 'sync') return;
       if (p.phase === 'done' || p.phase === 'error') {
         // Small delay so user sees 100% before modal closes.
         if (doneTimer) clearTimeout(doneTimer);
@@ -950,7 +1207,7 @@ export default function HomeView() {
         {/* Progress modal for snapshot/clone/export/import */}
         {progress && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm">
-            <div className="max-w-sm w-full mx-4 glass-elevated border border-edge rounded-xl shadow-2xl px-6 py-5">
+            <div className="max-w-sm w-full mx-4 glass-elevated border border-edge rounded-xl px-6 py-5">
               <div className="flex flex-col items-center gap-4">
                 <span className="spinner w-6 h-6 text-interactive" />
                 <div className="text-center">
@@ -1016,7 +1273,7 @@ export default function HomeView() {
         {venvs.length > 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
             {venvs.map((v) => (
-              <VenvCard key={v.id} venv={v} onDelete={setDeleteTarget} />
+              <VenvCard key={v.id} venv={v} onDelete={setDeleteTarget} snapshots={cloudSnapshots} syncingVenvId={cloudSync.syncingVenvId} syncProgress={cloudSync} />
             ))}
           </div>
         )}

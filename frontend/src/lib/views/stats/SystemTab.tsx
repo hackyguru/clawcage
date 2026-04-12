@@ -57,7 +57,7 @@ export default function SystemTab() {
       <StatCards cards={cards} />
 
       {/* CPU over time */}
-      <div className="glass border border-edge rounded-lg p-3 shadow-xs">
+      <div className="glass border border-edge rounded-lg p-3">
         <div className="text-[10px] text-content/40 uppercase tracking-widest font-semibold mb-2">CPU Usage</div>
         <ResponsiveContainer width="100%" height={160}>
           <AreaChart data={history}>
@@ -80,7 +80,7 @@ export default function SystemTab() {
       </div>
 
       {/* Memory over time */}
-      <div className="glass border border-edge rounded-lg p-3 shadow-xs">
+      <div className="glass border border-edge rounded-lg p-3">
         <div className="text-[10px] text-content/40 uppercase tracking-widest font-semibold mb-2">Memory Usage</div>
         <ResponsiveContainer width="100%" height={160}>
           <AreaChart data={history}>
@@ -103,7 +103,7 @@ export default function SystemTab() {
       </div>
 
       {/* Disk over time */}
-      <div className="glass border border-edge rounded-lg p-3 shadow-xs">
+      <div className="glass border border-edge rounded-lg p-3">
         <div className="text-[10px] text-content/40 uppercase tracking-widest font-semibold mb-2">Disk Usage</div>
         <ResponsiveContainer width="100%" height={160}>
           <AreaChart data={history}>

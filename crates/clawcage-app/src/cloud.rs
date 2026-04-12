@@ -21,6 +21,11 @@ pub struct CloudConfig {
     pub cloud_url: Option<String>,
     /// Base64-encoded 256-bit encryption key (generated on first sync).
     pub encryption_key: Option<String>,
+    /// Auto-sync enabled (daily background sync of stopped venvs).
+    #[serde(default)]
+    pub auto_sync: bool,
+    /// ISO timestamp of last successful auto-sync.
+    pub last_auto_sync: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -68,6 +73,8 @@ fn save_config(config: &CloudConfig) -> Result<(), String> {
         email: config.email.clone(),
         cloud_url: config.cloud_url.clone(),
         encryption_key: config.encryption_key.clone(),
+        auto_sync: config.auto_sync,
+        last_auto_sync: config.last_auto_sync.clone(),
     };
     let path = config_path()?;
     let data = serde_json::to_string_pretty(&safe).map_err(|e| format!("serialize: {e}"))?;
@@ -112,7 +119,7 @@ async fn get_valid_token(config: &mut CloudConfig) -> Result<String, String> {
     }
 
     // Token expired — refresh it
-    let cloud_url = config.cloud_url.as_deref().unwrap_or("http://localhost:3000");
+    let cloud_url = config.cloud_url.as_deref().unwrap_or("https://clawcage-cloud.vercel.app");
     let refresh_token = config.refresh_token.as_deref()
         .ok_or("session expired — please sign in again")?;
 
@@ -284,7 +291,7 @@ pub async fn cloud_connect(token: String, email: Option<String>, cloud_url: Opti
 /// waits for the token redirect, saves it, and returns.
 #[tauri::command]
 pub async fn cloud_login(cloud_url: Option<String>) -> Result<CloudStatus, String> {
-    let base_url = cloud_url.unwrap_or_else(|| "http://localhost:3000".to_string());
+    let base_url = cloud_url.unwrap_or_else(|| "https://clawcage-cloud.vercel.app".to_string());
 
     // Bind a temporary listener on a random port
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await
@@ -425,7 +432,7 @@ pub async fn cloud_export_key() -> Result<String, String> {
 pub async fn cloud_list_snapshots() -> Result<Vec<serde_json::Value>, String> {
     let mut config = load_config();
     let token = get_valid_token(&mut config).await?;
-    let cloud_url = config.cloud_url.as_deref().unwrap_or("http://localhost:3000");
+    let cloud_url = config.cloud_url.as_deref().unwrap_or("https://clawcage-cloud.vercel.app");
 
     let resp = reqwest::Client::new()
         .get(format!("{cloud_url}/api/snapshots"))
@@ -449,6 +456,33 @@ pub async fn cloud_list_snapshots() -> Result<Vec<serde_json::Value>, String> {
 #[tauri::command]
 pub async fn open_external(url: String) -> Result<(), String> {
     open::that(&url).map_err(|e| format!("failed to open URL: {e}"))
+}
+
+/// Open the Polar customer portal (pre-authenticated) for plan management.
+#[tauri::command]
+pub async fn cloud_open_portal() -> Result<(), String> {
+    let mut config = load_config();
+    let token = get_valid_token(&mut config).await?;
+    let cloud_url = config.cloud_url.as_deref().unwrap_or("https://clawcage-cloud.vercel.app");
+
+    let resp = reqwest::Client::new()
+        .get(format!("{cloud_url}/api/portal"))
+        .header("Authorization", format!("Bearer {token}"))
+        .timeout(std::time::Duration::from_secs(10))
+        .send()
+        .await
+        .map_err(|e| format!("portal request: {e}"))?;
+
+    if !resp.status().is_success() {
+        return Err("failed to get portal URL".to_string());
+    }
+
+    let body: serde_json::Value = resp.json().await
+        .map_err(|e| format!("parse portal response: {e}"))?;
+    let url = body["url"].as_str()
+        .ok_or("missing portal URL")?;
+
+    open::that(url).map_err(|e| format!("failed to open browser: {e}"))
 }
 
 /// Disconnect from Clawcage Cloud.
@@ -478,7 +512,7 @@ pub async fn cloud_status() -> Result<CloudStatus, String> {
         Err(_) => return Ok(CloudStatus { connected: false, email: config.email, plan: "free".into() }),
     };
 
-    let cloud_url = config.cloud_url.as_deref().unwrap_or("http://localhost:3000").to_string();
+    let cloud_url = config.cloud_url.as_deref().unwrap_or("https://clawcage-cloud.vercel.app").to_string();
     let plan = check_plan(&cloud_url, &token).await;
 
     Ok(CloudStatus {
@@ -507,7 +541,7 @@ pub async fn cloud_sync_venv(
 
     let mut config = load_config();
     let token = get_valid_token(&mut config).await?;
-    let cloud_url = config.cloud_url.as_deref().unwrap_or("http://localhost:3000").to_string();
+    let cloud_url = config.cloud_url.as_deref().unwrap_or("https://clawcage-cloud.vercel.app").to_string();
     let enc_key = get_or_create_key(&mut config)?;
 
     // Phase 1: Compress to temp archive (blocking I/O)
@@ -605,6 +639,8 @@ pub async fn cloud_sync_venv(
         .map_err(|e| format!("parse response: {e}"))?;
     let upload_url = upload_info["upload_url"].as_str()
         .ok_or("missing upload_url in response")?.to_string();
+    let storage_path = upload_info["path"].as_str()
+        .unwrap_or("").to_string();
 
     // Phase 4: Upload encrypted data with progress
     let _ = app_handle.emit("snapshot-progress", crate::snapshots::SnapshotProgress {
@@ -676,6 +712,7 @@ pub async fn cloud_sync_venv(
             "venv_template": venv_template,
             "file_size_bytes": encrypted_size,
             "encrypted": true,
+            "path": storage_path,
         }))
         .timeout(std::time::Duration::from_secs(30))
         .send()
@@ -697,4 +734,226 @@ pub async fn cloud_sync_venv(
 
     info!(venv_id = %venv_id, "cloud sync complete (encrypted)");
     Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Cloud Restore
+// ---------------------------------------------------------------------------
+
+/// Restore a snapshot from the cloud. Downloads, decrypts, and imports as a new venv.
+#[tauri::command]
+pub async fn cloud_restore_snapshot(
+    snapshot_id: String,
+    app_handle: tauri::AppHandle,
+) -> Result<serde_json::Value, String> {
+    use tauri::Emitter;
+
+    let mut config = load_config();
+    let token = get_valid_token(&mut config).await?;
+    let cloud_url = config.cloud_url.as_deref().unwrap_or("https://clawcage-cloud.vercel.app").to_string();
+    let enc_key = get_or_create_key(&mut config)?;
+
+    // Phase 1: Get download URL
+    let client = reqwest::Client::new();
+    let resp = client
+        .get(format!("{cloud_url}/api/snapshots/{snapshot_id}"))
+        .header("Authorization", format!("Bearer {token}"))
+        .timeout(std::time::Duration::from_secs(10))
+        .send()
+        .await
+        .map_err(|e| format!("get download URL: {e}"))?;
+
+    if !resp.status().is_success() {
+        let body = resp.text().await.unwrap_or_default();
+        return Err(format!("cloud API error: {body}"));
+    }
+
+    let info: serde_json::Value = resp.json().await
+        .map_err(|e| format!("parse response: {e}"))?;
+    let download_url = info["download_url"].as_str()
+        .ok_or("missing download_url")?.to_string();
+    let venv_name = info["snapshot"]["venv_name"].as_str()
+        .unwrap_or("restored").to_string();
+    let encrypted = info["snapshot"]["encrypted"].as_bool().unwrap_or(false);
+
+    // Phase 2: Download
+    let _ = app_handle.emit("snapshot-progress", crate::snapshots::SnapshotProgress {
+        operation: "restore".into(),
+        venv_id: "cloud".into(),
+        phase: "downloading".into(),
+        bytes_processed: 0,
+        total_bytes: 0,
+    });
+
+    info!(url = %download_url, "downloading snapshot from cloud");
+
+    let dl_resp = client
+        .get(&download_url)
+        .timeout(std::time::Duration::from_secs(600))
+        .send()
+        .await
+        .map_err(|e| format!("download error: {e}"))?;
+
+    if !dl_resp.status().is_success() {
+        return Err(format!("download failed: {}", dl_resp.status()));
+    }
+
+    let data = dl_resp.bytes().await
+        .map_err(|e| format!("read download: {e}"))?;
+    let data = data.to_vec();
+
+    info!(bytes = data.len(), "snapshot downloaded");
+
+    // Phase 3: Decrypt if needed
+    let archive_bytes = if encrypted {
+        let _ = app_handle.emit("snapshot-progress", crate::snapshots::SnapshotProgress {
+            operation: "restore".into(),
+            venv_id: "cloud".into(),
+            phase: "decrypting".into(),
+            bytes_processed: 0,
+            total_bytes: 0,
+        });
+
+        tokio::task::spawn_blocking(move || decrypt_bytes(&data, &enc_key))
+            .await
+            .map_err(|e| format!("spawn_blocking: {e}"))??
+    } else {
+        data
+    };
+
+    // Phase 4: Write to temp file and import
+    let tmp = std::env::temp_dir().join(format!("clawcage-restore-{snapshot_id}.clawcage"));
+    tokio::fs::write(&tmp, &archive_bytes).await
+        .map_err(|e| format!("write temp file: {e}"))?;
+
+    let result = crate::snapshots::import_venv(
+        tmp.to_string_lossy().to_string(),
+        Some(venv_name),
+        app_handle,
+    ).await?;
+
+    let _ = tokio::fs::remove_file(&tmp).await;
+
+    info!("cloud restore complete");
+    serde_json::to_value(&result).map_err(|e| format!("serialize: {e}"))
+}
+
+// ---------------------------------------------------------------------------
+// Auto-Sync
+// ---------------------------------------------------------------------------
+
+/// Toggle auto-sync on/off.
+#[tauri::command]
+pub async fn cloud_set_auto_sync(enabled: bool) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || {
+        let mut config = load_config();
+        config.auto_sync = enabled;
+        save_config(&config)?;
+        info!(enabled = enabled, "auto-sync toggled");
+        Ok(())
+    })
+    .await
+    .map_err(|e| format!("spawn_blocking: {e}"))?
+}
+
+/// Get auto-sync status.
+#[tauri::command]
+pub async fn cloud_get_auto_sync() -> Result<serde_json::Value, String> {
+    let config = load_config();
+    Ok(serde_json::json!({
+        "enabled": config.auto_sync,
+        "last_sync": config.last_auto_sync,
+    }))
+}
+
+/// Start the background auto-sync loop. Called once at app startup.
+pub fn start_auto_sync(app_handle: tauri::AppHandle) {
+    use tauri::Manager;
+
+    tauri::async_runtime::spawn(async move {
+        loop {
+            // Check every 5 minutes if a sync is due
+            tokio::time::sleep(std::time::Duration::from_secs(300)).await;
+
+            let config = load_config();
+            if !config.auto_sync || config.token.is_none() {
+                continue;
+            }
+
+            // Check if 24 hours have passed since last sync
+            let should_sync = match &config.last_auto_sync {
+                Some(ts) => {
+                    let last = chrono_parse_iso(ts);
+                    let now = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_secs();
+                    now - last > 24 * 60 * 60
+                }
+                None => true, // Never synced before
+            };
+
+            if !should_sync {
+                continue;
+            }
+
+            info!("auto-sync: starting daily sync");
+
+            // Get stopped venvs
+            let venvs = match crate::venvs::load_venvs() {
+                Ok(v) => v,
+                Err(e) => {
+                    tracing::warn!("auto-sync: failed to load venvs: {e}");
+                    continue;
+                }
+            };
+
+            let state: tauri::State<'_, crate::state::AppState> = app_handle.state();
+            let running = state.running_venvs.lock().unwrap().keys().cloned().collect::<Vec<_>>();
+
+            let stopped: Vec<_> = venvs.into_iter()
+                .filter(|v| !running.contains(&v.id))
+                .collect();
+
+            let mut synced = 0;
+            for venv in &stopped {
+                match cloud_sync_venv(venv.id.clone(), app_handle.clone()).await {
+                    Ok(()) => {
+                        synced += 1;
+                        info!(venv = %venv.name, "auto-sync: synced");
+                    }
+                    Err(e) => {
+                        tracing::warn!(venv = %venv.name, error = %e, "auto-sync: failed");
+                    }
+                }
+            }
+
+            // Update last sync timestamp
+            if synced > 0 {
+                let mut config = load_config();
+                config.last_auto_sync = Some(clawcage_core::session::now_iso());
+                let _ = save_config(&config);
+                info!(count = synced, "auto-sync: complete");
+            }
+        }
+    });
+}
+
+/// Parse an ISO 8601 timestamp to unix seconds (best-effort).
+fn chrono_parse_iso(ts: &str) -> u64 {
+    // Simple parser for "2026-04-04T12:00:00Z" or "2026-04-04T12:00:00.000Z"
+    let ts = ts.trim().replace('T', " ").replace('Z', "");
+    let parts: Vec<&str> = ts.split(&['-', ' ', ':', '.'][..]).collect();
+    if parts.len() < 6 { return 0; }
+    let year: u64 = parts[0].parse().unwrap_or(2000);
+    let month: u64 = parts[1].parse().unwrap_or(1);
+    let day: u64 = parts[2].parse().unwrap_or(1);
+    let hour: u64 = parts[3].parse().unwrap_or(0);
+    let min: u64 = parts[4].parse().unwrap_or(0);
+    let sec: u64 = parts[5].parse().unwrap_or(0);
+    // Rough approximation — good enough for 24-hour comparisons
+    let days_since_epoch = (year - 1970) * 365 + (year - 1969) / 4
+        + [0,31,59,90,120,151,181,212,243,273,304,334][(month as usize).saturating_sub(1).min(11)]
+        + day - 1;
+    days_since_epoch * 86400 + hour * 3600 + min * 60 + sec
 }

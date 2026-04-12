@@ -93,7 +93,7 @@ export default function FilesTab() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Timeline */}
-          <div className="glass border border-edge rounded-lg p-3 shadow-xs">
+          <div className="glass border border-edge rounded-lg p-3">
             <h3 className="text-xs font-semibold text-content/70 mb-2">Events Over Time</h3>
             {timeline.length > 0 ? (
               <ResponsiveContainer width="100%" height={180}>
@@ -118,7 +118,7 @@ export default function FilesTab() {
           </div>
 
           {/* Actions pie */}
-          <div className="glass border border-edge rounded-lg p-3 shadow-xs">
+          <div className="glass border border-edge rounded-lg p-3">
             <h3 className="text-xs font-semibold text-content/70 mb-2">Actions</h3>
             {actionPieData.length > 0 ? (
               <ResponsiveContainer width="100%" height={180}>

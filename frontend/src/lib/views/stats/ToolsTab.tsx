@@ -86,7 +86,7 @@ export default function ToolsTab() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Timeline */}
-          <div className="glass border border-edge rounded-lg p-3 shadow-xs">
+          <div className="glass border border-edge rounded-lg p-3">
             <h3 className="text-xs font-semibold text-content/70 mb-2">Calls Over Time</h3>
             {timeline.length > 0 ? (
               <ResponsiveContainer width="100%" height={180}>
@@ -104,7 +104,7 @@ export default function ToolsTab() {
           </div>
 
           {/* Top tools pie */}
-          <div className="glass border border-edge rounded-lg p-3 shadow-xs">
+          <div className="glass border border-edge rounded-lg p-3">
             <h3 className="text-xs font-semibold text-content/70 mb-2">Top Tools</h3>
             {toolPieData.length > 0 ? (
               <ResponsiveContainer width="100%" height={180}>

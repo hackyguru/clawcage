@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-04-13
+
+### Added
+- **Clawcage Cloud**: end-to-end encrypted cloud snapshot sync with Cloudflare R2 storage
+- One-click browser login flow with local callback server (like GitHub CLI)
+- Cloud restore: download and import snapshots to any device
+- Auto-sync: daily background sync of all stopped environments
+- Snapshot history: 30-day version history for Pro+ users with rollback
+- Encryption key backup to macOS Keychain (syncs via iCloud Keychain)
+- Export encryption key for manual backup
+- Sync to Cloud option in environment card menu (three-dot menu)
+- Background sync with progress toast in bottom-right corner
+- Sync status badges on environment cards (green glow when synced)
+- Click sync badge to view snapshot history modal with restore
+- Cloud auth state shared across all views (TitleBar, CloudView, HomeView)
+- Sign in button in title bar for quick cloud access
+- Pro (£15/mo) and Pro+ (£40/mo) subscription tiers via Polar.sh
+- Polar webhook integration for instant plan updates
+- Pre-authenticated Polar customer portal for plan management
+- 60-day grace period for lapsed subscriptions before snapshot deletion
+- Per-plan storage limits enforced server-side (Pro: 1 GB, Pro+: 5 GB)
+- Terms of Service and Privacy Policy pages
+- Cloud web dashboard at clawcage-cloud.vercel.app with overview, settings, and snapshot management
+
+### Changed
+- Default cloud URL updated to production (clawcage-cloud.vercel.app)
+- Auth tokens stored in macOS Keychain instead of plain text cloud.json
+- JWT expiry checked locally (no network call) with automatic refresh
+- File sizes displayed in base-10 units (MB/GB) matching Cloudflare/Finder
+- Consistent use of "snapshot" terminology instead of "backup"
+- Removed all UI shadows for cleaner appearance
+
+### Security
+- AES-256-GCM client-side encryption for all cloud snapshots
+- Encryption key never leaves the user's device
+- Two-phase upload: prepare (get URL) then confirm (verify file exists)
+- Webhook signature verification using @polar-sh/sdk validateEvent
+- Bearer token auth on all cloud API endpoints with cookie fallback for web
+
 ## [0.10.0] - 2026-04-02
 
 ### Added

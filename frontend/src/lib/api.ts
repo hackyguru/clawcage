@@ -377,8 +377,24 @@ export function cloudExportKey(): Promise<string> {
   return ensureDeps().then(() => isMock ? Promise.resolve('mock-key') : tauriInvoke('cloud_export_key'));
 }
 
-export function cloudListSnapshots(): Promise<{ venv_name: string; synced_at: string; file_size_bytes: number }[]> {
+export function cloudListSnapshots(): Promise<{ venv_name: string; synced_at: string; file_size_bytes: number; id?: string }[]> {
   return ensureDeps().then(() => isMock ? Promise.resolve([]) : tauriInvoke('cloud_list_snapshots'));
+}
+
+export function cloudRestoreSnapshot(snapshotId: string): Promise<unknown> {
+  return ensureDeps().then(() => isMock ? Promise.resolve({}) : tauriInvoke('cloud_restore_snapshot', { snapshotId }));
+}
+
+export function cloudSetAutoSync(enabled: boolean): Promise<void> {
+  return ensureDeps().then(() => isMock ? Promise.resolve() : tauriInvoke('cloud_set_auto_sync', { enabled }));
+}
+
+export function cloudGetAutoSync(): Promise<{ enabled: boolean; last_sync: string | null }> {
+  return ensureDeps().then(() => isMock ? Promise.resolve({ enabled: false, last_sync: null }) : tauriInvoke('cloud_get_auto_sync'));
+}
+
+export function cloudOpenPortal(): Promise<void> {
+  return ensureDeps().then(() => isMock ? Promise.resolve() : tauriInvoke('cloud_open_portal'));
 }
 
 // ---------------------------------------------------------------------------

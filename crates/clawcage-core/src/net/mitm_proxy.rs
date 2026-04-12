@@ -158,6 +158,7 @@ fn detect_ai_provider(domain: &str) -> Option<ProviderKind> {
         "api.anthropic.com" => Some(ProviderKind::Anthropic),
         "api.openai.com" => Some(ProviderKind::OpenAi),
         "generativelanguage.googleapis.com" => Some(ProviderKind::Google),
+        "openrouter.ai" => Some(ProviderKind::OpenAi),
         _ => None,
     }
 }
@@ -757,21 +758,21 @@ async fn handle_request(
         Some(q) => format!("{path}?{q}"),
         None => path.clone(),
     };
+
+    let has_user_creds = !config.credentials.is_empty();
+
     let mut builder = hyper::Request::builder()
         .method(original_method);
+
+    // Direct connection: standard header forwarding + credential injection.
     for (name, value) in original_headers.iter() {
         if name == "host" {
             continue;
         }
-        // For AI provider requests, override accept-encoding to gzip only
-        // (we decompress for telemetry parsing; brotli/zstd not supported).
-        // For non-AI traffic (git, npm, etc.), pass through the client's
-        // original accept-encoding so the proxy doesn't decompress/re-encode.
         if name == "accept-encoding" && ai_provider.is_some() {
             continue;
         }
-        // Strip placeholder auth headers -- real credentials are injected below.
-        if !config.credentials.is_empty() {
+        if has_user_creds {
             if name == "authorization" || name == "x-api-key" {
                 continue;
             }
@@ -782,9 +783,6 @@ async fn handle_request(
     if ai_provider.is_some() {
         builder = builder.header("accept-encoding", "gzip");
     }
-
-    // Credential injection: replace guest placeholder credentials with real
-    // host-side API keys. The guest never sees the real key.
     let full_path = inject_credentials(domain, &config.credentials, &mut builder, full_path);
     builder = builder.uri(&full_path);
 
