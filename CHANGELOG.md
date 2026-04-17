@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-04-17
+
+### Added
+- **Remote Mode**: move any environment to a cloud VPS with a single toggle, work from anywhere via SSH
+- VPS reuse: server stays alive between local/cloud switches — no re-provisioning delay or extra Hetzner billing
+- User-level persistent SSH key (`~/.clawcage/remote_ssh_key`) shared across all remote sessions
+- Automatic VPS cleanup on subscription cancellation (Polar webhook) and daily cron sweep
+- SSH terminal button on environment cards when running in cloud mode
+- Copiable SSH command on cloud dashboard Remote page
+- Remote page in cloud dashboard showing VPS status, IP, uptime, and session details
+- VPS hardening: SSH key-only auth, password auth disabled, UFW firewall (port 22 only)
+- Current remote-mode step shown inline on environment cards during cloud transitions
+- Force destroy with 12-hour rate limit to prevent billing abuse
+- Cloud nav link on landing page
+
+### Changed
+- Reattach (cloud → local) releases VPS to idle instead of destroying it
+- DELETE endpoint requires `?force=true` to actually destroy Hetzner resources; without it, releases to idle
+- Snapshot badge icon changed from cloud to clock (history) to differentiate from remote mode
+- Local VM blocked from starting while environment is in cloud mode
+- Environment auto-restarts after bringing back from cloud to local
+- Detach step labels update dynamically based on VPS reuse vs fresh provision
+
+### Security
+- Cloud-init venv name injection fixed (base64-encoded for shell safety)
+- Cleanup endpoint hardened with timing-safe comparison and non-empty secret validation
+- Server type and location whitelisted (prevents provisioning expensive instances)
+- SSH public key format validated (max length, algorithm prefix, base64 blob)
+- Snapshot `file_size_bytes` validated as positive integer (prevents quota bypass)
+- Hetzner error messages sanitized (no longer leaked to client)
+- Webhook headers explicitly checked before signature validation
+- Metrics endpoint debug information removed
+
 ## [1.0.0] - 2026-04-13
 
 ### Added

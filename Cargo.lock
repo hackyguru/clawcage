@@ -701,7 +701,7 @@ dependencies = [
 
 [[package]]
 name = "clawcage"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -738,7 +738,7 @@ dependencies = [
 
 [[package]]
 name = "clawcage-agent"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "clawcage-proto",
  "nix 0.29.0",
@@ -750,7 +750,7 @@ dependencies = [
 
 [[package]]
 name = "clawcage-core"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "async-compression",
@@ -802,7 +802,7 @@ dependencies = [
 
 [[package]]
 name = "clawcage-logger"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "humantime",
  "rusqlite",
@@ -815,7 +815,7 @@ dependencies = [
 
 [[package]]
 name = "clawcage-proto"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "rmp-serde",
