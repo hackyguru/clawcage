@@ -8,8 +8,8 @@
 // Session 0 is the default shell created at boot. Additional shells are
 // created/destroyed via SpawnShell/CloseShell control messages.
 
-#[path = "vsock_io.rs"]
-mod vsock_io;
+#[path = "transport.rs"]
+mod transport;
 
 use std::collections::HashMap;
 use std::io::{self, Write as _};
@@ -32,7 +32,7 @@ use nix::pty::openpty;
 use nix::sys::signal::{SigHandler, Signal, signal};
 use nix::unistd::{ForkResult, Pid, close, dup2, execvp, fork, setsid};
 
-use vsock_io::{VSOCK_HOST_CID, read_exact_fd, vsock_connect_retry, write_all_fd};
+use transport::{TransportMode, read_exact_fd, connect_retry, write_all_fd};
 
 /// vsock port for control messages.
 const VSOCK_PORT_CONTROL: u32 = 5000;
@@ -264,8 +264,9 @@ fn main() {
     ));
 
     // Step 1: Connect to host vsock ports BEFORE PTY/fork.
-    let terminal_fd = vsock_connect_retry(VSOCK_HOST_CID, VSOCK_PORT_TERMINAL, "terminal");
-    let control_fd = vsock_connect_retry(VSOCK_HOST_CID, VSOCK_PORT_CONTROL, "control");
+    let mode = TransportMode::from_env();
+    let terminal_fd = connect_retry(&mode, VSOCK_PORT_TERMINAL, "terminal");
+    let control_fd = connect_retry(&mode, VSOCK_PORT_CONTROL, "control");
     blog_line(&mut blog, "vsock connected (terminal + control)");
 
     // Step 2: Send Ready.
@@ -1134,7 +1135,7 @@ fn control_loop(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use super::vsock_io::{AF_VSOCK, SockaddrVm};
+    use super::transport::{AF_VSOCK, SockaddrVm, VSOCK_HOST_CID};
     use std::io::Write;
     use std::os::unix::io::FromRawFd;
 

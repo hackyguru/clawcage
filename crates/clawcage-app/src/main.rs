@@ -2,6 +2,7 @@
 
 mod cloud;
 mod commands;
+mod remote_mode;
 mod snapshots;
 mod state;
 mod venvs;
@@ -3248,6 +3249,17 @@ fn main() {
             cloud::cloud_get_auto_sync,
             cloud::open_external,
             cloud::cloud_open_portal,
+            cloud::create_remote_session,
+            cloud::get_remote_session,
+            cloud::list_remote_sessions,
+            cloud::destroy_remote_session,
+            cloud::release_remote_session,
+            cloud::force_cleanup_remote_sessions,
+            remote_mode::get_venv_connection,
+            remote_mode::list_venv_connections,
+            remote_mode::detach_venv,
+            remote_mode::reattach_venv,
+            remote_mode::open_remote_terminal,
             install_update,
         ])
         .build(tauri::generate_context!())

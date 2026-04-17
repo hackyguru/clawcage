@@ -957,3 +957,196 @@ fn chrono_parse_iso(ts: &str) -> u64 {
         + day - 1;
     days_since_epoch * 86400 + hour * 3600 + min * 60 + sec
 }
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Remote sessions (venv detach to Hetzner VPS).
+//
+// Transfer: rsync over SSH (delta, resume, progress, E2E encrypted by SSH).
+// No R2 intermediary, no custom encryption layer, no session keys.
+// The cloud API only handles VPS lifecycle (provision/destroy/status).
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct RemoteSession {
+    pub id: String,
+    pub venv_name: String,
+    pub state: String,              // provisioning | ready | destroying | gone
+    pub vps_ip: Option<String>,
+    pub ssh_fingerprint: Option<String>,
+    pub created_at: Option<String>,
+    pub updated_at: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct CreateRemoteSessionResponse {
+    pub session: RemoteSession,
+    /// True if an idle VPS was reused (no provisioning needed).
+    #[serde(default)]
+    pub reused: bool,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct RemoteSessionStatus {
+    pub session: RemoteSession,
+}
+
+/// Provision a remote session. The cloud API sets up a blank Hetzner VPS
+/// with tmux + rsync installed; the desktop then rsyncs scratch.img to it.
+#[tauri::command]
+pub async fn create_remote_session(
+    venv_name: String,
+    public_key: String,
+    location: Option<String>,
+    server_type: Option<String>,
+) -> Result<CreateRemoteSessionResponse, String> {
+    let mut config = load_config();
+    let token = get_valid_token(&mut config).await?;
+    let cloud_url = config.cloud_url.as_deref().unwrap_or("https://clawcage-cloud.vercel.app");
+
+    let body = serde_json::json!({
+        "venv_name": venv_name,
+        "public_key": public_key,
+        "location": location,
+        "server_type": server_type,
+    });
+
+    let resp = reqwest::Client::new()
+        .post(format!("{cloud_url}/api/remote-sessions"))
+        .header("Authorization", format!("Bearer {token}"))
+        .json(&body)
+        .timeout(std::time::Duration::from_secs(60))
+        .send()
+        .await
+        .map_err(|e| format!("create_remote_session: {e}"))?;
+
+    let status = resp.status();
+    if !status.is_success() {
+        let err: serde_json::Value = resp.json().await.unwrap_or_default();
+        let msg = err["error"].as_str().unwrap_or("unknown error");
+        return Err(format!("{status}: {msg}"));
+    }
+
+    resp.json::<CreateRemoteSessionResponse>()
+        .await
+        .map_err(|e| format!("parse response: {e}"))
+}
+
+/// Poll the current status of a remote session.
+#[tauri::command]
+pub async fn get_remote_session(session_id: String) -> Result<RemoteSessionStatus, String> {
+    let mut config = load_config();
+    let token = get_valid_token(&mut config).await?;
+    let cloud_url = config.cloud_url.as_deref().unwrap_or("https://clawcage-cloud.vercel.app");
+
+    let resp = reqwest::Client::new()
+        .get(format!("{cloud_url}/api/remote-sessions/{session_id}"))
+        .header("Authorization", format!("Bearer {token}"))
+        .timeout(std::time::Duration::from_secs(15))
+        .send()
+        .await
+        .map_err(|e| format!("get_remote_session: {e}"))?;
+
+    let status = resp.status();
+    if !status.is_success() {
+        let err: serde_json::Value = resp.json().await.unwrap_or_default();
+        let msg = err["error"].as_str().unwrap_or("unknown error");
+        return Err(format!("{status}: {msg}"));
+    }
+
+    resp.json::<RemoteSessionStatus>()
+        .await
+        .map_err(|e| format!("parse response: {e}"))
+}
+
+/// List all non-gone remote sessions for the signed-in user.
+#[tauri::command]
+pub async fn list_remote_sessions() -> Result<Vec<RemoteSession>, String> {
+    let mut config = load_config();
+    let token = get_valid_token(&mut config).await?;
+    let cloud_url = config.cloud_url.as_deref().unwrap_or("https://clawcage-cloud.vercel.app");
+
+    let resp = reqwest::Client::new()
+        .get(format!("{cloud_url}/api/remote-sessions"))
+        .header("Authorization", format!("Bearer {token}"))
+        .timeout(std::time::Duration::from_secs(10))
+        .send()
+        .await
+        .map_err(|e| format!("list_remote_sessions: {e}"))?;
+
+    if !resp.status().is_success() {
+        return Ok(vec![]);
+    }
+
+    let body: serde_json::Value = resp.json().await
+        .map_err(|e| format!("parse response: {e}"))?;
+    Ok(serde_json::from_value(body["sessions"].clone()).unwrap_or_default())
+}
+
+/// Destroy a remote session (tear down VPS + Hetzner SSH key).
+/// Requires ?force=true on the server to actually destroy Hetzner resources.
+/// Without force, the server releases to idle instead (safety net).
+#[tauri::command]
+pub async fn destroy_remote_session(session_id: String) -> Result<(), String> {
+    let mut config = load_config();
+    let token = get_valid_token(&mut config).await?;
+    let cloud_url = config.cloud_url.as_deref().unwrap_or("https://clawcage-cloud.vercel.app");
+
+    let resp = reqwest::Client::new()
+        .delete(format!("{cloud_url}/api/remote-sessions/{session_id}?force=true"))
+        .header("Authorization", format!("Bearer {token}"))
+        .timeout(std::time::Duration::from_secs(30))
+        .send()
+        .await
+        .map_err(|e| format!("destroy_remote_session: {e}"))?;
+
+    let status = resp.status();
+    if !status.is_success() && status.as_u16() != 404 {
+        let err: serde_json::Value = resp.json().await.unwrap_or_default();
+        let msg = err["error"].as_str().unwrap_or("unknown error");
+        return Err(format!("{status}: {msg}"));
+    }
+    Ok(())
+}
+
+/// Release a remote session to idle (VPS stays alive for reuse).
+#[tauri::command]
+pub async fn release_remote_session(session_id: String) -> Result<(), String> {
+    let mut config = load_config();
+    let token = get_valid_token(&mut config).await?;
+    let cloud_url = config.cloud_url.as_deref().unwrap_or("https://clawcage-cloud.vercel.app");
+
+    let resp = reqwest::Client::new()
+        .patch(format!("{cloud_url}/api/remote-sessions/{session_id}"))
+        .header("Authorization", format!("Bearer {token}"))
+        .timeout(std::time::Duration::from_secs(15))
+        .send()
+        .await
+        .map_err(|e| format!("release_remote_session: {e}"))?;
+
+    let status = resp.status();
+    if !status.is_success() {
+        let err: serde_json::Value = resp.json().await.unwrap_or_default();
+        let msg = err["error"].as_str().unwrap_or("unknown error");
+        return Err(format!("{status}: {msg}"));
+    }
+    Ok(())
+}
+
+/// Force-destroy ALL active remote sessions for the current user.
+#[tauri::command]
+pub async fn force_cleanup_remote_sessions() -> Result<String, String> {
+    let sessions = list_remote_sessions().await?;
+    if sessions.is_empty() {
+        return Ok("no active sessions found".into());
+    }
+    let mut cleaned = 0;
+    for s in &sessions {
+        if let Err(e) = destroy_remote_session(s.id.clone()).await {
+            eprintln!("[force_cleanup] destroy {} failed: {e}", s.id);
+        } else {
+            cleaned += 1;
+        }
+    }
+    Ok(format!("destroyed {cleaned}/{} sessions", sessions.len()))
+}

@@ -86,6 +86,14 @@ function ChartIcon({ className = "size-6" }: { className?: string }) {
   );
 }
 
+function CloudIcon({ className = "size-6" }: { className?: string }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z" />
+    </svg>
+  );
+}
+
 function LockIcon({ className = "size-6" }: { className?: string }) {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -254,6 +262,39 @@ function BentoAnalytics() {
   );
 }
 
+function BentoRemoteMode() {
+  return (
+    <div className="bento-visual mt-4 flex flex-col gap-3">
+      <div className="flex items-center gap-3">
+        <div className="flex-1 border border-edge rounded-md p-2.5 bg-surface-alt/50">
+          <div className="text-[9px] text-content/15 uppercase tracking-widest mb-1.5">Your Mac</div>
+          <div className="flex items-center gap-1.5 mt-2">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="size-3 text-content/15"><path d="M4 6h16v10H4V6zm-2 12h20v2H2v-2zm3-1h14V7H5v10z" /></svg>
+            <span className="text-[10px] text-content/25">Working locally</span>
+          </div>
+        </div>
+        <div className="flex flex-col items-center gap-0.5 text-content/10 shrink-0">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="size-4"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+          <span className="text-[7px] uppercase tracking-widest">one click</span>
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="size-4"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
+        </div>
+        <div className="flex-1 border border-sky-400/20 rounded-md p-2.5 bg-sky-400/5">
+          <div className="text-[9px] text-sky-400/40 uppercase tracking-widest mb-1.5">Cloud</div>
+          <div className="flex items-center gap-1.5 mt-2">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="size-3 text-sky-400/40"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z" /></svg>
+            <span className="text-[10px] text-sky-400/40">Running remotely</span>
+          </div>
+        </div>
+      </div>
+      <div className="flex items-center gap-4 px-1 text-[9px] text-content/20">
+        <div className="flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-allowed/50" /><span>Instant switch</span></div>
+        <div className="flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-allowed/50" /><span>SSH terminal access</span></div>
+        <div className="flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-allowed/50" /><span>Files stay in sync</span></div>
+      </div>
+    </div>
+  );
+}
+
 function BentoEphemeral() {
   return (
     <div className="bento-visual mt-4 flex items-center gap-4">
@@ -311,14 +352,24 @@ function Navbar() {
             GitHub
           </a>
         </div>
-        <a
-          href="https://github.com/hackyguru/clawcage/releases/latest"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-interactive text-on-interactive hover:opacity-90 transition"
-        >
-          Download
-        </a>
+        <div className="flex items-center gap-2">
+          <a
+            href="https://clawcage-cloud.vercel.app"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-edge hover:bg-surface-alt transition"
+          >
+            Cloud
+          </a>
+          <a
+            href="https://github.com/hackyguru/clawcage/releases/latest"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-interactive text-on-interactive hover:opacity-90 transition"
+          >
+            Download
+          </a>
+        </div>
       </div>
     </nav>
   );
@@ -490,6 +541,10 @@ function Features() {
 
           <BentoCard icon={<ChartIcon className="size-5" />} title="AI Usage Analytics" description="Track token usage, costs, and model calls per provider.">
             <BentoAnalytics />
+          </BentoCard>
+
+          <BentoCard icon={<CloudIcon className="size-5" />} title="Remote Mode" description="Move any environment to the cloud and back with a single toggle. Work from anywhere, pick up exactly where you left off. Switch between local and remote instantly." span="md:col-span-2">
+            <BentoRemoteMode />
           </BentoCard>
 
           <BentoCard icon={<LockIcon className="size-5" />} title="Ephemeral by Default" description="VMs are stateless — the scratch disk is formatted fresh every boot. No writes survive across sessions." span="md:col-span-2">
@@ -672,6 +727,10 @@ function Pricing() {
                 <span className="text-allowed mt-0.5 shrink-0">&#10003;</span>
                 AES-256 E2E encryption
               </li>
+              <li className="flex items-start gap-2">
+                <span className="text-allowed mt-0.5 shrink-0">&#10003;</span>
+                Remote VPS execution
+              </li>
             </ul>
 
             <a
@@ -715,8 +774,8 @@ function Pricing() {
                 Rollback to any point
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-content/25 mt-0.5 shrink-0">&#10003;</span>
-                <span className="text-content/35">Remote VPS execution <span className="text-[9px] px-1 py-0.5 rounded border border-edge ml-1">soon</span></span>
+                <span className="text-allowed mt-0.5 shrink-0">&#10003;</span>
+                Remote VPS execution
               </li>
             </ul>
 

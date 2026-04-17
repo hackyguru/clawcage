@@ -9,15 +9,15 @@
 //   2. Send metadata line: \0CLAWCAGE_META:process_name\n
 //   3. Relay: stdin -> vsock, vsock -> stdout (bidirectional, line-at-a-time)
 
-#[path = "vsock_io.rs"]
-mod vsock_io;
+#[path = "transport.rs"]
+mod transport;
 
 use std::io::{self, BufRead, Write};
 use std::os::unix::io::{FromRawFd, RawFd};
 use std::process;
 use std::thread;
 
-use vsock_io::{VSOCK_HOST_CID, vsock_connect_retry, write_all_fd};
+use transport::{TransportMode, connect_retry, write_all_fd};
 
 /// Vsock port for MCP gateway on the host.
 const VSOCK_PORT_MCP: u32 = 5003;
@@ -34,7 +34,7 @@ fn get_parent_process_name() -> String {
 fn main() {
     eprintln!("[clawcage-mcp-server] starting (pid {})", process::id());
 
-    let vsock_fd = vsock_connect_retry(VSOCK_HOST_CID, VSOCK_PORT_MCP, "mcp");
+    let vsock_fd = connect_retry(&TransportMode::from_env(), VSOCK_PORT_MCP, "mcp");
 
     // Send metadata line
     let process_name = get_parent_process_name();

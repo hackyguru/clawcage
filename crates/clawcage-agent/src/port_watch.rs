@@ -9,8 +9,8 @@
 //
 // This binary runs inside the guest VM, launched by clawcage-init.
 
-#[path = "vsock_io.rs"]
-mod vsock_io;
+#[path = "transport.rs"]
+mod transport;
 
 use std::collections::HashMap;
 
@@ -280,14 +280,14 @@ fn scan_processes(known_ports: &HashMap<u16, (u32, String)>) -> Vec<clawcage_pro
 #[cfg(target_os = "linux")]
 fn run_watcher() {
     use clawcage_proto::{GuestToHost, encode_guest_msg};
-    use vsock_io::{VSOCK_HOST_CID, vsock_connect_retry, write_all_fd};
+    use transport::{TransportMode, connect_retry, write_all_fd};
     use std::os::unix::io::RawFd;
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
 
     eprintln!("[clawcage-port-watch] starting (pid {})", std::process::id());
 
-    let vsock_fd = vsock_connect_retry(VSOCK_HOST_CID, VSOCK_PORT_PORT_WATCH, "port-watch");
+    let vsock_fd = connect_retry(&TransportMode::from_env(), VSOCK_PORT_PORT_WATCH, "port-watch");
 
     // Track known listening ports: port -> (pid, process_name)
     let mut known: HashMap<u16, (u32, String)> = HashMap::new();
@@ -390,14 +390,15 @@ const RELAY_THREAD_COUNT: usize = 16;
 fn relay_worker(id: usize) {
     use std::io::{Read, Write};
     use std::net::TcpStream;
-    use vsock_io::{VSOCK_HOST_CID, vsock_connect, read_exact_fd, write_all_fd};
+    use transport::{TransportMode, connect, read_exact_fd, write_all_fd};
 
+    let mode = TransportMode::from_env();
     loop {
         // Connect to host port-forward relay port.
-        let vsock_fd = match vsock_connect(VSOCK_HOST_CID, VSOCK_PORT_PORT_FORWARD) {
+        let vsock_fd = match connect(&mode, VSOCK_PORT_PORT_FORWARD) {
             Ok(fd) => fd,
             Err(e) => {
-                eprintln!("[relay-{id}] vsock connect failed: {e}, retrying in 1s");
+                eprintln!("[relay-{id}] connect failed: {e}, retrying in 1s");
                 std::thread::sleep(std::time::Duration::from_secs(1));
                 continue;
             }

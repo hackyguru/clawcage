@@ -31,6 +31,8 @@ import type {
   QueryResult,
   SystemMetrics,
   VenvInfo,
+  VenvConnectionStatus,
+  CreateRemoteSessionResponse,
   VmStateResponse,
 } from './types';
 
@@ -220,6 +222,87 @@ export function listVenvs(): Promise<VenvInfo[]> {
   return ensureDeps().then(() => isMock ? mockApi.listVenvs() : tauriInvoke<VenvInfo[]>('list_venvs'));
 }
 
+// ─── Remote mode ──────────────────────────────────────────────────────────
+
+/** Get the connection mode (Local / Detaching / Remote / Reattaching) for a venv. */
+export function getVenvConnection(venvId: string): Promise<VenvConnectionStatus> {
+  return ensureDeps().then(() =>
+    isMock
+      ? Promise.resolve({ venv_id: venvId, mode: { type: 'local' as const } })
+      : tauriInvoke<VenvConnectionStatus>('get_venv_connection', { venvId }),
+  );
+}
+
+/** Bulk lookup of connection modes for many venvs (used for sidebar badges). */
+export function listVenvConnections(venvIds: string[]): Promise<VenvConnectionStatus[]> {
+  return ensureDeps().then(() =>
+    isMock
+      ? Promise.resolve(venvIds.map((id) => ({ venv_id: id, mode: { type: 'local' as const } })))
+      : tauriInvoke<VenvConnectionStatus[]>('list_venv_connections', { venvIds }),
+  );
+}
+
+/**
+ * Detach a venv to remote mode.
+ *
+ * The desktop handles the full E2E flow internally: mints a per-session
+ * AES key, encrypts the venv archive, uploads to R2, provisions the VPS.
+ * Returns the new connection status (mode will be Remote on success,
+ * Local on rollback).
+ */
+export function detachVenv(args: {
+  venvId: string;
+  venvName: string;
+  location?: string;
+  serverType?: string;
+}): Promise<VenvConnectionStatus> {
+  return ensureDeps().then(() =>
+    tauriInvoke<VenvConnectionStatus>('detach_venv', {
+      venvId: args.venvId,
+      venvName: args.venvName,
+      location: args.location,
+      serverType: args.serverType,
+    }),
+  );
+}
+
+/** Reattach a venv from remote back to local. Tears down the VPS + SSH key. */
+export function reattachVenv(venvId: string): Promise<VenvConnectionStatus> {
+  return ensureDeps().then(() => tauriInvoke<VenvConnectionStatus>('reattach_venv', { venvId }));
+}
+
+/**
+ * Open a Terminal.app window with `ssh -t root@<vps> "tmux attach -t <venv>"`.
+ * V1 UX: external Terminal.app rather than embedded xterm.js.
+ */
+export function openRemoteTerminal(venvId: string, venvName: string): Promise<void> {
+  return ensureDeps().then(() => tauriInvoke<void>('open_remote_terminal', { venvId, venvName }));
+}
+
+/**
+ * Provision a remote session via the cloud API (low-level; normal callers
+ * use `detachVenv`, which handles keypair, encryption, and upload).
+ */
+export function createRemoteSession(args: {
+  venvName: string;
+  snapshotPath: string;
+  publicKey: string;
+  sessionKeyB64: string;
+  location?: string;
+  serverType?: string;
+}): Promise<CreateRemoteSessionResponse> {
+  return ensureDeps().then(() =>
+    tauriInvoke<CreateRemoteSessionResponse>('create_remote_session', {
+      venvName: args.venvName,
+      snapshotPath: args.snapshotPath,
+      publicKey: args.publicKey,
+      sessionKeyB64: args.sessionKeyB64,
+      location: args.location,
+      serverType: args.serverType,
+    }),
+  );
+}
+
 export function createVenv(name: string, ephemeral: boolean, template: string = 'blank'): Promise<VenvInfo> {
   return ensureDeps().then(() => isMock ? mockApi.createVenv(name, ephemeral, template) : tauriInvoke<VenvInfo>('create_venv', { name, ephemeral, template }));
 }
@@ -377,7 +460,14 @@ export function cloudExportKey(): Promise<string> {
   return ensureDeps().then(() => isMock ? Promise.resolve('mock-key') : tauriInvoke('cloud_export_key'));
 }
 
-export function cloudListSnapshots(): Promise<{ venv_name: string; synced_at: string; file_size_bytes: number; id?: string }[]> {
+export function cloudListSnapshots(): Promise<{
+  venv_name: string;
+  synced_at: string;
+  file_size_bytes: number;
+  /** R2 object key; needed by detach_venv to locate the snapshot. */
+  file_path?: string;
+  id?: string;
+}[]> {
   return ensureDeps().then(() => isMock ? Promise.resolve([]) : tauriInvoke('cloud_list_snapshots'));
 }
 

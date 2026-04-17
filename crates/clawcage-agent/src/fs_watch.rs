@@ -7,8 +7,8 @@
 //
 // This binary runs inside the guest VM, launched by clawcage-init.
 
-#[path = "vsock_io.rs"]
-mod vsock_io;
+#[path = "transport.rs"]
+mod transport;
 
 use std::collections::HashMap;
 use std::time::Instant;
@@ -18,7 +18,7 @@ use std::os::unix::io::RawFd;
 #[cfg(target_os = "linux")]
 use clawcage_proto::{GuestToHost, encode_guest_msg};
 #[cfg(target_os = "linux")]
-use vsock_io::{VSOCK_HOST_CID, vsock_connect_retry, write_all_fd};
+use transport::{TransportMode, connect_retry, write_all_fd};
 
 /// vsock port for filesystem events on the host.
 #[cfg(target_os = "linux")]
@@ -168,7 +168,7 @@ fn run_watcher() {
 
     eprintln!("[clawcage-fs-watch] starting (pid {})", std::process::id());
 
-    let vsock_fd = vsock_connect_retry(VSOCK_HOST_CID, VSOCK_PORT_FS_WATCH, "fs-watch");
+    let vsock_fd = connect_retry(&TransportMode::from_env(), VSOCK_PORT_FS_WATCH, "fs-watch");
 
     let inotify = Inotify::init(InitFlags::IN_NONBLOCK).expect("failed to init inotify");
 

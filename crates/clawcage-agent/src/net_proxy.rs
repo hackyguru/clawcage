@@ -8,13 +8,14 @@
 // This binary runs inside the guest VM, launched by clawcage-init.
 // iptables REDIRECT captures port 443 traffic and sends it here.
 
-#[path = "vsock_io.rs"]
-mod vsock_io;
+#[path = "transport.rs"]
+mod transport;
 
 use std::io;
 use std::os::unix::io::{BorrowedFd, FromRawFd, RawFd};
 use std::pin::Pin;
 use std::process;
+use std::sync::Arc;
 use std::task::{Context, Poll};
 
 use nix::libc;
@@ -23,7 +24,7 @@ use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt, ReadBuf};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::signal;
 
-use vsock_io::{VSOCK_HOST_CID, vsock_connect};
+use transport::{TransportMode, connect};
 
 /// vsock port for SNI proxy on the host.
 const VSOCK_PORT_SNI_PROXY: u32 = 5002;
@@ -192,7 +193,7 @@ async fn get_process_name(client_port: u16) -> Option<String> {
     .unwrap_or(None)
 }
 
-async fn handle_connection(mut tcp_stream: TcpStream) {
+async fn handle_connection(mut tcp_stream: TcpStream, mode: Arc<TransportMode>) {
     let peer_addr = match tcp_stream.peer_addr() {
         Ok(addr) => addr,
         Err(_) => return,
@@ -202,14 +203,14 @@ async fn handle_connection(mut tcp_stream: TcpStream) {
         .await
         .unwrap_or_else(|| "unknown".to_string());
 
-    let vsock_raw = match tokio::task::spawn_blocking(|| {
-        vsock_connect(VSOCK_HOST_CID, VSOCK_PORT_SNI_PROXY)
+    let vsock_raw = match tokio::task::spawn_blocking(move || {
+        connect(&mode, VSOCK_PORT_SNI_PROXY)
     })
     .await
     {
         Ok(Ok(fd)) => fd,
         _ => {
-            eprintln!("[clawcage-net-proxy] vsock connect failed");
+            eprintln!("[clawcage-net-proxy] upstream connect failed");
             return;
         }
     };
@@ -243,7 +244,9 @@ async fn handle_connection(mut tcp_stream: TcpStream) {
 
 #[tokio::main]
 async fn main() -> io::Result<()> {
-    eprintln!("[clawcage-net-proxy] starting (pid {})", process::id());
+    let mode = Arc::new(TransportMode::from_env());
+    eprintln!("[clawcage-net-proxy] starting (pid {}, transport {})",
+        process::id(), mode.label());
 
     let listener = TcpListener::bind(("127.0.0.1", LISTEN_PORT_HTTPS)).await?;
     eprintln!("[clawcage-net-proxy] listening on 127.0.0.1:{LISTEN_PORT_HTTPS}");
@@ -252,8 +255,9 @@ async fn main() -> io::Result<()> {
         tokio::select! {
             Ok((stream, _)) = listener.accept() => {
                 let _ = stream.set_nodelay(true);
+                let mode = Arc::clone(&mode);
                 tokio::spawn(async move {
-                    handle_connection(stream).await;
+                    handle_connection(stream, mode).await;
                 });
             }
             _ = signal::ctrl_c() => {

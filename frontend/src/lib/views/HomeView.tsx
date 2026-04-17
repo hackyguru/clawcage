@@ -2,11 +2,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useVenvs, loadVenvs, createVenvAction, deleteVenvAction, startVenvAction, stopVenvAction, openVenv } from '../stores/venvs';
 import { useSidebar } from '../stores/sidebar';
-import { updateSetting, saveVenvFile, getVenvMetrics, cloneVenv, exportVenv, importVenv, onSnapshotProgress, cloudStatus, cloudListSnapshots, cloudSyncVenv, type SnapshotProgress } from '../api';
+import { updateSetting, saveVenvFile, getVenvMetrics, cloneVenv, exportVenv, importVenv, onSnapshotProgress, cloudStatus, cloudListSnapshots, cloudSyncVenv, getVenvConnection, openRemoteTerminal, type SnapshotProgress } from '../api';
 import { showToast } from '../stores/toast';
 import type { SystemMetrics } from '../types';
-import { PlusIcon, PlayIcon, StopIcon, TrashIcon, TerminalIcon, ChevronRight, ChevronDown, CloudIcon } from '../icons/Icons';
+import { PlusIcon, PlayIcon, StopIcon, TrashIcon, TerminalIcon, ChevronRight, ChevronDown } from '../icons/Icons';
 import Dialog, { ConfirmDialog } from '../components/Dialog';
+import { RemoteVenvBadge, RemoteVenvControls, RemoteStepLabel } from '../components/RemoteVenvControls';
 import { TEMPLATES, getTemplate } from '../templates';
 import { useCloudSync, setSyncing } from '../stores/cloudSync';
 import type { VenvInfo, VenvTemplate, TemplateFormField } from '../types';
@@ -454,7 +455,11 @@ function SnapshotHistoryModal({ venvName, snapshots, open, onClose }: {
         {/* Header with venv name + latest info */}
         <div className="flex items-center gap-3">
           <div className="flex items-center justify-center size-9 rounded-xl bg-allowed/10 shrink-0">
-            <CloudIcon className="size-4 text-allowed" />
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="size-4 text-allowed">
+              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+              <path d="M3 3v5h5" />
+              <path d="M12 7v5l4 2" />
+            </svg>
           </div>
           <div className="min-w-0 flex-1">
             <h3 className="text-sm font-semibold truncate">{venvName}</h3>
@@ -597,24 +602,34 @@ function SyncBadge({ venvId, venvName, snapshots, syncingVenvId, syncProgress, o
     if (synced) {
       return (
         <div className="flex items-center justify-center size-7 rounded-full bg-allowed/15 ring-2 ring-allowed/30 cursor-pointer hover:ring-allowed/50 transition" title={`Synced ${timeAgo(snap.synced_at)} — click for history`}>
-          <CloudIcon className="size-3.5 text-allowed" />
+          {/* Clock-rotate icon (snapshot history) */}
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="size-3.5 text-allowed">
+            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+            <path d="M3 3v5h5" />
+            <path d="M12 7v5l4 2" />
+          </svg>
         </div>
       );
     }
 
     if (snap) {
       return (
-        <div className="flex items-center justify-center size-7 rounded-full bg-content/5 cursor-pointer hover:bg-content/10 transition" title={`Last sync: ${timeAgo(snap.synced_at)} — click for history`}>
-          <CloudIcon className="size-3.5 text-content/25" />
+        <div className="flex items-center justify-center size-7 rounded-full bg-sky-400/10 ring-2 ring-sky-400/20 cursor-pointer hover:ring-sky-400/40 transition" title={`Last sync: ${timeAgo(snap.synced_at)} — click for history`}>
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="size-3.5 text-sky-400">
+            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+            <path d="M3 3v5h5" />
+            <path d="M12 7v5l4 2" />
+          </svg>
         </div>
       );
     }
 
     return (
-      <div className="flex items-center justify-center size-7 rounded-full bg-content/5" title="Not synced to cloud">
+      <div className="flex items-center justify-center size-7 rounded-full bg-content/5" title="Not synced">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="size-3.5 text-content/20">
-          <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z" />
-          <path d="M12 13v5" /><path d="m9 18 3 3 3-3" />
+          <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+          <path d="M3 3v5h5" />
+          <path d="M12 7v5l4 2" />
         </svg>
       </div>
     );
@@ -642,6 +657,23 @@ function VenvCard({ venv, onDelete, snapshots, syncingVenvId, syncProgress }: {
   const [showSnapshots, setShowSnapshots] = useState(false);
   const [cloneName, setCloneName] = useState('');
   const [busy, setBusy] = useState(false);
+  const [connectionMode, setConnectionMode] = useState<string>('local');
+
+  // Poll connection mode to block local use while remote.
+  useEffect(() => {
+    let alive = true;
+    const poll = async () => {
+      try {
+        const status = await getVenvConnection(venv.id);
+        if (alive) setConnectionMode(status.mode.type);
+      } catch { /* swallow */ }
+    };
+    poll();
+    const id = setInterval(poll, 3000);
+    return () => { alive = false; clearInterval(id); };
+  }, [venv.id]);
+
+  const isRemote = connectionMode === 'remote' || connectionMode === 'detaching' || connectionMode === 'reattaching';
 
   const handleClone = useCallback(async () => {
     if (!cloneName.trim() || busy) return;
@@ -681,10 +713,14 @@ function VenvCard({ venv, onDelete, snapshots, syncingVenvId, syncProgress }: {
   }, [venv.id]);
 
   const handleOpen = useCallback(() => {
+    if (isRemote) {
+      showToast('Bring this environment back to local first', 'error', 3000);
+      return;
+    }
     openVenv(venv.id);
     startVenvAction(venv.id);
     setView('terminal');
-  }, [venv.id, setView]);
+  }, [venv.id, setView, isRemote]);
 
   const handleConfirmStop = useCallback(() => {
     stopVenvAction(venv.id);
@@ -696,15 +732,27 @@ function VenvCard({ venv, onDelete, snapshots, syncingVenvId, syncProgress }: {
   return (
     <>
       <div
-        className={`group relative glass border rounded-xl p-4 transition-all cursor-pointer ${
-          isRunning ? 'border-allowed/30 hover:border-allowed/50' : 'border-edge hover:border-interactive/30'
+        className={`group relative glass border rounded-xl p-4 transition-all ${
+          isRemote ? 'border-sky-400/30 cursor-default' : isRunning ? 'border-allowed/30 hover:border-allowed/50 cursor-pointer' : 'border-edge hover:border-interactive/30 cursor-pointer'
         }`}
         onClick={handleOpen}
         onMouseLeave={() => setShowMenu(false)}
       >
         {/* Actions (top-right) */}
         <div className="absolute top-3 right-3 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
-          {isRunning ? (
+          {isRemote ? (
+            <button
+              className="p-1.5 rounded-md hover:bg-sky-400/15 text-sky-400/60 hover:text-sky-400 transition-colors"
+              onClick={(e) => { e.stopPropagation(); openRemoteTerminal(venv.id, venv.name).catch(() => {}); }}
+              title="Open SSH terminal"
+              aria-label={`SSH into ${venv.name}`}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="size-3.5">
+                <polyline points="4 17 10 11 4 5" />
+                <line x1="12" y1="19" x2="20" y2="19" />
+              </svg>
+            </button>
+          ) : isRunning ? (
             <button
               className="p-1.5 rounded-md hover:bg-denied/10 text-content/40 hover:text-denied transition-colors"
               onClick={(e) => { e.stopPropagation(); setShowStopDialog(true); }}
@@ -777,13 +825,20 @@ function VenvCard({ venv, onDelete, snapshots, syncingVenvId, syncProgress }: {
           <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${venv.ephemeral ? 'bg-caution/10 text-caution' : 'bg-allowed/10 text-allowed'}`}>
             {venv.ephemeral ? 'ephemeral' : 'persistent'}
           </span>
+          <RemoteVenvBadge venvId={venv.id} />
         </div>
+
+        {/* Current remote-mode step (above footer line) */}
+        <RemoteStepLabel venvId={venv.id} />
 
         {/* Footer: live metrics for running, static info for stopped */}
         {isRunning ? (
           <div className="flex items-center justify-between pt-2 border-t border-edge/30">
             <VenvMetrics venvId={venv.id} />
-            <SyncBadge venvId={venv.id} venvName={venv.name} snapshots={snapshots} syncingVenvId={syncingVenvId} syncProgress={syncProgress} onShowHistory={() => setShowSnapshots(true)} />
+            <div className="flex items-center gap-2">
+              <RemoteVenvControls venv={venv} onChanged={() => loadVenvs()} compact />
+              <SyncBadge venvId={venv.id} venvName={venv.name} snapshots={snapshots} syncingVenvId={syncingVenvId} syncProgress={syncProgress} onShowHistory={() => setShowSnapshots(true)} />
+            </div>
           </div>
         ) : (
           <div className="flex items-center justify-between text-[11px] text-content/30 pt-2 border-t border-edge/30">
@@ -794,6 +849,7 @@ function VenvCard({ venv, onDelete, snapshots, syncingVenvId, syncProgress }: {
                   {venv.disk_used_bytes ? formatDiskSize(venv.disk_used_bytes) : '0 B'} / {formatDiskSize(venv.disk_allocated_bytes)}
                 </span>
               )}
+              <RemoteVenvControls venv={venv} onChanged={() => loadVenvs()} compact />
               <SyncBadge venvId={venv.id} venvName={venv.name} snapshots={snapshots} syncingVenvId={syncingVenvId} syncProgress={syncProgress} onShowHistory={() => setShowSnapshots(true)} />
             </div>
           </div>

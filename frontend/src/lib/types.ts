@@ -189,6 +189,60 @@ export interface VenvInfo {
   disk_allocated_bytes?: number;
 }
 
+/** Per-session metadata for a venv running on a Hetzner VPS. */
+export interface RemoteVenvInfo {
+  session_id: string;
+  vps_ip: string;
+  ssh_fingerprint: string;
+  ssh_key_path: string;
+  detached_at: string;
+}
+
+/**
+ * Connection mode for a venv. Mirrors the Rust enum (internally tagged on `type`).
+ * Local is the default; Remote variants carry the VPS details for SSH.
+ */
+export type ConnectionMode =
+  | { type: 'local' }
+  | { type: 'detaching' }
+  | ({ type: 'remote' } & RemoteVenvInfo)
+  | ({ type: 'reattaching' } & RemoteVenvInfo);
+
+/** Connection status for a single venv (returned by get_venv_connection / list_venv_connections). */
+export interface VenvConnectionStatus {
+  venv_id: string;
+  mode: ConnectionMode;
+}
+
+/** Cloud session record returned by the cloud API. */
+export interface RemoteSession {
+  id: string;
+  venv_name: string;
+  state: 'provisioning' | 'ready' | 'destroying' | 'gone';
+  vps_ip: string | null;
+  ssh_fingerprint: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+/** Response from the desktop's `create_remote_session` IPC. The private key
+ * is minted locally on the desktop and never travels over the network. */
+export interface CreateRemoteSessionResponse {
+  session: RemoteSession;
+}
+
+/** Progress event emitted during detach/reattach operations. */
+export interface RemoteModeProgress {
+  venv_id: string;
+  operation: 'detach' | 'reattach';
+  step: string;
+  step_label: string;
+  step_index: number;
+  total_steps: number;
+  done: boolean;
+  error: string | null;
+}
+
 /** Sidebar view names. */
 export type ViewName = 'home' | 'storage' | 'cloud' | 'terminal' | 'ports' | 'browser' | 'files' | 'logs' | 'stats' | 'vpn' | 'settings';
 
